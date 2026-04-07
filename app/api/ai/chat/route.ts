@@ -141,7 +141,9 @@ async function handleGemini(messages: IncomingMessage[], model: string, systemPr
 
     if (msg.attachments) {
       for (const att of msg.attachments) {
+        if (!att.dataUrl) continue; // skip stripped attachments
         const base64 = att.dataUrl.split(',')[1];
+        if (!base64) continue;
         parts.push({ inline_data: { mime_type: att.mimeType, data: base64 } });
       }
     }

@@ -89,13 +89,12 @@ export default function AIPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeThread?.messages, loading]);
 
-  const saveThreads = (t: Thread[]) => {
-    setThreads(t);
+  const persistThreads = (t: Thread[]) => {
     // Strip attachment dataUrls (base64) before persisting — they blow the localStorage quota
     const stripped = t.map(thread => ({
       ...thread,
       messages: thread.messages.map(msg =>
-        msg.attachments
+        msg.attachments?.length
           ? { ...msg, attachments: msg.attachments.map(att => ({ ...att, dataUrl: '' })) }
           : msg
       ),
@@ -103,11 +102,15 @@ export default function AIPage() {
     try {
       localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripped));
     } catch {
-      // If still too large, save without messages
       try {
         localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripped.map(th => ({ ...th, messages: [] }))));
       } catch { /* give up */ }
     }
+  };
+
+  const saveThreads = (t: Thread[]) => {
+    setThreads(t);
+    persistThreads(t);
   };
 
   const selectModel = (id: string, prov: string) => {
@@ -274,7 +277,22 @@ export default function AIPage() {
             const msgs = [...newMessages, { role: 'assistant' as const, content: assistantText }];
             return { ...t, messages: msgs };
           });
-          localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(updated));
+          // Strip attachment dataUrls before persisting to avoid quota errors
+          const stripped = updated.map(t => ({
+            ...t,
+            messages: t.messages.map(msg =>
+              msg.attachments
+                ? { ...msg, attachments: msg.attachments.map(att => ({ ...att, dataUrl: '' })) }
+                : msg
+            ),
+          }));
+          try {
+            localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripped));
+          } catch {
+            try {
+              localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripped.map(th => ({ ...th, messages: [] }))));
+            } catch { /* give up */ }
+          }
           return updated;
         });
       }

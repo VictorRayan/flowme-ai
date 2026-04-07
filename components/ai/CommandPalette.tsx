@@ -56,7 +56,11 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
     setLoading(true);
     try {
       const res = await fetch('/api/notes/search?q=' + encodeURIComponent(q));
-      if (res.ok) setNotes(await res.json());
+      const data = await res.json();
+      if (res.ok) setNotes(Array.isArray(data) ? data : []);
+      else console.error('[CommandPalette] notes search error:', data);
+    } catch (e) {
+      console.error('[CommandPalette] notes fetch failed:', e);
     } finally { setLoading(false); }
   }, []);
 

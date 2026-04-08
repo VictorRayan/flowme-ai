@@ -403,7 +403,7 @@ export default function AIPage() {
                   {msg.role === 'user' ? <PersonIcon sx={{ fontSize: 15 }} /> : <SmartToyIcon sx={{ fontSize: 15, color: 'text.secondary' }} />}
                 </Avatar>
                 <Box sx={{ maxWidth: '75%', display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  {msg.attachments?.map((att, ai) => (
+                  {msg.attachments?.filter(att => att.dataUrl).map((att, ai) => (
                     <Box key={ai}>
                       {att.type === 'image' && <Box component="img" src={att.dataUrl} alt={att.name} sx={{ maxWidth: 240, maxHeight: 180, borderRadius: 2 }} />}
                       {att.type === 'audio' && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}

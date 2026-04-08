@@ -6,12 +6,13 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Mention from '@tiptap/extension-mention';
+import Image from '@tiptap/extension-image';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
 import {
   Box, TextField, Typography, Chip, Stack, IconButton, Tooltip,
-  ToggleButton, ToggleButtonGroup, Divider, CircularProgress, Select,
-  MenuItem, FormControl, InputLabel, Button, Menu
+  ToggleButton, ToggleButtonGroup, Divider, CircularProgress,
+  Button, Menu, MenuItem, Alert
 } from '@mui/material';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
@@ -22,6 +23,12 @@ import CodeIcon from '@mui/icons-material/Code';
 import EventIcon from '@mui/icons-material/Event';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import MicIcon from '@mui/icons-material/Mic';
+import StopIcon from '@mui/icons-material/Stop';
+import ImageIcon from '@mui/icons-material/Image';
+import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
+import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
+import FormatAlignRightIcon from '@mui/icons-material/FormatAlignRight';
 import MentionList from './MentionList';
 
 interface Person {
@@ -50,6 +57,17 @@ interface NoteEditorProps {
   saving?: boolean;
 }
 
+// Extend Image node to support alignment attribute
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      align: { default: null, renderHTML: attrs => attrs.align ? { 'data-align': attrs.align } : {} },
+      width: { default: null, renderHTML: attrs => attrs.width ? { width: attrs.width } : {} },
+    };
+  },
+});
+
 export default function NoteEditor({ note, onSave, onRename, onDelete, saving }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [mentionedPeople, setMentionedPeople] = useState<Person[]>([]);
@@ -59,6 +77,14 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
   const renameTitleRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<ReturnType<typeof useEditor> | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Audio recording state
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const fetchSuggestions = useCallback(async (query: string): Promise<Person[]> => {
     const res = await fetch(`/api/people?q=${encodeURIComponent(query)}`);
@@ -71,6 +97,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
     extensions: [
       StarterKit,
       Underline,
+      ResizableImage.configure({ allowBase64: true, inline: false }),
       Placeholder.configure({ placeholder: note?.note_type === 'person' ? 'Write anything about this person...' : 'Start writing your note...' }),
       Mention.configure({
         HTMLAttributes: { class: 'mention' },
@@ -99,7 +126,6 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
               },
               onKeyDown: (props) => {
                 if (props.event.key === 'Escape') { popup[0].hide(); return true; }
-                // component.ref may be null when MentionList renders null (no items)
                 const ref = component.ref as { onKeyDown?: (p: typeof props) => boolean } | null;
                 return ref?.onKeyDown?.(props) ?? false;
               },
@@ -109,9 +135,27 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
         },
       }),
     ],
+    editorProps: {
+      handlePaste(view, event) {
+        const items = Array.from(event.clipboardData?.items || []);
+        const imageItem = items.find(i => i.type.startsWith('image/'));
+        if (!imageItem) return false;
+        const file = imageItem.getAsFile();
+        if (!file) return false;
+        const reader = new FileReader();
+        reader.onload = () => {
+          view.dispatch(
+            view.state.tr.replaceSelectionWith(
+              view.state.schema.nodes.image.create({ src: reader.result as string })
+            )
+          );
+        };
+        reader.readAsDataURL(file);
+        return true;
+      },
+    },
     content: note?.content || '',
     onUpdate: ({ editor }) => {
-      // Track @mentions from editor content
       const mentions: Person[] = [];
       editor.state.doc.descendants((node) => {
         if (node.type.name === 'mention') {
@@ -121,35 +165,26 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
       });
       setMentionedPeople(mentions);
 
-      // Auto-save after 1s of inactivity
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => triggerSave(editor.getJSON(), editor.getText(), mentions), 1000);
     },
   });
 
   const triggerSave = useCallback((content: object, contentText: string, people: Person[]) => {
-    onSave({
-      title,
-      content,
-      content_text: contentText,
-      mention_ids: people.map(p => p.id),
-    });
+    onSave({ title, content, content_text: contentText, mention_ids: people.map(p => p.id) });
   }, [title, onSave]);
 
-  // Keep stable ref so the effect below doesn't need editor as a dependency
   useEffect(() => { editorRef.current = editor; }, [editor]);
 
-  // Load note into editor when note id changes
   useEffect(() => {
     const ed = editorRef.current;
     if (!ed) return;
     if (!note) { setTitle(''); ed.commands.clearContent(); return; }
     setTitle(note.title);
     ed.commands.setContent(note.content || '');
-    setMentionedPeople(
-      note.note_mentions?.map(m => ({ id: m.person_id, name: m.people.name })) || []
-    );
+    setMentionedPeople(note.note_mentions?.map(m => ({ id: m.person_id, name: m.people.name })) || []);
     setRenamingTitle(false);
+    setTranscribeError(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id]);
 
@@ -165,6 +200,83 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
     if (editor) triggerSave(editor.getJSON(), editor.getText(), mentionedPeople);
   };
 
+  // ── Audio recording ─────────────────────────────────────────────────────────
+
+  const startRecording = async () => {
+    setTranscribeError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(blob);
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch {
+      setTranscribeError('Microphone access denied');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+  };
+
+  const transcribeAudio = async (blob: Blob) => {
+    setTranscribing(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', blob, `recording-${Date.now()}.webm`);
+      const res = await fetch('/api/notes/transcribe', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Transcription failed');
+      const ed = editorRef.current;
+      if (ed && data.html) {
+        ed.commands.setContent(data.html);
+        // Trigger save with the new content
+        const mentions: Person[] = [];
+        ed.state.doc.descendants(node => {
+          if (node.type.name === 'mention') {
+            const p = { id: node.attrs.id, name: node.attrs.label };
+            if (!mentions.find(m => m.id === p.id)) mentions.push(p);
+          }
+        });
+        triggerSave(ed.getJSON(), ed.getText(), mentions);
+      }
+    } catch (err: unknown) {
+      setTranscribeError(err instanceof Error ? err.message : 'Transcription failed');
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  // ── Image insert ─────────────────────────────────────────────────────────────
+
+  const insertImageFromFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      editor?.chain().focus().setImage({ src: reader.result as string }).run();
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    Array.from(e.target.files || []).forEach(insertImageFromFile);
+    e.target.value = '';
+  };
+
+  const setImageAlign = (align: 'left' | 'center' | 'right') => {
+    editor?.chain().focus().updateAttributes('image', { 'data-align': align }).run();
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   if (!note) {
     return (
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>
@@ -173,12 +285,15 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
     );
   }
 
+  const isBriefing = note.note_type === 'daily_briefing';
+  const imageActive = editor?.isActive('image');
+
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Toolbar */}
-      <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        {/* Format buttons */}
-        <ToggleButtonGroup size="small" sx={{ mr: 1 }}>
+      <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+        {/* Text format */}
+        <ToggleButtonGroup size="small" sx={{ mr: 0.5 }}>
           <ToggleButton value="bold" selected={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()}>
             <FormatBoldIcon fontSize="small" />
           </ToggleButton>
@@ -190,7 +305,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           </ToggleButton>
         </ToggleButtonGroup>
 
-        <ToggleButtonGroup size="small" sx={{ mr: 1 }}>
+        <ToggleButtonGroup size="small" sx={{ mr: 0.5 }}>
           <ToggleButton value="bullet" selected={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()}>
             <FormatListBulletedIcon fontSize="small" />
           </ToggleButton>
@@ -202,9 +317,60 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           </ToggleButton>
         </ToggleButtonGroup>
 
+        {/* Image align — shown when image is selected */}
+        {imageActive && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <ToggleButtonGroup size="small" sx={{ mr: 0.5 }}>
+              <ToggleButton value="left" onClick={() => setImageAlign('left')} title="Align left">
+                <FormatAlignLeftIcon fontSize="small" />
+              </ToggleButton>
+              <ToggleButton value="center" onClick={() => setImageAlign('center')} title="Center">
+                <FormatAlignCenterIcon fontSize="small" />
+              </ToggleButton>
+              <ToggleButton value="right" onClick={() => setImageAlign('right')} title="Align right">
+                <FormatAlignRightIcon fontSize="small" />
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </>
+        )}
+
+        {/* Insert image */}
+        <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={handleImageFileChange} />
+        <Tooltip title="Insert image">
+          <IconButton size="small" onClick={() => imageInputRef.current?.click()}>
+            <ImageIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+
         <Box sx={{ flex: 1 }} />
 
-        {/* Delete button */}
+        {/* Daily Briefing: mic / stop / transcribing */}
+        {isBriefing && (
+          <>
+            {transcribing ? (
+              <Tooltip title="Transcribing...">
+                <span>
+                  <CircularProgress size={18} sx={{ mx: 1 }} />
+                </span>
+              </Tooltip>
+            ) : (
+              <Tooltip title={recording ? 'Stop recording' : 'Record voice note (transcribed by Whisper)'}>
+                <IconButton
+                  size="small"
+                  onClick={recording ? stopRecording : startRecording}
+                  sx={{ color: recording ? 'error.main' : 'text.secondary', mr: 0.5 }}
+                >
+                  {recording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            )}
+            {recording && <Chip label="Recording..." color="error" size="small" sx={{ mr: 1 }} />}
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+          </>
+        )}
+
+        {/* Delete */}
         {onDelete && (
           <Tooltip title="Delete">
             <IconButton size="small" onClick={onDelete} sx={{ color: 'error.main', mr: 0.5 }}>
@@ -213,7 +379,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           </Tooltip>
         )}
 
-        {/* Save indicator */}
+        {/* Save */}
         {saving ? (
           <CircularProgress size={16} />
         ) : (
@@ -224,6 +390,13 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           </Tooltip>
         )}
       </Box>
+
+      {/* Transcribe error */}
+      {transcribeError && (
+        <Alert severity="error" onClose={() => setTranscribeError(null)} sx={{ mx: 2, mt: 1 }}>
+          {transcribeError}
+        </Alert>
+      )}
 
       {/* Note metadata */}
       <Box sx={{ px: 3, pt: 2, pb: 1 }}>
@@ -264,7 +437,6 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
               </Typography>
             )}
             <Chip size="small" label="Profile" color="secondary" variant="outlined" sx={{ ml: 1 }} />
-            {/* Right-click context menu */}
             <Menu
               open={Boolean(contextMenu)}
               onClose={() => setContextMenu(null)}
@@ -288,22 +460,15 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           />
         )}
 
-        {/* Meta: date, event, type — hidden for person profiles */}
+        {/* Meta chips */}
         {note.note_type !== 'person' && (
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
-            {note.note_date && (
-              <Chip size="small" label={note.note_date} variant="outlined" />
-            )}
-            {note.event_title && (
-              <Chip size="small" icon={<EventIcon />} label={note.event_title} color="info" variant="outlined" />
-            )}
-            {note.note_type === 'daily_briefing' && (
-              <Chip size="small" label="Daily Briefing" color="warning" variant="outlined" />
-            )}
+            {note.note_date && <Chip size="small" label={note.note_date} variant="outlined" />}
+            {note.event_title && <Chip size="small" icon={<EventIcon />} label={note.event_title} color="info" variant="outlined" />}
+            {isBriefing && <Chip size="small" label="Daily Briefing" color="warning" variant="outlined" icon={<MicIcon sx={{ fontSize: 14 }} />} />}
           </Stack>
         )}
 
-        {/* Mentioned people */}
         {mentionedPeople.length > 0 && (
           <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mb: 1 }}>
             {mentionedPeople.map(p => (
@@ -361,6 +526,23 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
             borderRadius: 1,
             px: 0.5,
             fontWeight: 600,
+          },
+          // Images
+          '& img': {
+            maxWidth: '100%',
+            height: 'auto',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'block',
+            margin: '8px 0',
+            '&[data-align="left"]': { float: 'left', marginRight: '16px', marginBottom: '8px' },
+            '&[data-align="right"]': { float: 'right', marginLeft: '16px', marginBottom: '8px' },
+            '&[data-align="center"]': { marginLeft: 'auto', marginRight: 'auto' },
+          },
+          '& img.ProseMirror-selectednode': {
+            outline: '2px solid',
+            outlineColor: '#1976d2',
+            borderRadius: '6px',
           },
         }
       }}>

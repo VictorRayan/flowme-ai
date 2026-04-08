@@ -116,12 +116,12 @@ export default function NotesPage() {
     await fetchNotes();
   };
 
-  const handleNewNote = async (opts?: { date?: string; note_type?: string }) => {
+  const handleNewNote = async (opts?: { date?: string; note_type?: string; title?: string }) => {
     const res = await fetch('/api/notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'Untitled',
+        title: opts?.title || 'Untitled',
         note_date: opts?.date || dayjs().format('YYYY-MM-DD'),
         note_type: opts?.note_type || 'manual',
       }),
@@ -133,6 +133,17 @@ export default function NotesPage() {
       await fetchPeople();
       await handleSelectNote(id);
     }
+  };
+
+  const handleNewDailyBriefing = async () => {
+    const today = dayjs().format('YYYY-MM-DD');
+    const existing = notes.find(n => n.note_type === 'daily_briefing' && n.note_date === today);
+    if (existing) { await handleSelectNote(existing.id); return; }
+    await handleNewNote({
+      date: today,
+      note_type: 'daily_briefing',
+      title: `Daily Briefing — ${dayjs().format('MMM D, YYYY')}`,
+    });
   };
 
   const handleSave = useCallback(async (data: Parameters<typeof NoteEditor>[0]['onSave'] extends (d: infer D) => unknown ? D : never) => {
@@ -173,6 +184,7 @@ export default function NotesPage() {
           onDeleteNote={(id, name) => setDeleteTarget({ kind: 'note', id, name })}
           onDeletePerson={(id, name) => setDeleteTarget({ kind: 'person', id, name })}
           onNewNote={handleNewNote}
+          onNewDailyBriefing={handleNewDailyBriefing}
         />
       </Box>
 

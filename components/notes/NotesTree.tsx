@@ -44,7 +44,8 @@ interface NotesTreeProps {
   onRenamePerson: (personId: string, newName: string) => Promise<void>;
   onDeleteNote: (id: string, name: string) => void;
   onDeletePerson: (id: string, name: string) => void;
-  onNewNote: (opts?: { date?: string; note_type?: string }) => void;
+  onNewNote: (opts?: { date?: string; note_type?: string; title?: string }) => void;
+  onNewDailyBriefing: () => void;
 }
 
 function groupByDateHierarchy(notes: NoteItem[]) {
@@ -66,10 +67,11 @@ function groupByDateHierarchy(notes: NoteItem[]) {
   return byYear;
 }
 
-export default function NotesTree({ notes, people, selectedId, selectedPersonId, onSelect, onSelectPerson, onOpenPersonNote, onAddPerson, onRenamePerson, onDeleteNote, onDeletePerson, onNewNote }: NotesTreeProps) {
+export default function NotesTree({ notes, people, selectedId, selectedPersonId, onSelect, onSelectPerson, onOpenPersonNote, onAddPerson, onRenamePerson, onDeleteNote, onDeletePerson, onNewNote, onNewDailyBriefing }: NotesTreeProps) {
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const [showBriefings, setShowBriefings] = useState(true);
   const [showPeople, setShowPeople] = useState(true);
   const [addingPerson, setAddingPerson] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
@@ -80,7 +82,11 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
   const newPersonInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const byYear = groupByDateHierarchy(notes);
+  const today = dayjs().format('YYYY-MM-DD');
+  const briefingNotes = notes.filter(n => n.note_type === 'daily_briefing').sort((a, b) => (b.note_date || '').localeCompare(a.note_date || ''));
+  const todaysBriefing = briefingNotes.find(n => n.note_date === today);
+  const pastBriefings = briefingNotes.filter(n => n.note_date !== today);
+  const byYear = groupByDateHierarchy(notes.filter(n => n.note_type !== 'daily_briefing'));
 
   const toggle = (setter: React.Dispatch<React.SetStateAction<Record<string, boolean>>>, key: string) => {
     setter(prev => ({ ...prev, [key]: !prev[key] }));
@@ -112,6 +118,74 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
       <Divider />
 
       <List dense disablePadding>
+        {/* ── Daily Briefing section ── */}
+        <ListItemButton onClick={() => setShowBriefings(p => !p)} sx={{ pl: 1 }}>
+          <ListItemIcon sx={{ minWidth: 24 }}>
+            {showBriefings ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+          </ListItemIcon>
+          <WbSunnyIcon fontSize="small" sx={{ color: 'warning.main', mr: 1 }} />
+          <ListItemText primary={<Typography variant="body2" fontWeight="bold">Daily Briefing</Typography>} />
+          {briefingNotes.length > 0 && <Chip label={briefingNotes.length} size="small" sx={{ height: 16, fontSize: 10, mr: 0.5 }} />}
+          <Tooltip title="New briefing for today">
+            <IconButton size="small" onClick={e => { e.stopPropagation(); onNewDailyBriefing(); }}>
+              <AddIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </ListItemButton>
+
+        <Collapse in={showBriefings} unmountOnExit>
+          {/* Today's briefing or create prompt */}
+          <Box sx={{ pl: 3, pr: 1, py: 0.25 }}>
+            <Typography variant="caption" color="text.disabled" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>Today</Typography>
+          </Box>
+          {todaysBriefing ? (
+            <ListItemButton
+              selected={selectedId === todaysBriefing.id}
+              onClick={() => onSelect(todaysBriefing.id)}
+              onContextMenu={e => { e.preventDefault(); setNoteContextMenu({ mouseX: e.clientX, mouseY: e.clientY, noteId: todaysBriefing.id, noteTitle: todaysBriefing.title }); }}
+              sx={{ pl: 4 }}
+            >
+              <ListItemIcon sx={{ minWidth: 24 }}>
+                <WbSunnyIcon fontSize="small" sx={{ color: 'warning.main' }} />
+              </ListItemIcon>
+              <ListItemText primary={<Typography variant="body2" noWrap sx={{ maxWidth: 130 }}>{todaysBriefing.title}</Typography>} />
+            </ListItemButton>
+          ) : (
+            <ListItemButton onClick={onNewDailyBriefing} sx={{ pl: 4 }}>
+              <ListItemIcon sx={{ minWidth: 24 }}>
+                <AddIcon fontSize="small" sx={{ color: 'text.disabled' }} />
+              </ListItemIcon>
+              <ListItemText primary={<Typography variant="body2" color="text.disabled">Create today's briefing</Typography>} />
+            </ListItemButton>
+          )}
+
+          {/* Past briefings */}
+          {pastBriefings.length > 0 && (
+            <Box sx={{ pl: 3, pr: 1, pt: 0.5, pb: 0.25 }}>
+              <Typography variant="caption" color="text.disabled" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>Past</Typography>
+            </Box>
+          )}
+          {pastBriefings.map(note => (
+            <ListItemButton
+              key={note.id}
+              selected={selectedId === note.id}
+              onClick={() => onSelect(note.id)}
+              onContextMenu={e => { e.preventDefault(); setNoteContextMenu({ mouseX: e.clientX, mouseY: e.clientY, noteId: note.id, noteTitle: note.title }); }}
+              sx={{ pl: 4 }}
+            >
+              <ListItemIcon sx={{ minWidth: 24 }}>
+                <WbSunnyIcon fontSize="small" sx={{ color: 'warning.light' }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={<Typography variant="body2" noWrap sx={{ maxWidth: 110 }}>{note.title}</Typography>}
+                secondary={note.note_date ? <Typography variant="caption" color="text.disabled">{dayjs(note.note_date).format('MMM D, YYYY')}</Typography> : undefined}
+              />
+            </ListItemButton>
+          ))}
+        </Collapse>
+
+        <Divider sx={{ my: 1 }} />
+
         {/* Date hierarchy */}
         {Object.keys(byYear).sort((a, b) => b.localeCompare(a)).map(year => (
           <React.Fragment key={year}>

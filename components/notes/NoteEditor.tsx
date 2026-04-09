@@ -271,17 +271,28 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
   const transcribeAudio = async (blob: Blob) => {
     setTranscribing(true);
     try {
+      const ed = editorRef.current;
+      const existingText = ed?.getText()?.trim() || '';
+
       const formData = new FormData();
       formData.append('audio', blob, `recording-${Date.now()}.webm`);
       formData.append('provider', selectedOption.provider);
       formData.append('model', selectedOption.model);
+      if (existingText) formData.append('existingContent', existingText);
+
       const res = await fetch('/api/notes/transcribe', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Transcription failed');
-      const ed = editorRef.current;
+
       if (ed && data.html) {
-        ed.commands.setContent(data.html);
-        // Trigger save with the new content
+        if (existingText) {
+          // Append to end of existing content
+          ed.commands.focus('end');
+          ed.commands.insertContentAt(ed.state.doc.content.size, data.html);
+        } else {
+          // First recording — replace empty content
+          ed.commands.setContent(data.html);
+        }
         const mentions: Person[] = [];
         ed.state.doc.descendants(node => {
           if (node.type.name === 'mention') {

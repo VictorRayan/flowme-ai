@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Button, Paper, List, ListItem, ListItemText, IconButton, Switch, Divider, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Box, Typography, Button, Paper, List, ListItem, ListItemText, IconButton, Switch, Divider, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel, Stack } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import LinkIcon from '@mui/icons-material/Link';
@@ -29,6 +29,11 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [spendCurrency, setSpendCurrency] = useState<'USD' | 'BRL'>('USD');
+  const [spendDays, setSpendDays] = useState(30);
+  const [spendLoading, setSpendLoading] = useState(false);
+  const [spendError, setSpendError] = useState<string | null>(null);
+  const [spendData, setSpendData] = useState<any | null>(null);
   const searchParams = useSearchParams();
 
   // Check for OAuth callback results in URL params
@@ -59,6 +64,13 @@ export default function SettingsPage() {
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  const formatMoney = useCallback((usd: number, fx: number) => {
+    if (spendCurrency === 'BRL') {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((usd || 0) * fx);
+    }
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(usd || 0);
+  }, [spendCurrency]);
+
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
     try {
@@ -74,11 +86,31 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const fetchSpend = useCallback(async () => {
+    setSpendLoading(true);
+    setSpendError(null);
+    try {
+      const res = await fetch(`/api/ai/spend?days=${spendDays}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load AI spend');
+      setSpendData(data);
+    } catch (err: any) {
+      setSpendError(err.message || 'Failed to load AI spend');
+    } finally {
+      setSpendLoading(false);
+    }
+  }, [spendDays]);
+
   useEffect(() => {
     fetchAccounts();
     setAiLanguage(localStorage.getItem('balysai_language') || 'en');
     setUiLanguage(localStorage.getItem('ui_language') || 'en');
+    setSpendCurrency((localStorage.getItem('spend_currency') as 'USD' | 'BRL') || 'USD');
   }, [fetchAccounts]);
+
+  useEffect(() => {
+    fetchSpend();
+  }, [fetchSpend]);
 
   const handleToggleActive = async (id: string, currentActive: boolean) => {
     try {
@@ -224,6 +256,131 @@ export default function SettingsPage() {
               </React.Fragment>
             ))}
           </List>
+        )}
+      </Paper>
+
+      {/* AI Spend */}
+      <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography variant="h6" fontWeight="bold">AI Spend & Tokens</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Usage for your Flow Me account, grouped by model and linked Google account
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1.5}>
+            <FormControl size="small" sx={{ minWidth: 110 }}>
+              <InputLabel>Currency</InputLabel>
+              <Select
+                value={spendCurrency}
+                label="Currency"
+                onChange={e => {
+                  const value = e.target.value as 'USD' | 'BRL';
+                  setSpendCurrency(value);
+                  localStorage.setItem('spend_currency', value);
+                }}
+              >
+                <MenuItem value="USD">USD</MenuItem>
+                <MenuItem value="BRL">BRL</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 110 }}>
+              <InputLabel>Window</InputLabel>
+              <Select
+                value={String(spendDays)}
+                label="Window"
+                onChange={e => setSpendDays(Number(e.target.value))}
+              >
+                <MenuItem value="7">7 days</MenuItem>
+                <MenuItem value="30">30 days</MenuItem>
+                <MenuItem value="90">90 days</MenuItem>
+              </Select>
+            </FormControl>
+            <Button variant="outlined" onClick={fetchSpend}>Refresh</Button>
+          </Stack>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        {spendError && <Alert severity="error" sx={{ mb: 2 }}>{spendError}</Alert>}
+
+        {spendLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : (
+          <Box>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Total cost</Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {formatMoney(spendData?.total?.cost_usd || 0, spendData?.fx_usd_brl || 5)}
+                </Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 2, flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Total tokens</Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {Number(spendData?.total?.total_tokens || 0).toLocaleString()}
+                </Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 2, flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Requests</Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {Number(spendData?.rows_count || 0).toLocaleString()}
+                </Typography>
+              </Paper>
+            </Stack>
+
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>By model</Typography>
+            {spendData?.by_model?.length ? (
+              <List sx={{ p: 0 }}>
+                {spendData.by_model.map((row: any, idx: number) => (
+                  <React.Fragment key={`${row.provider}:${row.model}`}>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography fontWeight={600}>{row.model}</Typography>
+                            <Chip size="small" label={row.provider} color={row.provider === 'gemini' ? 'success' : 'primary'} />
+                            <Chip size="small" label={`${Number(row.total_tokens || 0).toLocaleString()} tokens`} variant="outlined" />
+                          </Box>
+                        }
+                        secondary={`${row.requests} requests`}
+                      />
+                      <Typography fontWeight={700}>
+                        {formatMoney(row.cost_usd || 0, spendData?.fx_usd_brl || 5)}
+                      </Typography>
+                    </ListItem>
+                    {idx < spendData.by_model.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </List>
+            ) : (
+              <Typography color="text.secondary">No usage yet for selected window.</Typography>
+            )}
+
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 3, mb: 1 }}>By Google account</Typography>
+            {spendData?.by_account?.length ? (
+              <List sx={{ p: 0 }}>
+                {spendData.by_account.map((row: any, idx: number) => (
+                  <React.Fragment key={row.linked_account_id || 'unlinked'}>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText
+                        primary={<Typography fontWeight={600}>{row.account_name}</Typography>}
+                        secondary={`${row.requests} requests • ${Number(row.total_tokens || 0).toLocaleString()} tokens`}
+                      />
+                      <Typography fontWeight={700}>
+                        {formatMoney(row.cost_usd || 0, spendData?.fx_usd_brl || 5)}
+                      </Typography>
+                    </ListItem>
+                    {idx < spendData.by_account.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </List>
+            ) : (
+              <Typography color="text.secondary">No account-level usage yet.</Typography>
+            )}
+          </Box>
         )}
       </Paper>
 

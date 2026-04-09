@@ -1,8 +1,6 @@
-import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { CalendarEvent } from './types';
-import EventIcon from '@mui/icons-material/Event';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import dayjs from 'dayjs';
 
 interface EventChipProps {
   event: CalendarEvent;
@@ -14,19 +12,31 @@ export default function EventChip({ event, onClick, draggable }: EventChipProps)
   const isMicro = event.source === 'microactivity';
   const isWork = event.account_type === 'work';
 
-  // Determine colors based on type
-  let bgcolor = 'primary.main';
-  let color = 'primary.contrastText';
-  let borderColor = 'transparent';
+  // Color system — high contrast on dark bg
+  let bg: string;
+  let fg: string;
+  let accentBar: string;
+  let border: string;
 
   if (isMicro) {
-    bgcolor = 'transparent';
-    color = 'text.primary';
-    borderColor = 'grey.300';
+    bg = 'rgba(52,211,153,0.1)';
+    fg = '#6ee7b7';
+    accentBar = '#34d399';
+    border = 'rgba(52,211,153,0.3)';
   } else if (isWork) {
-    bgcolor = 'secondary.main';
-    color = 'secondary.contrastText';
+    bg = 'rgba(139,92,246,0.18)';
+    fg = '#c4b5fd';
+    accentBar = '#8b5cf6';
+    border = 'rgba(139,92,246,0.35)';
+  } else {
+    // Personal / default — indigo
+    bg = 'rgba(99,102,241,0.18)';
+    fg = '#a5b4fc';
+    accentBar = '#6366f1';
+    border = 'rgba(99,102,241,0.35)';
   }
+
+  const timeLabel = event.start_at ? dayjs(event.start_at).format('H:mm') : null;
 
   return (
     <Box
@@ -38,36 +48,71 @@ export default function EventChip({ event, onClick, draggable }: EventChipProps)
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (onClick) onClick(event);
+        onClick?.(event);
       }}
       sx={{
-        bgcolor,
-        color,
+        position: 'relative',
+        bgcolor: bg,
         border: '1px solid',
-        borderColor,
-        borderRadius: 1,
-        px: 0.5,
-        py: 0.25,
-        mb: 0.5,
+        borderColor: border,
+        borderRadius: '5px',
+        px: 0.75,
+        py: '3px',
+        mb: '3px',
         display: 'flex',
         alignItems: 'center',
         gap: 0.5,
         cursor: 'pointer',
         overflow: 'hidden',
-        whiteSpace: 'nowrap',
-        textOverflow: 'ellipsis',
-        fontSize: '0.75rem',
+        transition: 'background-color 100ms ease, box-shadow 100ms ease, transform 80ms ease',
         '&:hover': {
-          opacity: 0.9,
+          filter: 'brightness(1.15)',
+          boxShadow: `0 2px 8px ${border}`,
+          transform: 'translateY(-1px)',
         },
+        '&:active': { transform: 'translateY(0)' },
+        // Left accent bar
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '3px',
+          bgcolor: accentBar,
+          borderRadius: '5px 0 0 5px',
+        },
+        pl: '8px', // compensate for accent bar
       }}
     >
-      {isMicro ? (
-        <TaskAltIcon sx={{ fontSize: '0.875rem', color: 'success.main' }} />
-      ) : (
-        <EventIcon sx={{ fontSize: '0.875rem' }} />
+      {/* Time */}
+      {timeLabel && (
+        <Typography
+          component="span"
+          sx={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: fg,
+            opacity: 0.75,
+            flexShrink: 0,
+            letterSpacing: '0.02em',
+          }}
+        >
+          {timeLabel}
+        </Typography>
       )}
-      <Typography variant="caption" noWrap sx={{ fontWeight: isMicro ? 'normal' : 'bold' }}>
+      {/* Title */}
+      <Typography
+        noWrap
+        sx={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: fg,
+          lineHeight: 1.3,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
         {event.title}
       </Typography>
     </Box>

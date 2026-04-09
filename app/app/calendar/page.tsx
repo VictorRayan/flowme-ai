@@ -236,13 +236,24 @@ export default function CalendarPage() {
 
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'flex-start', md: 'center' }, justifyContent: 'space-between', p: { xs: 2, md: 3 }, borderBottom: '1px solid #e0e0e0', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'flex-start', md: 'center' }, justifyContent: 'space-between', p: { xs: 2, md: 3 }, borderBottom: '1px solid', borderColor: 'divider', gap: 2 }}>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton onClick={() => setMobileFilterOpen(true)} sx={{ display: { md: 'none' } }}>
               <FilterAltIcon />
             </IconButton>
-            <Typography variant="h5" fontWeight="bold" sx={{ minWidth: 200 }}>
+            <Typography
+              variant="h5"
+              sx={{
+                minWidth: 200,
+                fontWeight: 700,
+                letterSpacing: '-0.5px',
+                background: 'linear-gradient(135deg, #e2e8f0 30%, #818cf8 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
               {headerTitle}
             </Typography>
             {loading && <CircularProgress size={20} />}

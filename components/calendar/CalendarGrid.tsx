@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import dayjs from 'dayjs';
 import DayCell from './DayCell';
@@ -13,61 +13,67 @@ interface CalendarGridProps {
 }
 
 export default function CalendarGrid({ currentDate, events, onDayClick, onEventClick, onEventDrop }: CalendarGridProps) {
-  // Generate the calendar grid dates
   const gridDates = useMemo(() => {
-    const startOfMonth = currentDate.startOf('month');
-    const endOfMonth = currentDate.endOf('month');
-    
-    const startDate = startOfMonth.startOf('week'); // Sunday
-    const endDate = endOfMonth.endOf('week'); // Saturday
-
+    const startDate = currentDate.startOf('month').startOf('week');
+    const endDate = currentDate.endOf('month').endOf('week');
     const dates = [];
     let current = startDate;
-
     while (current.isBefore(endDate) || current.isSame(endDate, 'day')) {
       dates.push(current);
       current = current.add(1, 'day');
     }
-
     return dates;
   }, [currentDate]);
 
-  // Group events by YYYY-MM-DD
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
-    
     events.forEach(evt => {
-      const dateKey = dayjs(evt.start_at).format('YYYY-MM-DD');
-      if (!map.has(dateKey)) {
-        map.set(dateKey, []);
-      }
-      map.get(dateKey)!.push(evt);
+      const key = dayjs(evt.start_at).format('YYYY-MM-DD');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(evt);
     });
-
     return map;
   }, [events]);
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <Box sx={{ width: '100%', borderTop: '1px solid', borderLeft: '1px solid', borderColor: 'grey.200' }}>
-      {/* Header Row */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', bgcolor: 'grey.50' }}>
+    <Box sx={{
+      width: '100%',
+      borderRadius: 2,
+      overflow: 'hidden',
+      border: '1px solid',
+      borderColor: 'divider',
+      bgcolor: 'background.paper',
+    }}>
+      {/* Day-of-week header */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', bgcolor: 'rgba(99,102,241,0.06)', borderBottom: '1px solid', borderColor: 'divider' }}>
         {weekDays.map((day) => (
-          <Box key={day} sx={{ p: 1, borderRight: '1px solid', borderBottom: '1px solid', borderColor: 'grey.200', textAlign: 'center' }}>
-            <Typography variant="subtitle2" color="text.secondary" fontWeight="bold">
+          <Box
+            key={day}
+            sx={{
+              py: 1.25,
+              textAlign: 'center',
+              borderRight: '1px solid',
+              borderColor: 'divider',
+              '&:last-child': { borderRight: 'none' },
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary', fontSize: 11 }}
+            >
               {day}
             </Typography>
           </Box>
         ))}
       </Box>
 
-      {/* Grid Cells */}
+      {/* Grid cells */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-        {gridDates.map((date, i) => {
+        {gridDates.map((date) => {
           const dateStr = date.format('YYYY-MM-DD');
           const dayEvents = eventsByDate.get(dateStr) || [];
-          
           return (
             <DayCell
               key={dateStr}

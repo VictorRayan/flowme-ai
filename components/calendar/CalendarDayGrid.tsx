@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useEffect } from 'react';
-import { Box, Typography, Paper, useTheme } from '@mui/material';
+import { useMemo, useRef, useEffect } from 'react';
+import { Box, Typography, Paper } from '@mui/material';
 import dayjs from 'dayjs';
 import { CalendarEvent } from './types';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
@@ -11,157 +11,169 @@ interface CalendarDayGridProps {
   onEventDrop?: (eventId: string, newStart: string, newEnd?: string) => void;
 }
 
-const HOUR_HEIGHT = 60; // 1 pixel per minute
+const HOUR_HEIGHT = 60;
+
+// Shared color helper — same logic as EventChip for consistency
+function eventColors(isMicro: boolean, isWork: boolean) {
+  if (isMicro)  return { bg: 'rgba(52,211,153,0.18)',  fg: '#6ee7b7', border: 'rgba(52,211,153,0.35)',  bar: '#34d399' };
+  if (isWork)   return { bg: 'rgba(139,92,246,0.18)',  fg: '#c4b5fd', border: 'rgba(139,92,246,0.35)',  bar: '#8b5cf6' };
+  return          { bg: 'rgba(99,102,241,0.18)',        fg: '#a5b4fc', border: 'rgba(99,102,241,0.35)',  bar: '#6366f1' };
+}
 
 export default function CalendarDayGrid({ currentDate, events, onEventClick, onEventDrop }: CalendarDayGridProps) {
-  const theme = useTheme();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 8 * HOUR_HEIGHT;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = 8 * HOUR_HEIGHT;
   }, []);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const isToday = currentDate.isSame(dayjs(), 'day');
 
-  // Filter events only for this day natively, just in case
-  const dayEvents = useMemo(() => {
-    return events.filter(evt => dayjs(evt.start_at).isSame(currentDate, 'day'));
-  }, [events, currentDate]);
+  const dayEvents = useMemo(() =>
+    events.filter(evt => dayjs(evt.start_at).isSame(currentDate, 'day')),
+    [events, currentDate]
+  );
+
+  // Current time indicator position
+  const nowMinutes = dayjs().hour() * 60 + dayjs().minute();
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid', borderColor: 'grey.200', borderRadius: 1, overflow: 'hidden' }}>
-      
-      {/* Header Row */}
-      <Box sx={{ display: 'flex', borderBottom: '1px solid', borderColor: 'grey.200', bgcolor: 'grey.50' }}>
-        <Box sx={{ width: 60, flexShrink: 0, borderRight: '1px solid', borderColor: 'grey.200' }} />
-        <Box sx={{ flex: 1, textAlign: 'center', py: 1.5 }}>
-          <Typography variant="caption" color={isToday ? 'primary' : 'text.secondary'} fontWeight="bold" display="block" sx={{ textTransform: 'uppercase' }}>
+    <Box sx={{
+      display: 'flex', flexDirection: 'column', height: '100%',
+      border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden',
+      bgcolor: 'background.paper',
+    }}>
+      {/* Header */}
+      <Box sx={{
+        display: 'flex', borderBottom: '1px solid', borderColor: 'divider',
+        bgcolor: 'rgba(99,102,241,0.06)',
+      }}>
+        <Box sx={{ width: 60, flexShrink: 0, borderRight: '1px solid', borderColor: 'divider' }} />
+        <Box sx={{ flex: 1, textAlign: 'center', py: 2 }}>
+          <Typography variant="caption" sx={{
+            fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 11,
+            color: isToday ? 'primary.light' : 'text.secondary', display: 'block',
+          }}>
             {currentDate.format('dddd')}
           </Typography>
-          <Typography variant="h4" color={isToday ? 'primary' : 'text.primary'} fontWeight={isToday ? 'bold' : 'normal'}>
+          <Typography variant="h4" sx={{
+            fontWeight: isToday ? 700 : 400,
+            color: isToday ? 'primary.light' : 'text.primary',
+            lineHeight: 1.2,
+          }}>
             {currentDate.format('D')}
           </Typography>
         </Box>
       </Box>
 
-      {/* Scrollable Timeline Body */}
-      <Box ref={scrollContainerRef} sx={{ display: 'flex', flexGrow: 1, overflowY: 'auto', position: 'relative' }}>
-        
-        {/* Time Axis */}
-        <Box sx={{ width: 60, flexShrink: 0, position: 'relative', borderRight: '1px solid', borderColor: 'grey.200', bgcolor: 'background.paper' }}>
-          {hours.map(hour => (
-            <Box key={hour} sx={{ height: HOUR_HEIGHT, display: 'flex', justifyContent: 'flex-end', pr: 1, boxSizing: 'border-box' }}>
-              {hour > 0 && (
-                <Typography variant="caption" color="text.secondary" sx={{ position: 'relative', top: -10, fontSize: '0.7rem' }}>
-                  {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+      {/* Scrollable timeline */}
+      <Box ref={scrollRef} sx={{ display: 'flex', flexGrow: 1, overflowY: 'auto', position: 'relative' }}>
+        {/* Time axis */}
+        <Box sx={{
+          width: 60, flexShrink: 0, position: 'relative',
+          borderRight: '1px solid', borderColor: 'divider',
+          bgcolor: 'background.paper',
+        }}>
+          {hours.map(h => (
+            <Box key={h} sx={{ height: HOUR_HEIGHT, display: 'flex', justifyContent: 'flex-end', pr: 1 }}>
+              {h > 0 && (
+                <Typography variant="caption" sx={{ position: 'relative', top: -9, fontSize: 10, color: 'text.disabled', fontWeight: 500 }}>
+                  {h === 12 ? '12 PM' : h > 12 ? `${h - 12} PM` : `${h} AM`}
                 </Typography>
               )}
             </Box>
           ))}
         </Box>
 
-        {/* The Grid lines and Event Column */}
-        <Box 
-          sx={{ flexGrow: 1, position: 'relative', borderRight: '1px solid', borderColor: 'grey.100' }}
-          onDragOver={(e) => {
-            if (onEventDrop) e.preventDefault();
-          }}
-          onDrop={(e) => {
+        {/* Grid + events */}
+        <Box
+          sx={{ flexGrow: 1, position: 'relative' }}
+          onDragOver={e => { if (onEventDrop) e.preventDefault(); }}
+          onDrop={e => {
             if (!onEventDrop) return;
             e.preventDefault();
             const eventId = e.dataTransfer.getData('text/plain');
             if (!eventId) return;
-
-            const dragOffsetY = Number(e.dataTransfer.getData('application/offset-y')) || 0;
+            const offsetY = Number(e.dataTransfer.getData('application/offset-y')) || 0;
             const rect = e.currentTarget.getBoundingClientRect();
-            const dropY = (e.clientY - dragOffsetY) - rect.top;
-            
-            // 1 minute per pixel, snap to 15 mins
-            const minutesFromMidnight = Math.max(0, dropY);
-            const snappedMinutes = Math.floor(minutesFromMidnight / 15) * 15;
-            
-            const targetEvent = events.find(ev => ev.id === eventId);
-            if (!targetEvent) return;
-
-            const oldStart = dayjs(targetEvent.start_at);
-            const duration = targetEvent.end_at ? dayjs(targetEvent.end_at).diff(oldStart, 'minute') : 30;
-
-            const newStart = currentDate.startOf('day').add(snappedMinutes, 'minute');
-            const newEnd = newStart.add(duration, 'minute');
-
-            onEventDrop(eventId, newStart.toISOString(), newEnd.toISOString());
+            const dropY = (e.clientY - offsetY) - rect.top;
+            const snapped = Math.floor(Math.max(0, dropY) / 15) * 15;
+            const tgt = events.find(ev => ev.id === eventId);
+            if (!tgt) return;
+            const dur = tgt.end_at ? dayjs(tgt.end_at).diff(dayjs(tgt.start_at), 'minute') : 30;
+            const newStart = currentDate.startOf('day').add(snapped, 'minute');
+            onEventDrop(eventId, newStart.toISOString(), newStart.add(dur, 'minute').toISOString());
           }}
         >
-          
-          {/* Background Grid Lines */}
-          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
-             {hours.map(hour => (
-               <Box key={hour} sx={{ height: HOUR_HEIGHT, borderBottom: '1px solid', borderColor: 'grey.100', boxSizing: 'border-box' }} />
-             ))}
+          {/* Hour lines */}
+          <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {hours.map(h => (
+              <Box key={h} sx={{ height: HOUR_HEIGHT, borderBottom: '1px solid', borderColor: 'rgba(42,49,66,0.4)' }} />
+            ))}
           </Box>
+
+          {/* Current time line */}
+          {isToday && (
+            <Box sx={{
+              position: 'absolute', left: 0, right: 0,
+              top: `${nowMinutes}px`,
+              height: '2px',
+              bgcolor: 'primary.main',
+              zIndex: 5,
+              pointerEvents: 'none',
+              '&::before': {
+                content: '""', position: 'absolute', left: -4, top: -4,
+                width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main',
+              },
+            }} />
+          )}
 
           {/* Events */}
           {dayEvents.map(evt => {
             const start = dayjs(evt.start_at);
-            const startMinutes = start.hour() * 60 + start.minute();
-            
-            let durationMinutes = 30;
-            if (evt.end_at) {
-              const end = dayjs(evt.end_at);
-              durationMinutes = Math.max(15, end.diff(start, 'minute'));
-            }
-
-            const top = startMinutes;
-            const height = durationMinutes;
-            const isMicro = evt.source === 'microactivity';
-
-            const bgColor = isMicro ? theme.palette.success.light : theme.palette.primary.light;
-            const color = isMicro ? theme.palette.success.contrastText : theme.palette.primary.contrastText;
+            const top = start.hour() * 60 + start.minute();
+            const dur = evt.end_at ? Math.max(15, dayjs(evt.end_at).diff(start, 'minute')) : 30;
+            const { bg, fg, border, bar } = eventColors(evt.source === 'microactivity', evt.account_type === 'work');
 
             return (
               <Paper
                 key={evt.id}
-                onClick={(e) => { e.stopPropagation(); onEventClick(evt); }}
+                onClick={e => { e.stopPropagation(); onEventClick(evt); }}
                 draggable={!!onEventDrop}
-                onDragStart={(e) => {
+                onDragStart={e => {
                   e.dataTransfer.setData('text/plain', evt.id);
                   e.dataTransfer.effectAllowed = 'move';
-                  
-                  // Record how far down the mouse clicked inside the event chip
-                  const clickOffset = e.clientY - e.currentTarget.getBoundingClientRect().top;
-                  e.dataTransfer.setData('application/offset-y', clickOffset.toString());
+                  e.dataTransfer.setData('application/offset-y', String(e.clientY - e.currentTarget.getBoundingClientRect().top));
                 }}
-                elevation={1}
+                elevation={0}
                 sx={{
                   position: 'absolute',
                   top: `${top}px`,
-                  left: '10px',
-                  right: '10px',
-                  height: `${height}px`,
-                  bgcolor: bgColor,
-                  color: color,
-                  p: 1,
-                  borderRadius: 1,
+                  left: 8, right: 8,
+                  height: `${dur}px`,
+                  bgcolor: bg,
+                  color: fg,
+                  border: '1px solid',
+                  borderColor: border,
+                  borderLeft: `3px solid ${bar}`,
+                  borderRadius: '0 6px 6px 0',
+                  px: 1, py: 0.5,
                   overflow: 'hidden',
                   cursor: 'pointer',
-                  transition: 'transform 0.1s, box-shadow 0.1s',
-                  '&:hover': {
-                    transform: 'scale(1.01)',
-                    boxShadow: 3,
-                    zIndex: 10
-                  }
+                  transition: 'filter 100ms ease, box-shadow 100ms ease, transform 80ms ease',
+                  '&:hover': { filter: 'brightness(1.15)', boxShadow: `0 2px 12px ${border}`, transform: 'translateX(1px)', zIndex: 10 },
                 }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  {isMicro && <TaskAltIcon fontSize="small" />}
+                <Typography sx={{ fontWeight: 600, fontSize: 13, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 0.5, color: fg }}>
+                  {evt.source === 'microactivity' && <TaskAltIcon sx={{ fontSize: 13 }} />}
                   {evt.title}
                 </Typography>
-                <Typography variant="caption" sx={{ display: 'block', opacity: 0.9 }}>
-                  {start.format('h:mm A')} {evt.end_at ? `- ${dayjs(evt.end_at).format('h:mm A')}` : ''}
-                </Typography>
+                {dur >= 25 && (
+                  <Typography sx={{ display: 'block', fontSize: 11, opacity: 0.8, mt: 0.25, color: fg }}>
+                    {start.format('h:mm A')}{evt.end_at ? ` – ${dayjs(evt.end_at).format('h:mm A')}` : ''}
+                  </Typography>
+                )}
               </Paper>
             );
           })}

@@ -12,7 +12,7 @@ import 'tippy.js/dist/tippy.css';
 import {
   Box, TextField, Typography, Chip, Stack, IconButton, Tooltip,
   ToggleButton, ToggleButtonGroup, Divider, CircularProgress,
-  Button, Menu, MenuItem, Alert
+  Menu, MenuItem, Alert, Select
 } from '@mui/material';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
@@ -41,6 +41,7 @@ interface NoteData {
   id?: string;
   title: string;
   content: object | null;
+  content_text?: string;
   note_date: string | null;
   event_id: string | null;
   event_title: string | null;
@@ -85,6 +86,27 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // Transcription model selector — persisted in localStorage
+  type TranscribeOption = { provider: 'openai' | 'gemini'; model: string; label: string };
+  const TRANSCRIBE_OPTIONS: TranscribeOption[] = [
+    { provider: 'gemini', model: 'gemini-2.0-flash',        label: 'Gemini 2.0 Flash' },
+    { provider: 'gemini', model: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash' },
+    { provider: 'gemini', model: 'gemini-2.0-flash-lite',   label: 'Gemini Flash Lite' },
+    { provider: 'openai', model: 'gpt-4o',                  label: 'Whisper + GPT-4o' },
+    { provider: 'openai', model: 'gpt-4o-mini',             label: 'Whisper + GPT-4o Mini' },
+  ];
+  const STORAGE_KEY_TRANSCRIBE = 'briefing_transcribe_model';
+  const [transcribeModelKey, setTranscribeModelKey] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'gemini-2.0-flash';
+    return localStorage.getItem(STORAGE_KEY_TRANSCRIBE) || 'gemini-2.0-flash';
+  });
+  const selectedOption = TRANSCRIBE_OPTIONS.find(o => o.model === transcribeModelKey) || TRANSCRIBE_OPTIONS[0];
+
+  const handleTranscribeModelChange = (modelKey: string) => {
+    setTranscribeModelKey(modelKey);
+    localStorage.setItem(STORAGE_KEY_TRANSCRIBE, modelKey);
+  };
 
   const fetchSuggestions = useCallback(async (query: string): Promise<Person[]> => {
     const res = await fetch(`/api/people?q=${encodeURIComponent(query)}`);
@@ -233,6 +255,8 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
     try {
       const formData = new FormData();
       formData.append('audio', blob, `recording-${Date.now()}.webm`);
+      formData.append('provider', selectedOption.provider);
+      formData.append('model', selectedOption.model);
       const res = await fetch('/api/notes/transcribe', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Transcription failed');
@@ -345,27 +369,62 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Daily Briefing: mic / stop / transcribing */}
+        {/* Daily Briefing: model selector + mic */}
         {isBriefing && (
           <>
+            {/* Model dropdown */}
+            <Select
+              size="small"
+              value={transcribeModelKey}
+              onChange={e => handleTranscribeModelChange(e.target.value)}
+              disabled={recording || transcribing}
+              sx={{
+                fontSize: 12,
+                height: 28,
+                mr: 0.5,
+                '& .MuiSelect-select': { py: '3px', pl: 1, pr: '24px !important' },
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                minWidth: 150,
+                bgcolor: selectedOption.provider === 'gemini'
+                  ? 'rgba(52,211,153,0.07)'
+                  : 'rgba(99,102,241,0.07)',
+                color: selectedOption.provider === 'gemini' ? 'success.main' : 'primary.light',
+              }}
+            >
+              {TRANSCRIBE_OPTIONS.map(opt => (
+                <MenuItem key={opt.model} value={opt.model} dense>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{
+                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                      bgcolor: opt.provider === 'gemini' ? 'success.main' : 'primary.main',
+                    }} />
+                    <Typography variant="caption" sx={{ fontSize: 12 }}>{opt.label}</Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+
+            {/* Mic / stop / spinner */}
             {transcribing ? (
-              <Tooltip title="Transcribing...">
-                <span>
-                  <CircularProgress size={18} sx={{ mx: 1 }} />
-                </span>
+              <Tooltip title={`Transcribing with ${selectedOption.label}...`}>
+                <span><CircularProgress size={18} sx={{ mx: 0.5 }} /></span>
               </Tooltip>
             ) : (
-              <Tooltip title={recording ? 'Stop recording' : 'Record voice note (transcribed by Whisper)'}>
+              <Tooltip title={recording ? 'Stop & transcribe' : `Record voice note → ${selectedOption.label}`}>
                 <IconButton
                   size="small"
                   onClick={recording ? stopRecording : startRecording}
-                  sx={{ color: recording ? 'error.main' : 'text.secondary', mr: 0.5 }}
+                  sx={{
+                    color: recording ? 'error.main' : 'text.secondary',
+                    mr: 0.5,
+                    animation: recording ? 'pulse 1.2s ease infinite' : 'none',
+                  }}
                 >
                   {recording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>
             )}
-            {recording && <Chip label="Recording..." color="error" size="small" sx={{ mr: 1 }} />}
+            {recording && <Chip label="Recording..." color="error" size="small" sx={{ mr: 0.5 }} />}
             <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           </>
         )}

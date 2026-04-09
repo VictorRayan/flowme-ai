@@ -26,7 +26,7 @@ Rules:
 // Returns: { html, rawTranscription }
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth();
+    await requireAuth(request);
 
     const formData = await request.formData();
     const audioFile = formData.get('audio') as File | null;
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[notes/transcribe] error:', msg);
+    if (msg === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

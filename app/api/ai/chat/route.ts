@@ -19,20 +19,24 @@ interface IncomingMessage {
 export async function POST(request: NextRequest) {
   await requireAuth(request);
 
-  const { messages, model, provider, language } = await request.json();
+  const { messages, model, provider, language, systemAddendum } = await request.json();
   if (!messages?.length) return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
 
   const langMap: Record<string, string> = {
     en: 'English', pt: 'Portuguese', es: 'Spanish', fr: 'French',
     de: 'German', it: 'Italian', ja: 'Japanese', zh: 'Chinese',
   };
-  const systemLanguage = language ? `Always respond in ${langMap[language] || language}.` : '';
+  const parts = [
+    language ? `Always respond in ${langMap[language] || language}.` : '',
+    systemAddendum || '',
+  ].filter(Boolean);
+  const systemPromptFull = parts.join('\n\n');
 
   try {
     if (provider === 'gemini') {
-      return await handleGemini(messages, model, systemLanguage);
+      return await handleGemini(messages, model, systemPromptFull);
     }
-    return await handleOpenAI(messages, model, systemLanguage);
+    return await handleOpenAI(messages, model, systemPromptFull);
   } catch (err: unknown) {
     let msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('429') || msg.includes('Rate limit') || msg.includes('quota')) {

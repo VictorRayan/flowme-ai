@@ -22,7 +22,94 @@ import ChatIcon from '@mui/icons-material/Chat';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import NoteIcon from '@mui/icons-material/Note';
 import EventIcon from '@mui/icons-material/Event';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import CommandPalette, { ContextItem } from '@/components/ai/CommandPalette';
+
+// ── Note edit block parsing ───────────────────────────────────────────────────
+const NOTE_EDIT_RE = /%%NOTE_EDIT_START(?::([^%]+))?%%([\s\S]*?)%%NOTE_EDIT_END%%/g;
+
+interface NoteEditBlock { noteId: string; noteTitle: string; html: string; }
+
+function parseNoteEdits(text: string): { clean: string; edits: NoteEditBlock[] } {
+  const edits: NoteEditBlock[] = [];
+  const clean = text.replace(NOTE_EDIT_RE, (_, meta, html) => {
+    const [noteId, ...rest] = (meta || '').split('|');
+    edits.push({ noteId: noteId?.trim() || '', noteTitle: rest.join('|').trim() || 'Note', html: html.trim() });
+    return '';
+  }).trim();
+  return { clean, edits };
+}
+
+// ── Note edit preview card ────────────────────────────────────────────────────
+function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: NoteEditBlock) => Promise<void> }) {
+  const [applying, setApplying] = React.useState(false);
+  const [applied, setApplied] = React.useState(false);
+
+  const handleApply = async () => {
+    setApplying(true);
+    try {
+      await onApply(block);
+      setApplied(true);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  return (
+    <Box sx={{ mt: 1.5, border: '1px solid', borderColor: 'rgba(99,102,241,0.35)', borderRadius: 2, overflow: 'hidden', bgcolor: 'rgba(99,102,241,0.04)' }}>
+      {/* Card header */}
+      <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(99,102,241,0.08)' }}>
+        <EditNoteIcon sx={{ fontSize: 15, color: '#818cf8' }} />
+        <Typography variant="caption" sx={{ fontWeight: 700, color: '#818cf8', flex: 1, fontSize: 11, letterSpacing: '0.04em' }}>
+          NOTE EDIT PREVIEW — {block.noteTitle}
+        </Typography>
+        <Box
+          onClick={applied ? undefined : handleApply}
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 0.5,
+            px: 1.25, py: '4px', borderRadius: 1.5,
+            bgcolor: applied ? 'rgba(52,211,153,0.15)' : 'rgba(99,102,241,0.2)',
+            border: '1px solid', borderColor: applied ? 'rgba(52,211,153,0.4)' : 'rgba(99,102,241,0.4)',
+            cursor: applied ? 'default' : 'pointer',
+            transition: 'all 120ms',
+            '&:hover': applied ? {} : { bgcolor: 'rgba(99,102,241,0.3)' },
+          }}
+        >
+          {applying ? (
+            <CircularProgress size={11} sx={{ color: '#818cf8' }} />
+          ) : applied ? (
+            <CheckCircleIcon sx={{ fontSize: 13, color: '#34d399' }} />
+          ) : (
+            <CheckCircleIcon sx={{ fontSize: 13, color: '#818cf8' }} />
+          )}
+          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: applied ? '#34d399' : '#818cf8' }}>
+            {applied ? 'Applied' : applying ? 'Applying…' : 'Apply to note'}
+          </Typography>
+        </Box>
+      </Box>
+      {/* HTML preview */}
+      <Box
+        sx={{
+          px: 2, py: 1.5, maxHeight: 320, overflowY: 'auto',
+          fontSize: 13, lineHeight: 1.7, color: 'text.primary',
+          '& h1,& h2,& h3': { mt: 1, mb: 0.5, fontWeight: 700, color: 'text.primary' },
+          '& h2': { fontSize: '1em', color: '#a5b4fc' },
+          '& h3': { fontSize: '0.95em' },
+          '& p': { my: 0.5 },
+          '& ul,& ol': { pl: 2.5, my: 0.5 },
+          '& li': { mb: 0.25 },
+          '& strong': { fontWeight: 700, color: 'text.primary' },
+          '& em': { fontStyle: 'italic', opacity: 0.85 },
+          '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 1.5 },
+          '& code': { fontFamily: 'monospace', fontSize: 12, bgcolor: 'rgba(30,36,51,0.9)', color: '#c084fc', px: 0.5, borderRadius: 0.5 },
+          '& blockquote': { borderLeft: '3px solid #6366f1', pl: 1.5, ml: 0, opacity: 0.8 },
+        }}
+        dangerouslySetInnerHTML={{ __html: block.html }}
+      />
+    </Box>
+  );
+}
 
 const STORAGE_KEY_MODEL    = 'balysai_model';
 const STORAGE_KEY_PROVIDER = 'balysai_provider';
@@ -120,6 +207,18 @@ export default function AIPage() {
       try {
         localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripped.map(th => ({ ...th, messages: [] }))));
       } catch { /* give up */ }
+    }
+  };
+
+  const applyNoteEdit = async (block: NoteEditBlock) => {
+    const res = await fetch(`/api/notes/${block.noteId}/append`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: block.html }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to apply note edit');
     }
   };
 
@@ -252,6 +351,30 @@ export default function AIPage() {
       }
     }
 
+    // Build note-edit system addendum for notes in context
+    const noteItems = contextItems.filter(c => c.kind === 'note');
+    const defaultNoteId = noteItems[0]?.id || '';
+    const defaultNoteTitle = noteItems[0]?.label || '';
+    const noteEditSystemPrompt = noteItems.length > 0
+      ? `You can edit notes. When the user asks you to add, update, or modify a note's content, output the new HTML content as a block using this exact format (replace NOTE_ID and NOTE_TITLE with the actual values):
+
+%%NOTE_EDIT_START:NOTE_ID|NOTE_TITLE%%
+<h2>Section heading</h2>
+<p>Content here...</p>
+%%NOTE_EDIT_END%%
+
+Available notes (use the exact id):
+${noteItems.map(n => `- id: ${n.id} | title: ${n.label}`).join('\n')}
+
+Default note to edit if unspecified: id="${defaultNoteId}" title="${defaultNoteTitle}"
+
+Rules:
+- Only output a NOTE_EDIT block when explicitly asked to add/edit/update a note
+- Use exactly one NOTE_EDIT block per response; the id must match one of the available note ids above
+- Outside the block, write a brief one-line summary of what you added
+- Use ONLY these HTML tags inside the block: <h2><h3><p><strong><em><ul><li><ol><code><blockquote><hr> — no divs, no wrappers`
+      : '';
+
     const userMsg: Message = { role: 'user', content: messageContent, attachments };
     const newMessages = [...activeThread.messages, userMsg];
     const title = activeThread.title === 'New chat' && input.trim()
@@ -267,7 +390,7 @@ export default function AIPage() {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, model, provider, language: localStorage.getItem('balysai_language') || 'en' }),
+        body: JSON.stringify({ messages: newMessages, model, provider, language: localStorage.getItem('balysai_language') || 'en', systemAddendum: noteEditSystemPrompt }),
       });
 
       if (!res.ok) {
@@ -428,35 +551,50 @@ export default function AIPage() {
           )}
 
           <Stack spacing={2}>
-            {activeThread?.messages.map((msg, i) => (
-              <Box key={i} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
-                <Avatar sx={{ width: 28, height: 28, bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.300', flexShrink: 0 }}>
-                  {msg.role === 'user' ? <PersonIcon sx={{ fontSize: 15 }} /> : <SmartToyIcon sx={{ fontSize: 15, color: 'text.secondary' }} />}
-                </Avatar>
-                <Box sx={{ maxWidth: '75%', display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  {msg.attachments?.filter(att => att.dataUrl).map((att, ai) => (
-                    <Box key={ai}>
-                      {att.type === 'image' && <Box component="img" src={att.dataUrl} alt={att.name} sx={{ maxWidth: 240, maxHeight: 180, borderRadius: 2 }} />}
-                      {att.type === 'audio' && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}
-                      {att.type === 'file' && <Chip icon={<AttachFileIcon />} label={att.name} size="small" variant="outlined" />}
-                    </Box>
-                  ))}
-                  {(msg.content || msg.role === 'assistant') && (
-                    <Paper elevation={0} sx={{
-                      px: 2, py: 1.5,
-                      bgcolor: msg.role === 'user' ? 'primary.main' : 'grey.100',
-                      color: msg.role === 'user' ? 'white' : 'text.primary',
-                      borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                    }}>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                        {msg.content}
-                        {msg.role === 'assistant' && msg.content === '' && loading && <CircularProgress size={12} sx={{ ml: 1 }} />}
-                      </Typography>
-                    </Paper>
-                  )}
+            {activeThread?.messages.map((msg, i) => {
+              const isUser = msg.role === 'user';
+              const parsed = !isUser ? parseNoteEdits(msg.content) : null;
+              const displayText = parsed ? parsed.clean : msg.content;
+              const edits = parsed ? parsed.edits : [];
+
+              return (
+                <Box key={i} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexDirection: isUser ? 'row-reverse' : 'row' }}>
+                  <Avatar sx={{ width: 28, height: 28, bgcolor: isUser ? 'primary.main' : 'rgba(99,102,241,0.2)', flexShrink: 0 }}>
+                    {isUser ? <PersonIcon sx={{ fontSize: 15 }} /> : <SmartToyIcon sx={{ fontSize: 15, color: '#818cf8' }} />}
+                  </Avatar>
+                  <Box sx={{ maxWidth: '75%', display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+                    {msg.attachments?.filter(att => att.dataUrl).map((att, ai) => (
+                      <Box key={ai}>
+                        {att.type === 'image' && <Box component="img" src={att.dataUrl} alt={att.name} sx={{ maxWidth: 240, maxHeight: 180, borderRadius: 2 }} />}
+                        {att.type === 'audio' && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}
+                        {att.type === 'file' && <Chip icon={<AttachFileIcon />} label={att.name} size="small" variant="outlined" />}
+                      </Box>
+                    ))}
+                    {(displayText || msg.role === 'assistant') && (
+                      <Paper elevation={0} sx={{
+                        px: 2, py: 1.5,
+                        bgcolor: isUser ? 'primary.main' : '#1e2433',
+                        color: isUser ? 'white' : 'text.primary',
+                        border: isUser ? 'none' : '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                      }}>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                          {displayText}
+                          {msg.role === 'assistant' && msg.content === '' && loading && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                        </Typography>
+                      </Paper>
+                    )}
+                    {/* Note edit preview cards */}
+                    {edits.map((block, ei) => (
+                      <Box key={ei} sx={{ width: '100%', maxWidth: 520 }}>
+                        <NoteEditCard block={block} onApply={applyNoteEdit} />
+                      </Box>
+                    ))}
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              );
+            })}
           </Stack>
 
           {loading && (!activeThread?.messages.length || activeThread.messages[activeThread.messages.length - 1]?.role !== 'assistant') && (

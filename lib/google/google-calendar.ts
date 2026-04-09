@@ -137,3 +137,24 @@ export async function updateCalendarEvent(linkedAccountId: string, eventId: stri
     throw new Error(ErrorCode.GOOGLE_API_ERROR);
   }
 }
+
+export async function deleteCalendarEvent(linkedAccountId: string, eventId: string) {
+  try {
+    const auth = await getValidGoogleToken(linkedAccountId);
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    await calendar.events.delete({
+      calendarId: 'primary',
+      eventId,
+      sendUpdates: 'all',
+    });
+
+    return { id: eventId };
+  } catch (err: any) {
+    console.error('Google Calendar Delete Event Error:', err);
+    if (err.message === ErrorCode.GOOGLE_AUTH_MISSING || err.message === ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED) {
+      throw err;
+    }
+    throw new Error(ErrorCode.GOOGLE_API_ERROR);
+  }
+}

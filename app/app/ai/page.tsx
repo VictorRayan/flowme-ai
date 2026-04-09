@@ -300,7 +300,8 @@ export default function AIPage() {
   const sendMessage = async () => {
     if ((!input.trim() && attachments.length === 0 && contextItems.length === 0) || loading || !activeThread) return;
 
-    let messageContent = input.trim();
+    const rawUserInput = input.trim();
+    let messageContent = rawUserInput;
 
     if (contextItems.length > 0) {
       const noteItems = contextItems.filter(c => c.kind === 'note');
@@ -390,7 +391,16 @@ Rules:
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, model, provider, language: localStorage.getItem('balysai_language') || 'en', systemAddendum: noteEditSystemPrompt }),
+        body: JSON.stringify({
+          messages: newMessages,
+          model,
+          provider,
+          language: localStorage.getItem('balysai_language') || 'en',
+          systemAddendum: noteEditSystemPrompt,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          clientNowIso: new Date().toISOString(),
+          rawUserInput,
+        }),
       });
 
       if (!res.ok) {

@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api/auth';
 import { apiError, ErrorCode } from '@/lib/api/errors';
 import OpenAI from 'openai';
 import { estimateTokensFromText, logAiUsage } from '@/lib/ai/billing';
+import { buildNowSystemPrompt, tryRunCalendarSkill } from '@/lib/ai/calendar-skill';
 
 interface Attachment {
   type: 'image' | 'file' | 'audio';
@@ -26,14 +27,44 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
 
-    const { messages, model, provider, language, systemAddendum } = await request.json();
+    const {
+      messages,
+      model,
+      provider,
+      language,
+      systemAddendum,
+      timezone,
+      clientNowIso,
+      rawUserInput,
+    } = await request.json();
     if (!messages?.length) return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
 
     const langMap: Record<string, string> = {
       en: 'English', pt: 'Portuguese', es: 'Spanish', fr: 'French',
       de: 'German', it: 'Italian', ja: 'Japanese', zh: 'Chinese',
     };
+
+    const skillResult = await tryRunCalendarSkill({
+      auth,
+      messages: messages.map((m: IncomingMessage, idx: number) => ({
+        role: m.role,
+        content: (idx === messages.length - 1 && m.role === 'user' && typeof rawUserInput === 'string')
+          ? rawUserInput
+          : (m.content || ''),
+      })),
+      provider: (provider === 'gemini' ? 'gemini' : 'openai'),
+      timezone: typeof timezone === 'string' ? timezone : undefined,
+      clientNowIso: typeof clientNowIso === 'string' ? clientNowIso : undefined,
+    });
+    if (skillResult) {
+      return new Response(skillResult, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
+
     const parts = [
+      buildNowSystemPrompt({
+        timezone: typeof timezone === 'string' ? timezone : undefined,
+        clientNowIso: typeof clientNowIso === 'string' ? clientNowIso : undefined,
+      }),
       language ? `Always respond in ${langMap[language] || language}.` : '',
       systemAddendum || '',
     ].filter(Boolean);

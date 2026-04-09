@@ -1,7 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Drawer, AppBar, Toolbar, List, Typography, Divider, IconButton, ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery, useTheme } from '@mui/material';
+import {
+  Box, Drawer, AppBar, Toolbar, List, Typography, Divider,
+  IconButton, ListItem, ListItemButton, ListItemIcon, ListItemText,
+  useMediaQuery, useTheme, Tooltip,
+} from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -21,9 +25,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+  // Parallax: update --sidebar-parallax-y on main content scroll
+  React.useEffect(() => {
+    const handler = () => {
+      // Find the scrollable main content — any element with overflow scroll/auto
+      const scrollable = document.querySelector('[data-main-scroll]') as HTMLElement | null
+        ?? document.querySelector('main') as HTMLElement | null;
+      const scrollTop = scrollable?.scrollTop ?? window.scrollY;
+      const offset = Math.min(0, Math.max(-28, -(scrollTop * 0.14)));
+      document.documentElement.style.setProperty('--sidebar-parallax-y', `${offset}px`);
+    };
+
+    // Attach to both window and any scrollable child
+    window.addEventListener('scroll', handler, { passive: true });
+    const main = document.querySelector('[data-main-scroll]') ?? document.querySelector('main');
+    main?.addEventListener('scroll', handler, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handler);
+      main?.removeEventListener('scroll', handler);
+    };
+  }, [pathname]); // re-attach on page change
+
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -31,94 +55,149 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const menuItems = [
-    { text: 'Calendar', icon: <CalendarMonthIcon />, path: '/app/calendar' },
-    { text: 'Notes', icon: <NoteIcon />, path: '/app/notes' },
-    { text: 'BalysAI', icon: <SmartToyIcon />, path: '/app/ai' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/app/settings' },
+    { text: 'Calendar', icon: <CalendarMonthIcon sx={{ fontSize: 20 }} />, path: '/app/calendar' },
+    { text: 'Notes',    icon: <NoteIcon          sx={{ fontSize: 20 }} />, path: '/app/notes' },
+    { text: 'BalysAI', icon: <SmartToyIcon       sx={{ fontSize: 20 }} />, path: '/app/ai' },
+    { text: 'Settings', icon: <SettingsIcon      sx={{ fontSize: 20 }} />, path: '/app/settings' },
   ];
 
   const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div" fontWeight="bold" color="primary">
+    <Box className="sidebar-bg">
+      {/* Logo */}
+      <Box sx={{ px: 2, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        {/* Logo mark */}
+        <Box sx={{
+          width: 30,
+          height: 30,
+          borderRadius: '8px',
+          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 0 14px rgba(99,102,241,0.45)',
+          flexShrink: 0,
+        }}>
+          <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' }}>
+            F
+          </Typography>
+        </Box>
+        {/* Gradient wordmark */}
+        <Typography
+          variant="h6"
+          noWrap
+          sx={{
+            fontWeight: 700,
+            fontSize: 17,
+            letterSpacing: '-0.4px',
+            background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
           Flow Me
         </Typography>
-      </Toolbar>
+      </Box>
+
+      <Divider sx={{ mb: 1 }} />
+
+      {/* Nav items */}
+      <List sx={{ px: 0.5, flex: 1 }}>
+        {menuItems.map((item) => {
+          const active = pathname.startsWith(item.path);
+          return (
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                component={Link}
+                href={item.path}
+                selected={active}
+                onClick={() => isMobile && setMobileOpen(false)}
+                sx={{ py: 1, pl: active ? '13px' : '16px' }}
+              >
+                <ListItemIcon sx={{ color: active ? 'primary.light' : 'text.secondary', minWidth: 36 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontWeight: active ? 600 : 400,
+                    fontSize: 14,
+                    color: active ? 'primary.light' : 'text.secondary',
+                  }}
+                />
+                {/* Active dot indicator */}
+                {active && (
+                  <Box sx={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    bgcolor: 'primary.main',
+                    boxShadow: '0 0 6px rgba(99,102,241,0.8)',
+                    mr: 0.5,
+                    flexShrink: 0,
+                  }} />
+                )}
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
+      </List>
+
       <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              component={Link}
-              href={item.path}
-              selected={pathname.startsWith(item.path)}
-              onClick={() => isMobile && setMobileOpen(false)}
-            >
-              <ListItemIcon sx={{ color: pathname.startsWith(item.path) ? 'primary.main' : 'inherit' }}>
-                {item.icon}
+
+      {/* Footer: logout */}
+      <List sx={{ px: 0.5, py: 1 }}>
+        <ListItem disablePadding>
+          <Tooltip title="Log out" placement="right">
+            <ListItemButton onClick={handleLogout} sx={{ borderRadius: '0 8px 8px 0', py: 1 }}>
+              <ListItemIcon sx={{ color: 'text.disabled', minWidth: 36 }}>
+                <LogoutIcon sx={{ fontSize: 20 }} />
               </ListItemIcon>
-              <ListItemText 
-                primary={item.text} 
-                primaryTypographyProps={{ 
-                  fontWeight: pathname.startsWith(item.path) ? 'bold' : 'normal',
-                  color: pathname.startsWith(item.path) ? 'primary.main' : 'inherit'
-                }} 
+              <ListItemText
+                primary="Log out"
+                primaryTypographyProps={{ fontSize: 14, color: 'text.disabled' }}
               />
             </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-      <Divider />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton onClick={handleLogout}>
-            <ListItemIcon><LogoutIcon /></ListItemIcon>
-            <ListItemText primary="Log out" />
-          </ListItemButton>
+          </Tooltip>
         </ListItem>
       </List>
-    </div>
+    </Box>
   );
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
+      {/* Mobile AppBar */}
       <AppBar
         position="fixed"
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          bgcolor: 'background.paper',
-          color: 'text.primary',
-          boxShadow: 1,
-          display: { md: 'none' } // Only show AppBar on mobile to toggle drawer
+          display: { md: 'none' },
         }}
       >
         <Toolbar>
           <IconButton
             color="inherit"
-            aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
+            sx={{ mr: 2 }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" fontWeight="bold">
+          <Typography variant="h6" noWrap fontWeight={600} sx={{ letterSpacing: '-0.2px' }}>
             {menuItems.find(i => pathname.startsWith(i.path))?.text || 'Flow Me'}
           </Typography>
         </Toolbar>
       </AppBar>
 
-      <Box
-        component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
-        aria-label="mailbox folders"
-      >
+      {/* Sidebar */}
+      <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>
+        {/* Mobile drawer */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }} // Better open performance on mobile.
+          ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
@@ -126,11 +205,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         >
           {drawer}
         </Drawer>
+
+        {/* Desktop permanent drawer */}
         <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid #e0e0e0' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}
           open
         >
@@ -138,17 +219,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Drawer>
       </Box>
 
+      {/* Main content */}
       <Box
         component="main"
-        sx={{ 
-          flexGrow: 1, 
-          p: 0, // No padding here so pages can go edge-to-edge if needed
+        data-main-scroll
+        sx={{
+          flexGrow: 1,
+          p: 0,
           width: { md: `calc(100% - ${drawerWidth}px)` },
           height: '100%',
-          overflow: 'hidden', // Page content should handle its own scrolling
+          overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          pt: { xs: '56px', sm: '64px', md: 0 } // Account for mobile AppBar
+          pt: { xs: '56px', sm: '64px', md: 0 },
+          bgcolor: 'background.default',
         }}
       >
         {children}

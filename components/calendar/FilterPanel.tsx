@@ -48,7 +48,7 @@ export default function FilterPanel({
   };
 
   const content = (
-    <Box sx={{ width: 260, p: 3, height: '100%', overflowY: 'auto', bgcolor: 'background.paper', borderRight: isDesktop ? '1px solid #e0e0e0' : 'none' }}>
+    <Box sx={{ width: 260, p: 3, height: '100%', overflowY: 'auto', bgcolor: 'background.paper', borderRight: isDesktop ? '1px solid' : 'none', borderColor: 'divider' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6" fontWeight="bold">Filters</Typography>
       </Box>

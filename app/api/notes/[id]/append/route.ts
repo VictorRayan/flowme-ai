@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, ErrorCode } from '@/lib/api/errors';
-import { generateJSON } from '@tiptap/core';
+import { generateJSON } from '@tiptap/html/server';
 import StarterKit from '@tiptap/starter-kit';
 
 // POST /api/notes/[id]/append

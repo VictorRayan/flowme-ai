@@ -106,12 +106,12 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
             onEventDrop(eventId, newStart.toISOString(), newStart.add(dur, 'minute').toISOString());
           }}
         >
-          {/* Hour lines */}
-          <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            {hours.map(h => (
-              <Box key={h} sx={{ height: HOUR_HEIGHT, borderBottom: '1px solid', borderColor: 'rgba(42,49,66,0.4)' }} />
-            ))}
-          </Box>
+          {/* Hour lines — use background-image for reliable rendering */}
+          <Box sx={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT}px)`,
+            backgroundSize: `100% ${HOUR_HEIGHT}px`,
+          }} />
 
           {/* Current time line */}
           {isToday && (

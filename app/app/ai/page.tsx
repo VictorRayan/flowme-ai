@@ -5,7 +5,7 @@ import {
   Box, TextField, IconButton, Typography, Paper, Stack,
   Chip, Divider, CircularProgress, Alert, Tooltip, Avatar,
   List, ListItemButton, ListItemText, ListSubheader, Skeleton,
-  Select, MenuItem, FormControl, Menu
+  MenuItem, Menu
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -80,10 +80,25 @@ export default function AIPage() {
     } catch { const t = newThread(m, p); setThreads([t]); setActiveThreadId(t.id); }
   }, []);
 
-  // Fetch models
+  // Fetch models — validate stored model against available list
   useEffect(() => {
     fetch('/api/ai/models').then(r => r.json()).then(data => {
-      setOpenaiModels(data.openai || []); setGeminiModels(data.gemini || []);
+      const openai: ModelEntry[] = data.openai || [];
+      const gemini: ModelEntry[] = data.gemini || [];
+      setOpenaiModels(openai); setGeminiModels(gemini);
+      // If current stored model is unavailable, switch to first available
+      const all = [...openai, ...gemini];
+      if (all.length > 0) {
+        setModel(prev => {
+          const still = all.find(m => m.id === prev);
+          if (still) return prev;
+          const first = all[0];
+          setProvider(first.provider);
+          localStorage.setItem(STORAGE_KEY_MODEL, first.id);
+          localStorage.setItem(STORAGE_KEY_PROVIDER, first.provider);
+          return first.id;
+        });
+      }
     }).finally(() => setModelsLoading(false));
   }, []);
 
@@ -311,9 +326,9 @@ export default function AIPage() {
     <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Threads sidebar ── */}
-      <Box sx={{ width: 220, borderRight: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', bgcolor: 'grey.50' }}>
+      <Box sx={{ width: 220, borderRight: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
         <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>Chats</Typography>
+          <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 10, color: 'text.disabled' }}>Chats</Typography>
           <Tooltip title="New chat"><IconButton size="small" onClick={newChat}><AddIcon fontSize="small" /></IconButton></Tooltip>
         </Box>
         <List dense disablePadding sx={{ flex: 1, overflowY: 'auto' }}>
@@ -348,26 +363,42 @@ export default function AIPage() {
             deleteIcon={<ExpandMoreIcon />}
             sx={{ cursor: 'pointer', maxWidth: 200 }}
           />
-          <Menu anchorEl={modelAnchor} open={Boolean(modelAnchor)} onClose={() => setModelAnchor(null)}
-            PaperProps={{ sx: { maxHeight: 400, width: 260 } }}>
+          <Menu
+            anchorEl={modelAnchor}
+            open={Boolean(modelAnchor)}
+            onClose={() => setModelAnchor(null)}
+            slotProps={{ paper: { sx: { maxHeight: 400, width: 280, bgcolor: '#1e2433', border: '1px solid', borderColor: 'divider' } } }}
+          >
             {modelsLoading ? (
               <Box sx={{ p: 2 }}><Skeleton width="80%" /><Skeleton width="60%" /></Box>
             ) : (
               [
                 openaiModels.length > 0 && (
-                  <ListSubheader key="openai-header" sx={{ lineHeight: '28px', fontSize: 11, letterSpacing: 1 }}>OPENAI</ListSubheader>
+                  <ListSubheader key="openai-header" sx={{ bgcolor: 'transparent', lineHeight: '28px', fontSize: 10, letterSpacing: '0.1em', color: 'text.disabled' }}>
+                    OPENAI
+                  </ListSubheader>
                 ),
-                ...openaiModels.map(m => (
-                  <MenuItem key={m.id} selected={model === m.id && provider === 'openai'} onClick={() => selectModel(m.id, 'openai')} dense>
-                    <ListItemText primary={<Typography variant="body2">{m.label}</Typography>} secondary={m.desc} />
+                ...openaiModels.map(entry => (
+                  <MenuItem key={entry.id} selected={model === entry.id && provider === 'openai'} onClick={() => selectModel(entry.id, 'openai')} dense sx={{ gap: 1 }}>
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
+                    <ListItemText
+                      primary={<Typography variant="body2" sx={{ fontSize: 13 }}>{entry.label}</Typography>}
+                      secondary={<Typography variant="caption" sx={{ fontSize: 11, color: 'text.disabled' }}>{entry.desc}</Typography>}
+                    />
                   </MenuItem>
                 )),
                 geminiModels.length > 0 && (
-                  <ListSubheader key="gemini-header" sx={{ lineHeight: '28px', fontSize: 11, letterSpacing: 1 }}>GEMINI</ListSubheader>
+                  <ListSubheader key="gemini-header" sx={{ bgcolor: 'transparent', lineHeight: '28px', fontSize: 10, letterSpacing: '0.1em', color: 'text.disabled' }}>
+                    GEMINI
+                  </ListSubheader>
                 ),
-                ...geminiModels.map(m => (
-                  <MenuItem key={m.id} selected={model === m.id && provider === 'gemini'} onClick={() => selectModel(m.id, 'gemini')} dense>
-                    <ListItemText primary={<Typography variant="body2">{m.label}</Typography>} secondary={m.desc} />
+                ...geminiModels.map(entry => (
+                  <MenuItem key={entry.id} selected={model === entry.id && provider === 'gemini'} onClick={() => selectModel(entry.id, 'gemini')} dense sx={{ gap: 1 }}>
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }} />
+                    <ListItemText
+                      primary={<Typography variant="body2" sx={{ fontSize: 13 }}>{entry.label}</Typography>}
+                      secondary={<Typography variant="caption" sx={{ fontSize: 11, color: 'text.disabled' }}>{entry.desc}</Typography>}
+                    />
                   </MenuItem>
                 )),
               ]

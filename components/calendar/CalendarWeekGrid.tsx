@@ -111,12 +111,12 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
 
         {/* Day columns */}
         <Box sx={{ flexGrow: 1, position: 'relative', display: 'flex' }}>
-          {/* Horizontal hour lines (background) */}
-          <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
-            {hours.map(h => (
-              <Box key={h} sx={{ height: HOUR_HEIGHT, borderBottom: '1px solid', borderColor: 'rgba(42,49,66,0.4)' }} />
-            ))}
-          </Box>
+          {/* Horizontal hour lines — background-image for reliable rendering */}
+          <Box sx={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+            backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT}px)`,
+            backgroundSize: `100% ${HOUR_HEIGHT}px`,
+          }} />
 
           {weekDates.map(date => {
             const dateStr = date.format('YYYY-MM-DD');

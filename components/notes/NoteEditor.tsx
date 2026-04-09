@@ -87,21 +87,39 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // Transcription model selector — persisted in localStorage
+  // Transcription model selector — populated dynamically from /api/ai/models
   type TranscribeOption = { provider: 'openai' | 'gemini'; model: string; label: string };
-  const TRANSCRIBE_OPTIONS: TranscribeOption[] = [
-    { provider: 'gemini', model: 'gemini-2.0-flash',        label: 'Gemini 2.0 Flash' },
-    { provider: 'gemini', model: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash' },
-    { provider: 'gemini', model: 'gemini-2.0-flash-lite',   label: 'Gemini Flash Lite' },
-    { provider: 'openai', model: 'gpt-4o',                  label: 'Whisper + GPT-4o' },
-    { provider: 'openai', model: 'gpt-4o-mini',             label: 'Whisper + GPT-4o Mini' },
-  ];
   const STORAGE_KEY_TRANSCRIBE = 'briefing_transcribe_model';
+  const [transcribeOptions, setTranscribeOptions] = useState<TranscribeOption[]>([]);
   const [transcribeModelKey, setTranscribeModelKey] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'gemini-2.0-flash';
-    return localStorage.getItem(STORAGE_KEY_TRANSCRIBE) || 'gemini-2.0-flash';
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(STORAGE_KEY_TRANSCRIBE) || '';
   });
-  const selectedOption = TRANSCRIBE_OPTIONS.find(o => o.model === transcribeModelKey) || TRANSCRIBE_OPTIONS[0];
+
+  useEffect(() => {
+    fetch('/api/ai/models')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: { openai: { id: string; label: string }[]; gemini: { id: string; label: string }[] }) => {
+        const opts: TranscribeOption[] = [
+          ...data.gemini.map(m => ({ provider: 'gemini' as const, model: m.id, label: m.label })),
+          ...data.openai
+            .filter(m => m.id.startsWith('gpt-'))
+            .map(m => ({ provider: 'openai' as const, model: m.id, label: `Whisper + ${m.label}` })),
+        ];
+        setTranscribeOptions(opts);
+        // Pick persisted key if still valid, else first available
+        setTranscribeModelKey(prev => {
+          const valid = opts.find(o => o.model === prev);
+          if (valid) return prev;
+          const first = opts[0]?.model || '';
+          if (first) localStorage.setItem(STORAGE_KEY_TRANSCRIBE, first);
+          return first;
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  const selectedOption = transcribeOptions.find(o => o.model === transcribeModelKey) || transcribeOptions[0];
 
   const handleTranscribeModelChange = (modelKey: string) => {
     setTranscribeModelKey(modelKey);
@@ -377,7 +395,8 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
               size="small"
               value={transcribeModelKey}
               onChange={e => handleTranscribeModelChange(e.target.value)}
-              disabled={recording || transcribing}
+              disabled={recording || transcribing || transcribeOptions.length === 0}
+              displayEmpty
               sx={{
                 fontSize: 12,
                 height: 28,
@@ -385,13 +404,18 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
                 '& .MuiSelect-select': { py: '3px', pl: 1, pr: '24px !important' },
                 '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
                 minWidth: 150,
-                bgcolor: selectedOption.provider === 'gemini'
+                bgcolor: selectedOption?.provider === 'gemini'
                   ? 'rgba(52,211,153,0.07)'
                   : 'rgba(99,102,241,0.07)',
-                color: selectedOption.provider === 'gemini' ? 'success.main' : 'primary.light',
+                color: selectedOption?.provider === 'gemini' ? 'success.main' : 'primary.light',
               }}
             >
-              {TRANSCRIBE_OPTIONS.map(opt => (
+              {transcribeOptions.length === 0 && (
+                <MenuItem value="" disabled dense>
+                  <Typography variant="caption" sx={{ fontSize: 12, opacity: 0.5 }}>Loading models…</Typography>
+                </MenuItem>
+              )}
+              {transcribeOptions.map(opt => (
                 <MenuItem key={opt.model} value={opt.model} dense>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <Box sx={{

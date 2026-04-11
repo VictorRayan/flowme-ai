@@ -5,6 +5,11 @@ import { createServerClient } from '@supabase/ssr';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // V1 API routes use their own Bearer token auth — skip cookie middleware
+  if (pathname.startsWith('/api/v1/')) {
+    return NextResponse.next();
+  }
+
   // Create a response we can modify (to set updated cookies)
   let response = NextResponse.next({
     request: { headers: request.headers },
@@ -68,5 +73,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/login', '/signup'],
+  matcher: ['/app/:path*', '/login', '/signup', '/api/v1/:path*'],
 };

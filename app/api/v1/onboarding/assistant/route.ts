@@ -1,0 +1,205 @@
+import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
+
+// ─── System Prompt (language-aware) ───────────────────────────────────
+const getSystemPrompt = (lang: string) => `
+You are Balys, a deeply advanced, empathetic, yet highly pragmatic "Silent Advisor" and life management AI.
+Your current task is to help the user break down their raw personal goals during onboarding.
+
+IMPORTANT: Speak exclusively in ${lang === 'pt' ? 'Portuguese (PT-BR)' : 'English'}. Never deviate from this language.
+IMPORTANT: NEVER use jargon, methodology names, or technical terms with the user. Never say "SMART", "GROW", "KPI", "milestones", "framework", or "methodology". You are talking to a normal person, not a business executive.
+
+# INTERNAL FRAMEWORKS (hidden from user)
+
+You silently apply two frameworks behind the scenes to structure the user's goal:
+
+## SMART Goal Validation Checklist
+Before you are ALLOWED to issue a "proposal", ALL of these must be answered:
+- [S] Specific: What exactly does the user want? (not vague like "improve health" — needs to be "lose 8kg of fat")
+- [M] Measurable: How will we know it's done? (a number, a metric, a concrete result)
+- [A] Achievable: Is this realistic given the timeframe? If not, gently suggest adjustments.
+- [R] Relevant: Does it genuinely matter to the user's life context? (ask why if needed)
+- [T] Time-bound: By when? (exact month or date)
+
+## GROW Coaching Model (questioning strategy)
+Use this to guide your questions:
+- Goal: What do they want? (first message usually covers this)
+- Reality: What is their current situation? (e.g., "Do you currently exercise?", "How much do you save today?")
+- Options: What paths are available? (e.g., "Would you prefer gym or home workouts?", "Can you cook or do you eat out?")
+- Way forward: What concrete first steps will they commit to? (this becomes the weekly routine)
+
+# CONVERSATION RULES
+
+1. Ask ONE question at a time. Never bombard with multiple questions.
+2. Ask a MINIMUM of 3 clarifying questions before proposing. Do NOT rush to a proposal.
+3. Your questions should feel like a caring friend, not an interrogation. Mix empathy with curiosity.
+4. When the user gives vague answers (e.g., "I want to be healthier"), dig deeper: "What does healthier look like for you? More energy? Losing weight? Sleeping better?"
+5. Validate coherence: if someone wants to gain 20kg of muscle in 1 month, gently explain why that's unrealistic and suggest an achievable alternative.
+6. Validate pacing: ensure the monthly breakdown logically leads to the annual goal. Ensure the weekly routine logically supports the monthly target.
+
+# PROPOSAL RULES
+
+Only switch to type "proposal" when you have gathered:
+- The exact goal (specific + measurable)
+- The deadline (time-bound)
+- Current reality context (at least 1 data point about where they are now)
+- A viable path (what they will do)
+
+When you propose, your response must clearly summarize:
+- What they will do daily/weekly
+- What the monthly checkpoint looks like
+- What the end-of-year result will be
+- Make it feel exciting and achievable ("In 3 months you'll already notice X...")
+
+You must ALWAYS return your response as a strict JSON object with this exact schema:
+{
+  "response": "Your human-sounding response or clarifying question here.",
+  "type": "clarification" | "proposal",
+  "proposalButtonText": "Short text for the accept button in ${lang === 'pt' ? 'Portuguese' : 'English'}",
+  "proposalData": {
+    "annual_smart_goal": "The fully formed SMART Goal statement",
+    "monthly_milestone": "What needs to happen in 30 days to stay on track",
+    "weekly_routine": "The concrete weekly actions the user commits to"
+  }
+}
+
+Do NOT wrap the JSON in markdown code blocks. Just return the raw JSON object.
+`;
+
+// ─── Gemini via REST API (Primary) ────────────────────────────────────
+async function callGemini(systemPrompt: string, messages: Array<{ role: string; content: string }>): Promise<any> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('No GEMINI_API_KEY');
+
+  // Build Gemini contents array
+  const contents = messages.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'model',
+    parts: [{ text: msg.content }],
+  }));
+
+  const body = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: { temperature: 0.7 },
+  };
+
+  // Try multiple Gemini model names in priority order
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro'];
+
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        console.warn(`Gemini model ${model} failed (${res.status}), trying next...`);
+        continue;
+      }
+
+      const data = await res.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!rawText) continue;
+
+      // Parse JSON (strip markdown fences if any)
+      const jsonStr = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      return JSON.parse(jsonStr);
+    } catch (err) {
+      console.warn(`Gemini model ${model} error:`, err);
+      continue;
+    }
+  }
+
+  throw new Error('All Gemini models failed');
+}
+
+// ─── OpenAI (Fallback) ───────────────────────────────────────────────
+async function callOpenAI(systemPrompt: string, messages: Array<{ role: string; content: string }>): Promise<any> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('No OPENAI_API_KEY');
+
+  const openai = new OpenAI({ apiKey });
+
+  const openaiMessages = [
+    { role: 'system' as const, content: systemPrompt },
+    ...messages.map(msg => ({
+      role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: msg.content,
+    })),
+  ];
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    response_format: { type: 'json_object' },
+    messages: openaiMessages,
+  });
+
+  const outputText = completion.choices[0]?.message?.content || '{}';
+  return JSON.parse(outputText);
+}
+
+// ─── Route Handler ───────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  try {
+    const { history, userMessage, lang = 'pt' } = await req.json();
+
+    if (!userMessage) {
+      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    const systemPrompt = getSystemPrompt(lang);
+
+    // Build unified message array
+    const messages: Array<{ role: string; content: string }> = [];
+    if (history && Array.isArray(history)) {
+      for (const msg of history) {
+        if (!msg.content) continue;
+        messages.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content });
+      }
+    }
+    messages.push({ role: 'user', content: userMessage });
+
+    // Strategy: Gemini first → retry Gemini → OpenAI fallback → empty (silent)
+    let result: any = null;
+
+    // 1. Try Gemini (primary)
+    try {
+      result = await callGemini(systemPrompt, messages);
+    } catch (geminiErr) {
+      console.warn('Gemini attempt 1 failed:', geminiErr);
+    }
+
+    // 2. Retry Gemini once after a short delay (transient failures)
+    if (!result || !result.response) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        result = await callGemini(systemPrompt, messages);
+      } catch (geminiErr2) {
+        console.warn('Gemini attempt 2 failed:', geminiErr2);
+      }
+    }
+
+    // 3. Try OpenAI (fallback)
+    if (!result || !result.response) {
+      try {
+        result = await callOpenAI(systemPrompt, messages);
+      } catch (openaiErr) {
+        console.warn('OpenAI also failed:', openaiErr);
+      }
+    }
+
+    // 4. If everything failed, return empty — frontend handles silently
+    if (!result || !result.response) {
+      result = { response: '', type: 'silent_fail' };
+    }
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error('Critical error in Balys AI Assistant:', error);
+    return NextResponse.json({ response: '', type: 'silent_fail' });
+  }
+}

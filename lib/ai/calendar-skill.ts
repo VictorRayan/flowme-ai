@@ -54,15 +54,23 @@ type MappedEvent = {
   htmlLink: string | null;
 };
 
+type SelectedEventContext = {
+  id: string;
+  title: string | null;
+  source: string | null;
+  linkedAccountId: string | null;
+};
+
 const ACTION_HINTS = [
   'create event', 'add event', 'schedule', 'book meeting', 'new meeting', 'new event',
   'criar evento', 'agendar', 'marcar reuniao', 'marcar reuniao', 'novo evento', 'nova reuniao',
-  'edit event', 'update event', 'reschedule', 'move event',
+  'edit event', 'update event', 'reschedule', 'move event', 'change event',
   'editar evento', 'alterar evento', 'reagendar', 'mudar evento',
-  'delete event', 'remove event', 'cancel event',
+  'delete event', 'remove event', 'cancel event', 'delete this', 'remove this', 'cancel this',
   'deletar evento', 'apagar evento', 'cancelar evento', 'excluir evento',
-  'show events', 'find event', 'list events', 'calendar today', 'my schedule',
-  'mostrar eventos', 'buscar evento', 'listar eventos', 'agenda hoje', 'meus compromissos',
+  'deletar esse', 'apagar esse', 'cancelar esse', 'excluir esse', 'apaga isso', 'deleta isso', 'exclui isso',
+  'show events', 'find event', 'list events', 'calendar today', 'my schedule', 'what do i have',
+  'mostrar eventos', 'buscar evento', 'listar eventos', 'agenda hoje', 'meus compromissos', 'o que tenho',
 ];
 
 const CALENDAR_TERMS = ['event', 'events', 'calendar', 'meeting', 'agenda', 'evento', 'eventos', 'calendario', 'reuniao'];
@@ -79,6 +87,7 @@ function normalizeText(value: string): string {
 function isLikelyCalendarRequest(text: string): boolean {
   const normalized = normalizeText(text);
   if (!normalized) return false;
+  if (extractDeleteConfirmation(normalized)) return true;
   const hasCalendarTerm = CALENDAR_TERMS.some(k => normalized.includes(k));
   const hasAction = ACTION_HINTS.some(k => normalized.includes(normalizeText(k)));
   return hasAction || (hasCalendarTerm && /(create|add|schedule|edit|update|delete|remove|cancel|find|show|list|criar|agendar|editar|alterar|deletar|apagar|cancelar|buscar|mostrar|listar)/.test(normalized));
@@ -87,6 +96,118 @@ function isLikelyCalendarRequest(text: string): boolean {
 function isTimeRequest(text: string): boolean {
   const normalized = normalizeText(text);
   return TIME_TERMS.some(k => normalized.includes(normalizeText(k)));
+}
+
+function extractDeleteConfirmation(text: string): string | null {
+  const normalized = normalizeText(text);
+  const match = normalized.match(/\b(?:confirm delete|confirmar exclusao|confirmar exclusao do evento)\s+([a-z0-9_@.\-]+)/i);
+  return match?.[1] || null;
+}
+
+function stripInjectedContext(message: string): string {
+  const text = (message || '').trim();
+  const marker = '\n\n';
+  const lastMarker = text.lastIndexOf(marker);
+  if (lastMarker === -1) return text;
+
+  const prefix = text.slice(0, lastMarker);
+  if (!prefix.includes('--- Event:') && !prefix.includes('--- Note:')) return text;
+  return text.slice(lastMarker + marker.length).trim();
+}
+
+function extractSelectedEventContexts(text: string): SelectedEventContext[] {
+  const lines = (text || '').split(/\r?\n/);
+  const selected: SelectedEventContext[] = [];
+  let current: SelectedEventContext | null = null;
+
+  const flush = () => {
+    if (current?.id) selected.push(current);
+    current = null;
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith('--- Event: ') && line.endsWith(' ---')) {
+      flush();
+      current = {
+        id: '',
+        title: line.slice('--- Event: '.length, -' ---'.length).trim() || null,
+        source: null,
+        linkedAccountId: null,
+      };
+      continue;
+    }
+
+    if (!current) continue;
+    if (!line) {
+      flush();
+      continue;
+    }
+    if (line.startsWith('Event ID: ')) {
+      current.id = line.slice('Event ID: '.length).trim();
+      continue;
+    }
+    if (line.startsWith('Source: ')) {
+      current.source = normalizeText(line.slice('Source: '.length)) || null;
+      continue;
+    }
+    if (line.startsWith('Linked Account ID: ')) {
+      current.linkedAccountId = line.slice('Linked Account ID: '.length).trim() || null;
+    }
+  }
+
+  flush();
+  return selected;
+}
+
+function isDeicticEventRequest(text: string): boolean {
+  const normalized = normalizeText(text);
+  return [
+    'this event',
+    'that event',
+    'selected event',
+    'delete this',
+    'remove this',
+    'cancel this',
+    'esse evento',
+    'este evento',
+    'evento selecionado',
+    'apaga esse',
+    'deleta isso',
+    'exclui isso',
+    'aqui',
+  ].some(token => normalized.includes(token));
+}
+
+function buildUserOnlyContext(messages: Array<{ role: 'user' | 'assistant'; content: string }>): string {
+  const userMessages = messages
+    .filter(message => message.role === 'user')
+    .slice(-4)
+    .map(message => stripInjectedContext(message.content || '').trim())
+    .filter(Boolean);
+
+  if (userMessages.length <= 1) return '';
+  return userMessages.slice(0, -1).map(content => `user: ${content}`).join('\n');
+}
+
+async function verifyEventDeletion(target: MappedEvent): Promise<boolean> {
+  const start = new Date(target.start_at);
+  const rangeStart = new Date(start);
+  const rangeEnd = new Date(start);
+  rangeStart.setUTCDate(rangeStart.getUTCDate() - 7);
+  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 7);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 400));
+    }
+    const events = await listEvents([{ id: target.linked_account_id, name: target.account_name, type: 'google' }], rangeStart.toISOString(), rangeEnd.toISOString());
+    if (!events.some(event => event.id === target.id)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function formatDateTime(value: string, timezone: string): string {
@@ -189,6 +310,8 @@ async function listEvents(accounts: ActiveAccount[], startIso: string, endIso: s
 function filterEventsByQuery(events: MappedEvent[], query: string | null | undefined): MappedEvent[] {
   const q = normalizeText(query || '');
   if (!q) return events;
+  const exactTitleMatches = events.filter(e => normalizeText(e.title) === q);
+  if (exactTitleMatches.length > 0) return exactTitleMatches;
   return events.filter(e => {
     const hay = normalizeText(`${e.title} ${e.description || ''} ${e.location || ''}`);
     return hay.includes(q);
@@ -212,6 +335,7 @@ async function parseActionWithOpenAI(params: {
   text: string;
   nowIso: string;
   timezone: string;
+  model?: string;
 }): Promise<ParsedAction | null> {
   if (!process.env.OPENAI_API_KEY) return null;
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -255,7 +379,7 @@ Rules:
 - If data is missing for create/edit/delete, set needs_clarification=true with question.`;
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: params.model || 'gpt-5.4-mini',
     temperature: 0,
     response_format: { type: 'json_object' },
     messages: [
@@ -272,6 +396,7 @@ async function parseActionWithGemini(params: {
   text: string;
   nowIso: string;
   timezone: string;
+  model?: string;
 }): Promise<ParsedAction | null> {
   if (!process.env.GEMINI_API_KEY) return null;
   const body = {
@@ -289,16 +414,31 @@ User request: ${params.text}`,
     }],
     generationConfig: { temperature: 0 },
   };
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  return parseJsonLoose(raw);
+
+  const models = Array.from(new Set([
+    params.model,
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+  ].filter((value): value is string => Boolean(value))));
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const parsed = parseJsonLoose(raw);
+      if (parsed?.intent && parsed.intent !== 'none') return parsed;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 async function parseCalendarAction(params: {
@@ -306,6 +446,7 @@ async function parseCalendarAction(params: {
   nowIso: string;
   timezone: string;
   provider: Provider;
+  model?: string;
 }): Promise<ParsedAction> {
   const primary = params.provider === 'openai'
     ? await parseActionWithOpenAI(params)
@@ -338,18 +479,23 @@ export async function tryRunCalendarSkill(params: {
   auth: AuthCtx;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   provider: Provider;
+  model?: string;
   timezone?: string;
   clientNowIso?: string;
 }): Promise<string | null> {
   const latestUser = extractLatestUserMessage(params.messages);
+  const latestInstruction = stripInjectedContext(latestUser);
+  const selectedEventContexts = extractSelectedEventContexts(latestUser);
+  const userOnlyContext = buildUserOnlyContext(params.messages);
   const timezone = params.timezone || 'UTC';
   const nowIso = safeIso(params.clientNowIso) || new Date().toISOString();
 
-  if (isTimeRequest(latestUser)) {
+  if (isTimeRequest(latestInstruction)) {
     return `Current local time: ${formatNow(timezone, nowIso)}`;
   }
 
-  if (!isLikelyCalendarRequest(latestUser)) {
+  const hasConversationCalendarIntent = Boolean(userOnlyContext) && isLikelyCalendarRequest(userOnlyContext);
+  if (!isLikelyCalendarRequest(latestInstruction) && !hasConversationCalendarIntent && selectedEventContexts.length === 0) {
     return null;
   }
 
@@ -358,16 +504,60 @@ export async function tryRunCalendarSkill(params: {
     return 'No active Google Calendar account is connected. Please connect one in Settings to manage events.';
   }
 
+  const deleteConfirmationId = extractDeleteConfirmation(latestInstruction);
+  if (deleteConfirmationId) {
+    const range = defaultRange(nowIso, 30, 365);
+    const candidates = await listEvents(accounts, range.start, range.end);
+    const target = candidates.find(event => normalizeText(event.id) === deleteConfirmationId);
+    if (!target) {
+      return 'I could not find the event id you asked me to confirm for deletion.';
+    }
+
+    await deleteCalendarEvent(target.linked_account_id, target.id);
+    const verified = await verifyEventDeletion(target);
+    if (!verified) {
+      return `I sent the deletion request for "${target.title}" (${target.id}), but I could not verify that Google actually removed it yet. Please refresh Calendar and, if it is still there, I can try again with the exact event id.`;
+    }
+    return `Deleted event "${target.title}" (${target.id}) from account ${target.account_name}.`;
+  }
+
+  const selectedEventContextBlock = selectedEventContexts.length
+    ? selectedEventContexts.map(event => [
+        `Selected event title: ${event.title || '(unknown)'}`,
+        `Selected event id: ${event.id}`,
+        event.source ? `Selected event source: ${event.source}` : '',
+        event.linkedAccountId ? `Selected linked account id: ${event.linkedAccountId}` : '',
+      ].filter(Boolean).join('\n')).join('\n\n')
+    : '';
+  const fullText = [
+    userOnlyContext ? `Previous user context:\n${userOnlyContext}` : '',
+    selectedEventContextBlock ? `Selected event context:\n${selectedEventContextBlock}` : '',
+    `Latest user request: ${latestInstruction}`,
+  ].filter(Boolean).join('\n\n');
+
   const action = await parseCalendarAction({
-    text: latestUser,
+    text: fullText,
     nowIso,
     timezone,
     provider: params.provider,
+    model: params.model,
   });
 
   if (!action.intent || action.intent === 'none') return null;
   if (action.needs_clarification) {
     return action.clarification_question || 'I need one more detail to complete that calendar action.';
+  }
+
+  if ((action.intent === 'delete' || action.intent === 'edit') && selectedEventContexts.length === 1) {
+    const selectedEvent = selectedEventContexts[0];
+    if (selectedEvent.source && selectedEvent.source !== 'google') {
+      return `The selected item "${selectedEvent.title || selectedEvent.id}" is not a Google Calendar event, so I cannot ${action.intent} it from Balys yet.`;
+    }
+
+    if ((!action.event_id && !action.event_query) || isDeicticEventRequest(latestInstruction)) {
+      action.event_id = selectedEvent.id;
+      action.event_query = selectedEvent.title || action.event_query || null;
+    }
   }
 
   if (action.intent === 'search') {
@@ -455,8 +645,7 @@ export async function tryRunCalendarSkill(params: {
     }
 
     const target = candidates[0];
-    await deleteCalendarEvent(target.linked_account_id, target.id);
-    return `Deleted event "${target.title}" (${target.id}) from account ${target.account_name}.`;
+    return `Please confirm deletion of "${target.title}" (${target.id}) scheduled for ${formatDateTime(target.start_at, timezone)}.\n\nReply with: confirm delete ${target.id}`;
   }
 
   return null;
@@ -467,4 +656,3 @@ export function buildNowSystemPrompt(opts: { timezone?: string; clientNowIso?: s
   const nowIso = safeIso(opts.clientNowIso) || new Date().toISOString();
   return `Current local date/time for the user: ${formatNow(timezone, nowIso)}. Use this reference for terms like today, tomorrow, this week.`;
 }
-

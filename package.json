@@ -43,6 +43,10 @@
     "openai": "^6.33.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-force-graph-2d": "^1.29.1",
+    "react-force-graph-3d": "^1.29.1",
+    "three": "^0.183.2",
+    "three-spritetext": "^1.10.0",
     "tippy.js": "^6.3.7",
     "tiptap-extension-resizable-image": "^2.1.0",
     "typescript": "^5.9.3"

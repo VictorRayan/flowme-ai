@@ -27,6 +27,9 @@ interface NoteResult {
 
 interface EventResult {
   id: string;
+  source?: string;
+  linked_account_id?: string;
+  account_name?: string;
   title: string;
   start_at: string;
   end_at?: string;
@@ -108,6 +111,10 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
         subtitle: e.start_at ? dayjs(e.start_at).format('YYYY-MM-DD HH:mm') : undefined,
         content: [
           `[Event: ${e.title}]`,
+          `Event ID: ${e.id}`,
+          e.source ? `Source: ${e.source}` : '',
+          e.linked_account_id ? `Linked Account ID: ${e.linked_account_id}` : '',
+          e.account_name ? `Account: ${e.account_name}` : '',
           `Time: ${e.start_at ? dayjs(e.start_at).format('MMM D YYYY, HH:mm') : 'unknown'}${e.end_at ? ' – ' + dayjs(e.end_at).format('HH:mm') : ''}`,
           e.description ? `Description: ${e.description}` : '',
           e.location ? `Location: ${e.location}` : '',

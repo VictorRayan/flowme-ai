@@ -4,8 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Box, TextField, IconButton, Typography, Paper, Stack,
   Chip, Divider, CircularProgress, Alert, Tooltip, Avatar,
-  List, ListItemButton, ListItemText, ListSubheader, Skeleton,
-  MenuItem, Menu
+  List, ListItemButton, ListItemText
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -19,7 +18,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import AddIcon from '@mui/icons-material/Add';
 import ChatIcon from '@mui/icons-material/Chat';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import NoteIcon from '@mui/icons-material/Note';
 import EventIcon from '@mui/icons-material/Event';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -87,6 +85,29 @@ function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: N
             {applied ? 'Applied' : applying ? 'Applying…' : 'Apply to note'}
           </Typography>
         </Box>
+        {/* View note button */}
+        {block.noteId && (
+          <Box
+            component="a"
+            href={`/app/notes`}
+            target="_blank"
+            rel="noopener"
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 0.5,
+              px: 1.25, py: '4px', borderRadius: 1.5,
+              bgcolor: 'rgba(255,255,255,0.06)',
+              border: '1px solid', borderColor: 'rgba(255,255,255,0.15)',
+              cursor: 'pointer', textDecoration: 'none',
+              transition: 'all 120ms',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+            }}
+          >
+            <NoteIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
+            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary' }}>
+              View note
+            </Typography>
+          </Box>
+        )}
       </Box>
       {/* HTML preview */}
       <Box
@@ -111,27 +132,46 @@ function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: N
   );
 }
 
-const STORAGE_KEY_MODEL    = 'balysai_model';
-const STORAGE_KEY_PROVIDER = 'balysai_provider';
 const STORAGE_KEY_THREADS  = 'balysai_threads';
 
-interface ModelEntry { id: string; label: string; provider: string; desc: string; }
 interface Attachment { type: 'image' | 'file' | 'audio'; name: string; dataUrl: string; mimeType: string; }
 interface Message { role: 'user' | 'assistant'; content: string; attachments?: Attachment[]; }
-interface Thread { id: string; title: string; messages: Message[]; model: string; provider: string; createdAt: number; }
+interface Thread {
+  id: string;
+  title: string;
+  messages: Message[];
+  model: string;
+  provider: string;
+  tier: string;
+  routeLabel: string;
+  executionPlan: string;
+  createdAt: number;
+}
 
-function newThread(model: string, provider: string): Thread {
-  return { id: Date.now().toString(), title: 'New chat', messages: [], model, provider, createdAt: Date.now() };
+function newThread(): Thread {
+  return {
+    id: Date.now().toString(),
+    title: 'New chat',
+    messages: [],
+    model: 'shadow-router',
+    provider: 'auto',
+    tier: 'cheap',
+    routeLabel: 'Shadow Router',
+    executionPlan: 'direct_tool',
+    createdAt: Date.now(),
+  };
+}
+
+function normalizeThread(thread: Partial<Thread>): Thread {
+  const base = newThread();
+  return {
+    ...base,
+    ...thread,
+    messages: Array.isArray(thread.messages) ? thread.messages : [],
+  };
 }
 
 export default function AIPage() {
-  const [model, setModel]       = useState('gpt-4o');
-  const [provider, setProvider] = useState('openai');
-  const [openaiModels, setOpenaiModels] = useState<ModelEntry[]>([]);
-  const [geminiModels, setGeminiModels] = useState<ModelEntry[]>([]);
-  const [modelsLoading, setModelsLoading] = useState(true);
-  const [modelAnchor, setModelAnchor] = useState<null | HTMLElement>(null);
-
   const [threads, setThreads]         = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
@@ -157,36 +197,22 @@ export default function AIPage() {
 
   // Load from localStorage
   useEffect(() => {
-    const m = localStorage.getItem(STORAGE_KEY_MODEL) || 'gpt-4o';
-    const p = localStorage.getItem(STORAGE_KEY_PROVIDER) || 'openai';
-    setModel(m); setProvider(p);
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_THREADS) || '[]') as Thread[];
-      if (saved.length) { setThreads(saved); setActiveThreadId(saved[0].id); }
-      else { const t = newThread(m, p); setThreads([t]); setActiveThreadId(t.id); }
-    } catch { const t = newThread(m, p); setThreads([t]); setActiveThreadId(t.id); }
-  }, []);
-
-  // Fetch models — validate stored model against available list
-  useEffect(() => {
-    fetch('/api/ai/models').then(r => r.json()).then(data => {
-      const openai: ModelEntry[] = data.openai || [];
-      const gemini: ModelEntry[] = data.gemini || [];
-      setOpenaiModels(openai); setGeminiModels(gemini);
-      // If current stored model is unavailable, switch to first available
-      const all = [...openai, ...gemini];
-      if (all.length > 0) {
-        setModel(prev => {
-          const still = all.find(m => m.id === prev);
-          if (still) return prev;
-          const first = all[0];
-          setProvider(first.provider);
-          localStorage.setItem(STORAGE_KEY_MODEL, first.id);
-          localStorage.setItem(STORAGE_KEY_PROVIDER, first.provider);
-          return first.id;
-        });
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_THREADS) || '[]') as Partial<Thread>[];
+      if (saved.length) {
+        const normalized = saved.map(normalizeThread);
+        setThreads(normalized);
+        setActiveThreadId(normalized[0].id);
+      } else {
+        const t = newThread();
+        setThreads([t]);
+        setActiveThreadId(t.id);
       }
-    }).finally(() => setModelsLoading(false));
+    } catch {
+      const t = newThread();
+      setThreads([t]);
+      setActiveThreadId(t.id);
+    }
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeThread?.messages, loading]);
@@ -227,15 +253,8 @@ export default function AIPage() {
     persistThreads(t);
   };
 
-  const selectModel = (id: string, prov: string) => {
-    setModel(id); setProvider(prov);
-    localStorage.setItem(STORAGE_KEY_MODEL, id);
-    localStorage.setItem(STORAGE_KEY_PROVIDER, prov);
-    setModelAnchor(null);
-  };
-
   const newChat = () => {
-    const t = newThread(model, provider);
+    const t = newThread();
     saveThreads([t, ...threads]);
     setActiveThreadId(t.id);
     setError(null);
@@ -244,7 +263,7 @@ export default function AIPage() {
   const deleteThread = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const updated = threads.filter(t => t.id !== id);
-    if (updated.length === 0) { const t = newThread(model, provider); saveThreads([t]); setActiveThreadId(t.id); }
+    if (updated.length === 0) { const t = newThread(); saveThreads([t]); setActiveThreadId(t.id); }
     else { saveThreads(updated); if (activeThreadId === id) setActiveThreadId(updated[0].id); }
   };
 
@@ -293,6 +312,7 @@ export default function AIPage() {
     setInput(prev => prev.replace(/(^|\s)\/\S*$/, (m, space) => space));
     setContextItems(prev => prev.find(c => c.id === item.id) ? prev : [...prev, item]);
     setCmdOpen(false);
+    setCmdQuery('');
   };
 
   const removeContext = (id: string) => setContextItems(prev => prev.filter(c => c.id !== id));
@@ -382,7 +402,7 @@ Rules:
       ? input.trim().slice(0, 40)
       : activeThread.title;
 
-    const updatedThread: Thread = { ...activeThread, messages: newMessages, title, model, provider };
+    const updatedThread: Thread = { ...activeThread, messages: newMessages, title };
     saveThreads(threads.map(t => t.id === activeThreadId ? updatedThread : t));
 
     setInput(''); setAttachments([]); setContextItems([]); setCmdOpen(false); setLoading(true); setError(null);
@@ -393,8 +413,6 @@ Rules:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          model,
-          provider,
           language: localStorage.getItem('balysai_language') || 'en',
           systemAddendum: noteEditSystemPrompt,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -409,11 +427,25 @@ Rules:
         catch (pe) { if (pe instanceof SyntaxError) throw new Error(text || 'Request failed'); else throw pe; }
       }
 
+      const routedProvider = res.headers.get('x-balys-provider') || updatedThread.provider;
+      const routedModel = res.headers.get('x-balys-model') || updatedThread.model;
+      const routedTier = res.headers.get('x-balys-tier') || updatedThread.tier;
+      const routedLabel = res.headers.get('x-balys-route-label') || updatedThread.routeLabel;
+      const routedPlan = res.headers.get('x-balys-execution-plan') || updatedThread.executionPlan;
+      const routedThread: Thread = {
+        ...updatedThread,
+        provider: routedProvider,
+        model: routedModel,
+        tier: routedTier,
+        routeLabel: routedLabel,
+        executionPlan: routedPlan,
+      };
+
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let assistantText = '';
       const withAssistant = [...newMessages, { role: 'assistant' as const, content: '' }];
-      saveThreads(threads.map(t => t.id === activeThreadId ? { ...updatedThread, messages: withAssistant } : t));
+      saveThreads(threads.map(t => t.id === activeThreadId ? { ...routedThread, messages: withAssistant } : t));
 
       while (true) {
         const { value, done } = await reader.read();
@@ -423,7 +455,7 @@ Rules:
           const updated = prev.map(t => {
             if (t.id !== activeThreadId) return t;
             const msgs = [...newMessages, { role: 'assistant' as const, content: assistantText }];
-            return { ...t, messages: msgs };
+            return { ...t, ...routedThread, messages: msgs };
           });
           // Strip attachment dataUrls before persisting to avoid quota errors
           const stripped = updated.map(t => ({
@@ -451,10 +483,6 @@ Rules:
     }
   };
 
-  const allModels = [...openaiModels, ...geminiModels];
-  const currentModel = allModels.find(m => m.id === model);
-  const providerColor = provider === 'gemini' ? 'success' : 'primary';
-
   return (
     <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
@@ -479,64 +507,29 @@ Rules:
 
       {/* ── Chat area ── */}
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header with model selector */}
+        {/* Header */}
         <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <SmartToyIcon color={providerColor} fontSize="small" />
-          <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
+          <SmartToyIcon color="secondary" fontSize="small" />
+          <Box>
+            <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
+            <Typography variant="caption" color="text.disabled">
+              Gemini + OpenAI automatic routing
+            </Typography>
+          </Box>
           <Box sx={{ flex: 1 }} />
 
-          {/* Model selector dropdown */}
           <Chip
-            label={modelsLoading ? '...' : (currentModel?.label || model)}
+            label={activeThread?.routeLabel || 'Shadow Router'}
             size="small"
-            color={providerColor}
+            color="secondary"
             variant="outlined"
-            onClick={e => setModelAnchor(e.currentTarget)}
-            onDelete={e => setModelAnchor(e.currentTarget as HTMLElement)}
-            deleteIcon={<ExpandMoreIcon />}
-            sx={{ cursor: 'pointer', maxWidth: 200 }}
+            sx={{ maxWidth: 240 }}
           />
-          <Menu
-            anchorEl={modelAnchor}
-            open={Boolean(modelAnchor)}
-            onClose={() => setModelAnchor(null)}
-            slotProps={{ paper: { sx: { maxHeight: 400, width: 280, bgcolor: '#1e2433', border: '1px solid', borderColor: 'divider' } } }}
-          >
-            {modelsLoading ? (
-              <Box sx={{ p: 2 }}><Skeleton width="80%" /><Skeleton width="60%" /></Box>
-            ) : (
-              [
-                openaiModels.length > 0 && (
-                  <ListSubheader key="openai-header" sx={{ bgcolor: 'transparent', lineHeight: '28px', fontSize: 10, letterSpacing: '0.1em', color: 'text.disabled' }}>
-                    OPENAI
-                  </ListSubheader>
-                ),
-                ...openaiModels.map(entry => (
-                  <MenuItem key={entry.id} selected={model === entry.id && provider === 'openai'} onClick={() => selectModel(entry.id, 'openai')} dense sx={{ gap: 1 }}>
-                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
-                    <ListItemText
-                      primary={<Typography variant="body2" sx={{ fontSize: 13 }}>{entry.label}</Typography>}
-                      secondary={<Typography variant="caption" sx={{ fontSize: 11, color: 'text.disabled' }}>{entry.desc}</Typography>}
-                    />
-                  </MenuItem>
-                )),
-                geminiModels.length > 0 && (
-                  <ListSubheader key="gemini-header" sx={{ bgcolor: 'transparent', lineHeight: '28px', fontSize: 10, letterSpacing: '0.1em', color: 'text.disabled' }}>
-                    GEMINI
-                  </ListSubheader>
-                ),
-                ...geminiModels.map(entry => (
-                  <MenuItem key={entry.id} selected={model === entry.id && provider === 'gemini'} onClick={() => selectModel(entry.id, 'gemini')} dense sx={{ gap: 1 }}>
-                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }} />
-                    <ListItemText
-                      primary={<Typography variant="body2" sx={{ fontSize: 13 }}>{entry.label}</Typography>}
-                      secondary={<Typography variant="caption" sx={{ fontSize: 11, color: 'text.disabled' }}>{entry.desc}</Typography>}
-                    />
-                  </MenuItem>
-                )),
-              ]
-            )}
-          </Menu>
+          {activeThread && (
+            <Typography variant="caption" color="text.disabled" sx={{ display: { xs: 'none', md: 'block' } }}>
+              {activeThread.provider === 'auto' ? 'Adaptive route pending' : `${activeThread.provider.toUpperCase()} - ${activeThread.model}`}
+            </Typography>
+          )}
 
           <Tooltip title="Clear chat">
             <span>
@@ -674,7 +667,11 @@ Rules:
           <TextField fullWidth multiline maxRows={4} placeholder='Message BalysAI... (type / to add notes or events as context)' value={input}
             onChange={e => handleInputChange(e.target.value)}
             onKeyDown={e => {
-              if (cmdOpen) return; // let CommandPalette handle arrows/enter/esc
+              if (cmdOpen) {
+                // Only block Enter/Arrows when palette is actually selecting
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Escape') return;
+                if (e.key === 'Enter') return;
+              }
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }}
             size="small" disabled={loading} />
@@ -698,3 +695,4 @@ Rules:
     </Box>
   );
 }
+

@@ -4,7 +4,8 @@ import { apiError, ErrorCode } from '@/lib/api/errors';
 import OpenAI from 'openai';
 import { estimateTokensFromText, logAiUsage } from '@/lib/ai/billing';
 import { buildNowSystemPrompt, tryRunCalendarSkill } from '@/lib/ai/calendar-skill';
-
+import { buildNotesGraphMap } from '@/lib/ai/notes-skill';
+import { routeBalysRequest } from '@/lib/ai/shadow-router';
 interface Attachment {
   type: 'image' | 'file' | 'audio';
   name: string;
@@ -23,14 +24,44 @@ interface AuthCtx {
   user: any;
 }
 
+type Provider = 'openai' | 'gemini';
+
+type RoutedTarget = {
+  provider: Provider;
+  model: string;
+};
+
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[^\x20-\x7E]/g, ' ').trim();
+}
+
+function buildRouteHeaders(route: ReturnType<typeof routeBalysRequest>, target: RoutedTarget): Record<string, string> {
+  return {
+    'X-Balys-Router': 'shadow-antigravity',
+    'X-Balys-Tier': route.tier,
+    'X-Balys-Provider': target.provider,
+    'X-Balys-Model': target.model,
+    'X-Balys-Execution-Plan': route.executionPlan,
+    'X-Balys-Route-Label': sanitizeHeaderValue(route.userFacingLabel),
+  };
+}
+
+function dedupeTargets(targets: RoutedTarget[]): RoutedTarget[] {
+  const seen = new Set<string>();
+  return targets.filter((target) => {
+    const key = `${target.provider}:${target.model}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
 
     const {
       messages,
-      model,
-      provider,
       language,
       systemAddendum,
       timezone,
@@ -44,21 +75,7 @@ export async function POST(request: NextRequest) {
       de: 'German', it: 'Italian', ja: 'Japanese', zh: 'Chinese',
     };
 
-    const skillResult = await tryRunCalendarSkill({
-      auth,
-      messages: messages.map((m: IncomingMessage, idx: number) => ({
-        role: m.role,
-        content: (idx === messages.length - 1 && m.role === 'user' && typeof rawUserInput === 'string')
-          ? rawUserInput
-          : (m.content || ''),
-      })),
-      provider: (provider === 'gemini' ? 'gemini' : 'openai'),
-      timezone: typeof timezone === 'string' ? timezone : undefined,
-      clientNowIso: typeof clientNowIso === 'string' ? clientNowIso : undefined,
-    });
-    if (skillResult) {
-      return new Response(skillResult, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-    }
+    const notesMap = await buildNotesGraphMap(auth);
 
     const parts = [
       buildNowSystemPrompt({
@@ -67,30 +84,110 @@ export async function POST(request: NextRequest) {
       }),
       language ? `Always respond in ${langMap[language] || language}.` : '',
       systemAddendum || '',
+      notesMap || '',
     ].filter(Boolean);
     const systemPromptFull = parts.join('\n\n');
+    const route = routeBalysRequest({
+      messages,
+      rawUserInput: typeof rawUserInput === 'string' ? rawUserInput : undefined,
+      systemAddendum: typeof systemAddendum === 'string' ? systemAddendum : undefined,
+    });
+    const routingMetadata: Record<string, unknown> = {
+      ...route.telemetryTags,
+      primary_provider: route.primary.provider,
+      primary_model: route.primary.model,
+      planner_provider: route.planner.provider,
+      planner_model: route.planner.model,
+      executor_provider: route.executor.provider,
+      executor_model: route.executor.model,
+      verifier_provider: route.verifier.provider,
+      verifier_model: route.verifier.model,
+      shadow_provider: route.shadow?.provider || '',
+      shadow_model: route.shadow?.model || '',
+      overall_score: route.overallScore,
+      score_ambiguity: route.scores.ambiguity,
+      score_reasoning: route.scores.reasoning,
+      score_workflow_length: route.scores.workflowLength,
+      score_risk: route.scores.risk,
+    };
 
-    if (provider === 'gemini') {
-      return await handleGemini(auth, messages, model, systemPromptFull);
+    const skillTarget = route.executionPlan === 'direct_tool' ? route.executor : route.planner;
+    const skillResult = await tryRunCalendarSkill({
+      auth,
+      messages: messages.map((m: IncomingMessage) => ({
+        role: m.role,
+        content: m.content || '',
+      })),
+      provider: skillTarget.provider,
+      model: skillTarget.model,
+      timezone: typeof timezone === 'string' ? timezone : undefined,
+      clientNowIso: typeof clientNowIso === 'string' ? clientNowIso : undefined,
+    });
+    if (skillResult) {
+      return new Response(skillResult, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          ...buildRouteHeaders(route, skillTarget),
+        },
+      });
     }
-    return await handleOpenAI(auth, messages, model, systemPromptFull);
+
+    const attempts = dedupeTargets([route.primary, ...route.fallbacks.map((fallback) => fallback.target)]);
+    let lastError: unknown = null;
+
+    for (let index = 0; index < attempts.length; index += 1) {
+      const target = attempts[index];
+      const metadata = {
+        ...routingMetadata,
+        route_attempt: index + 1,
+        route_provider: target.provider,
+        route_model: target.model,
+        route_role:
+          target.provider === route.planner.provider && target.model === route.planner.model
+            ? 'planner'
+            : target.provider === route.executor.provider && target.model === route.executor.model
+              ? 'executor'
+              : target.provider === route.verifier.provider && target.model === route.verifier.model
+                ? 'verifier'
+                : 'fallback',
+      };
+
+      try {
+        if (target.provider === 'gemini') {
+          return await handleGemini(auth, messages, target.model, systemPromptFull, metadata, buildRouteHeaders(route, target));
+        }
+        return await handleOpenAI(auth, messages, target.model, systemPromptFull, metadata, buildRouteHeaders(route, target));
+      } catch (attemptError) {
+        lastError = attemptError;
+        console.warn(`[shadow-router] attempt ${index + 1} failed for ${target.provider}:${target.model}`, attemptError);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('All routed providers failed');
   } catch (err: unknown) {
     let msg = err instanceof Error ? err.message : String(err);
     if (msg === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     if (msg.includes('429') || msg.includes('Rate limit') || msg.includes('quota')) {
-      msg = 'Rate limit reached for this OpenAI model. Wait a moment and try again, or switch to a different model.';
+      msg = 'Balys hit a temporary provider rate limit. The router will retry automatically on the next request.';
     } else if (msg.includes('401') || msg.includes('Incorrect API key')) {
-      msg = 'Invalid OpenAI API key. Check OPENAI_API_KEY in .env.local.';
+      msg = 'One of the Balys provider API keys is invalid or unauthorized. Check OPENAI_API_KEY and GEMINI_API_KEY in .env.local.';
     } else if (msg.includes('insufficient_quota')) {
-      msg = 'OpenAI quota exceeded. Check your billing at platform.openai.com.';
+      msg = 'A provider quota was exceeded. Check your OpenAI and Gemini billing settings.';
     }
     return apiError(ErrorCode.INTERNAL_ERROR, msg);
   }
 }
 
-async function handleOpenAI(auth: AuthCtx, messages: IncomingMessage[], model: string, systemPrompt = '') {
+async function handleOpenAI(
+  auth: AuthCtx,
+  messages: IncomingMessage[],
+  model: string,
+  systemPrompt = '',
+  routingMetadata: Record<string, unknown> = {},
+  responseHeaders: Record<string, string> = {},
+) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 400 });
+  if (!apiKey) throw new Error('OpenAI API key not configured');
 
   const openai = new OpenAI({ apiKey });
 
@@ -162,10 +259,15 @@ async function handleOpenAI(auth: AuthCtx, messages: IncomingMessage[], model: s
       model: selectedModel,
       promptTokens,
       completionTokens,
-      metadata: { usage_source: completion.usage ? 'api' : 'estimated' },
+      metadata: { ...routingMetadata, usage_source: completion.usage ? 'api' : 'estimated' },
     });
 
-    return new Response(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(text, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        ...responseHeaders,
+      },
+    });
   }
 
   const completion = await openai.chat.completions.create({
@@ -209,21 +311,33 @@ async function handleOpenAI(auth: AuthCtx, messages: IncomingMessage[], model: s
         model: selectedModel,
         promptTokens,
         completionTokens,
-        metadata: { usage_source: hasUsage ? 'api' : 'estimated' },
+        metadata: { ...routingMetadata, usage_source: hasUsage ? 'api' : 'estimated' },
       });
 
       controller.close();
     },
   });
 
-  return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      ...responseHeaders,
+    },
+  });
 }
 
-async function handleGemini(auth: AuthCtx, messages: IncomingMessage[], model: string, systemPrompt = '') {
+async function handleGemini(
+  auth: AuthCtx,
+  messages: IncomingMessage[],
+  model: string,
+  systemPrompt = '',
+  routingMetadata: Record<string, unknown> = {},
+  responseHeaders: Record<string, string> = {},
+) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 400 });
+  if (!apiKey) throw new Error('Gemini API key not configured');
 
-  const modelId = model || 'gemini-2.0-flash';
+  const modelId = model || 'gemini-2.5-flash';
 
   const contents = messages.map(msg => {
     const parts: { text?: string; inline_data?: { mime_type: string; data: string } }[] = [];
@@ -263,16 +377,16 @@ async function handleGemini(auth: AuthCtx, messages: IncomingMessage[], model: s
       if (code === 429 || status === 'RESOURCE_EXHAUSTED') {
         const retryMatch = errText.match(/retry in ([\d.]+)s/);
         const retry = retryMatch ? ` Try again in ${Math.ceil(Number(retryMatch[1]))} seconds.` : '';
-        friendlyMsg = `Quota exceeded for "${modelId}" (free tier limit reached).${retry} Switch to Gemini 2.0 Flash or upgrade at ai.dev/rate-limit.`;
+        friendlyMsg = `Quota exceeded for "${modelId}".${retry}`;
       } else if (code === 404) {
-        friendlyMsg = `Model "${modelId}" is not available with your API key. Please select a different model.`;
+        friendlyMsg = `Model "${modelId}" is not available with your API key.`;
       } else if (code === 401 || code === 403) {
         friendlyMsg = 'Invalid or unauthorized Gemini API key. Check GEMINI_API_KEY in .env.local.';
       } else {
         friendlyMsg = errJson?.error?.message || errText;
       }
     } catch { friendlyMsg = errText; }
-    return NextResponse.json({ error: friendlyMsg }, { status: geminiRes.status });
+    throw new Error(friendlyMsg);
   }
 
   const encoder = new TextEncoder();
@@ -333,12 +447,17 @@ async function handleGemini(auth: AuthCtx, messages: IncomingMessage[], model: s
         model: modelId,
         promptTokens: finalPromptTokens,
         completionTokens: finalCompletionTokens,
-        metadata: { usage_source: hasUsage ? 'api' : 'estimated' },
+        metadata: { ...routingMetadata, usage_source: hasUsage ? 'api' : 'estimated' },
       });
 
       controller.close();
     },
   });
 
-  return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      ...responseHeaders,
+    },
+  });
 }

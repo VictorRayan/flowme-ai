@@ -13,6 +13,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import AddIcon from '@mui/icons-material/Add';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import HubIcon from '@mui/icons-material/Hub';
 import dayjs from 'dayjs';
 
 export interface NoteItem {
@@ -67,7 +68,10 @@ function groupByDateHierarchy(notes: NoteItem[]) {
   return byYear;
 }
 
+import { useRouter } from 'next/navigation';
+
 export default function NotesTree({ notes, people, selectedId, selectedPersonId, onSelect, onSelectPerson, onOpenPersonNote, onAddPerson, onRenamePerson, onDeleteNote, onDeletePerson, onNewNote, onNewDailyBriefing }: NotesTreeProps) {
+  const router = useRouter();
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
@@ -109,11 +113,18 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
         <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: 11, letterSpacing: 1 }}>
           Notes
         </Typography>
-        <Tooltip title="New note">
-          <IconButton size="small" onClick={() => onNewNote()}>
-            <AddIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Tooltip title="Neural Graph Map">
+            <IconButton size="small" onClick={() => router.push('/app/notes/graph')}>
+              <HubIcon fontSize="small" sx={{ color: 'primary.main' }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="New note">
+            <IconButton size="small" onClick={() => onNewNote()}>
+              <AddIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
       <Divider />
 

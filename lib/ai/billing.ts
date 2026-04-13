@@ -5,6 +5,9 @@ type Price = { input: number; output: number }; // USD per 1M tokens
 const OPENAI_PRICES: Record<string, Price> = {
   'gpt-4o': { input: 5, output: 15 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-5.4-nano': { input: 0.2, output: 1.25 },
+  'gpt-5.4-mini': { input: 0.75, output: 4.5 },
+  'gpt-5.4': { input: 2.5, output: 15 },
   'whisper-1': { input: 0, output: 0 },
 };
 
@@ -12,7 +15,7 @@ const GEMINI_PRICES: Record<string, Price> = {
   'gemini-2.0-flash': { input: 0.1, output: 0.4 },
   'gemini-2.0-flash-lite': { input: 0.075, output: 0.3 },
   'gemini-2.5-flash': { input: 0.3, output: 1.2 },
-  'gemini-2.5-flash-lite': { input: 0.15, output: 0.6 },
+  'gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
   'gemini-2.5-pro': { input: 1.25, output: 5 },
   'gemini-3-flash-preview': { input: 0.3, output: 1.2 },
   'gemini-3-pro-preview': { input: 1.25, output: 5 },
@@ -106,4 +109,3 @@ export async function logAiUsage(opts: {
 export function usdToBrl(usd: number, rate = 5.0): number {
   return Number((usd * rate).toFixed(2));
 }
-

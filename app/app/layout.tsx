@@ -13,6 +13,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import NoteIcon from '@mui/icons-material/Note';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ViewAgendaIcon from '@mui/icons-material/ViewAgenda';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import ElectricalServicesIcon from '@mui/icons-material/ElectricalServices';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -56,11 +58,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const menuItems = [
-    { text: 'Flow',     icon: <ViewAgendaIcon    sx={{ fontSize: 20 }} />, path: '/app/flow' },
-    { text: 'Calendar', icon: <CalendarMonthIcon sx={{ fontSize: 20 }} />, path: '/app/calendar' },
-    { text: 'Notes',    icon: <NoteIcon          sx={{ fontSize: 20 }} />, path: '/app/notes' },
-    { text: 'BalysAI', icon: <SmartToyIcon       sx={{ fontSize: 20 }} />, path: '/app/ai' },
-    { text: 'Settings', icon: <SettingsIcon      sx={{ fontSize: 20 }} />, path: '/app/settings' },
+    { text: 'Flow',       icon: <ViewAgendaIcon        sx={{ fontSize: 20 }} />, path: '/app/flow' },
+    { text: 'Calendar',   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar' },
+    { text: 'Notes',      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
+    { text: 'Cowork',     icon: <ChecklistIcon         sx={{ fontSize: 20 }} />, path: '/app/tasks' },
+    { text: 'BalysAI',   icon: <SmartToyIcon           sx={{ fontSize: 20 }} />, path: '/app/ai' },
+    { text: 'Connectors', icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors' },
+    { text: 'Settings',   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
   ];
 
   const drawer = (

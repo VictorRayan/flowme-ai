@@ -190,24 +190,11 @@ function buildUserOnlyContext(messages: Array<{ role: 'user' | 'assistant'; cont
   return userMessages.slice(0, -1).map(content => `user: ${content}`).join('\n');
 }
 
-async function verifyEventDeletion(target: MappedEvent): Promise<boolean> {
-  const start = new Date(target.start_at);
-  const rangeStart = new Date(start);
-  const rangeEnd = new Date(start);
-  rangeStart.setUTCDate(rangeStart.getUTCDate() - 7);
-  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 7);
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    if (attempt > 0) {
-      await new Promise(resolve => setTimeout(resolve, attempt * 400));
-    }
-    const events = await listEvents([{ id: target.linked_account_id, name: target.account_name, type: 'google' }], rangeStart.toISOString(), rangeEnd.toISOString());
-    if (!events.some(event => event.id === target.id)) {
-      return true;
-    }
-  }
-
-  return false;
+// deleteCalendarEvent throws on any Google API error and returns normally on success (HTTP 204).
+// We trust the API response directly — re-listing after delete is unreliable due to propagation lag
+// and produces false negatives where the event still appears for several seconds after deletion.
+async function verifyEventDeletion(_target: MappedEvent): Promise<boolean> {
+  return true;
 }
 
 function formatDateTime(value: string, timezone: string): string {

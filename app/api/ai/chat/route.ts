@@ -4,7 +4,7 @@ import { apiError, ErrorCode } from '@/lib/api/errors';
 import OpenAI from 'openai';
 import { estimateTokensFromText, logAiUsage } from '@/lib/ai/billing';
 import { buildNowSystemPrompt, tryRunCalendarSkill } from '@/lib/ai/calendar-skill';
-import { buildNotesGraphMap } from '@/lib/ai/notes-skill';
+import { buildNotesGraphMap, tryRunNotesSkill } from '@/lib/ai/notes-skill';
 import { routeBalysRequest } from '@/lib/ai/shadow-router';
 interface Attachment {
   type: 'image' | 'file' | 'audio';
@@ -77,6 +77,26 @@ export async function POST(request: NextRequest) {
 
     const notesMap = await buildNotesGraphMap(auth);
 
+    const notesIntent = await tryRunNotesSkill({
+      auth,
+      messages: messages.map((m: IncomingMessage) => ({
+        role: m.role,
+        content: m.content || '',
+      })),
+      provider: 'openai',
+      notesMap
+    });
+
+    if (notesIntent?.type === 'return_to_user') {
+      const dummyRoute = routeBalysRequest({ messages, rawUserInput: typeof rawUserInput === 'string' ? rawUserInput : undefined });
+      return new Response(notesIntent.text, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          ...buildRouteHeaders(dummyRoute, dummyRoute.executor),
+        },
+      });
+    }
+
     const parts = [
       buildNowSystemPrompt({
         timezone: typeof timezone === 'string' ? timezone : undefined,
@@ -85,6 +105,7 @@ export async function POST(request: NextRequest) {
       language ? `Always respond in ${langMap[language] || language}.` : '',
       systemAddendum || '',
       notesMap || '',
+      notesIntent?.type === 'inject_context' ? notesIntent.text : ''
     ].filter(Boolean);
     const systemPromptFull = parts.join('\n\n');
     const route = routeBalysRequest({

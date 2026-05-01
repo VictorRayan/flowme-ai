@@ -30,6 +30,8 @@ import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
 import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
 import FormatAlignRightIcon from '@mui/icons-material/FormatAlignRight';
 import MentionList from './MentionList';
+import DocumentMentionList, { DocItem } from './DocumentMentionList';
+import { PluginKey } from '@tiptap/pm/state';
 
 interface Person {
   id: string;
@@ -67,6 +69,10 @@ const ResizableImage = Image.extend({
       width: { default: null, renderHTML: attrs => attrs.width ? { width: attrs.width } : {} },
     };
   },
+});
+
+const DocumentMention = Mention.extend({
+  name: 'documentMention',
 });
 
 export default function NoteEditor({ note, onSave, onRename, onDelete, saving }: NoteEditorProps) {
@@ -132,6 +138,24 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
     return res.json();
   }, []);
 
+  const fetchDocumentSuggestions = useCallback(async (query: string): Promise<DocItem[]> => {
+    const [notesRes, docsRes] = await Promise.all([
+      fetch('/api/notes'),
+      fetch('/api/documents?q=' + encodeURIComponent(query)).catch(() => null)
+    ]);
+    const notes = notesRes.ok ? await notesRes.json() : [];
+    const docs = docsRes && docsRes.ok ? await docsRes.json() : [];
+    
+    let combined: DocItem[] = [
+      ...notes.map((n: any) => ({ id: n.id, name: n.title || 'Untitled Note', type: 'note' as const })),
+      ...(docs.documents || []).map((d: any) => ({ id: d.id, name: d.title || 'Untitled Document', type: 'document' as const }))
+    ];
+    if (query) {
+      combined = combined.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+    }
+    return combined.slice(0, 10);
+  }, []);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -150,6 +174,43 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
             return {
               onStart: (props) => {
                 component = new ReactRenderer(MentionList, { props, editor: props.editor });
+                popup = tippy('body', {
+                  getReferenceClientRect: props.clientRect as () => DOMRect,
+                  appendTo: () => document.body,
+                  content: component.element,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: 'manual',
+                  placement: 'bottom-start',
+                });
+              },
+              onUpdate: (props) => {
+                component.updateProps(props);
+                popup[0].setProps({ getReferenceClientRect: props.clientRect as () => DOMRect });
+              },
+              onKeyDown: (props) => {
+                if (props.event.key === 'Escape') { popup[0].hide(); return true; }
+                const ref = component.ref as { onKeyDown?: (p: typeof props) => boolean } | null;
+                return ref?.onKeyDown?.(props) ?? false;
+              },
+              onExit: () => { popup[0].destroy(); component.destroy(); },
+            };
+          },
+        },
+      }),
+      DocumentMention.configure({
+        HTMLAttributes: { class: 'document-mention', style: 'color: #00e5ff; background: rgba(0,229,255,0.1); border-radius: 4px; padding: 0 4px;' },
+        suggestion: {
+          char: '/',
+          pluginKey: new PluginKey('documentMention'),
+          items: async ({ query }) => fetchDocumentSuggestions(query),
+          render: () => {
+            let component: ReactRenderer<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean }>;
+            let popup: TippyInstance[];
+
+            return {
+              onStart: (props) => {
+                component = new ReactRenderer(DocumentMentionList, { props, editor: props.editor });
                 popup = tippy('body', {
                   getReferenceClientRect: props.clientRect as () => DOMRect,
                   appendTo: () => document.body,

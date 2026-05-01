@@ -1,8 +1,8 @@
 type Provider = 'openai' | 'gemini';
-type TaskType = 'calendar' | 'notes' | 'goals' | 'briefing' | 'mixed';
+type TaskType = 'calendar' | 'notes' | 'goals' | 'briefing' | 'mixed' | 'council';
 type WriteIntent = 'none' | 'read_only' | 'write_notes' | 'write_calendar' | 'write_both';
 type Tier = 'cheap' | 'mid' | 'strong';
-type ExecutionPlan = 'direct_tool' | 'plan_then_tool' | 'retrieve_then_plan_then_tool' | 'briefing_pipeline';
+type ExecutionPlan = 'direct_tool' | 'plan_then_tool' | 'retrieve_then_plan_then_tool' | 'briefing_pipeline' | 'council_pipeline';
 type ServiceTier = 'standard' | 'flex' | 'batch' | 'priority';
 
 export interface RouterMessage {
@@ -130,9 +130,14 @@ function inferTaskType(text: string): TaskType {
     /\b(briefing|daily brief|summary of my day|top 3)\b/,
     /\b(resumo do dia|briefing diario|briefing di[aá]rio|top 3)\b/,
   ]);
+  const isCouncil = hasAny(text, [
+    /\b(council|mastermind|board|advisors)\b/,
+    /\b(conselho|mastermind|conselheiros|council)\b/,
+  ]);
 
-  const matches = [isCalendar, isNotes, isGoals, isBriefing].filter(Boolean).length;
-  if (matches > 1) return 'mixed';
+  const matches = [isCalendar, isNotes, isGoals, isBriefing, isCouncil].filter(Boolean).length;
+  if (matches > 1 && !isCouncil) return 'mixed';
+  if (isCouncil) return 'council';
   if (isCalendar) return 'calendar';
   if (isNotes) return 'notes';
   if (isGoals) return 'goals';
@@ -157,6 +162,7 @@ function inferWriteIntent(text: string, taskType: TaskType): WriteIntent {
   if (taskType === 'mixed') return 'write_both';
   if (taskType === 'briefing') return readOnly ? 'read_only' : 'write_both';
   if (taskType === 'goals') return 'write_notes';
+  if (taskType === 'council') return 'read_only';
   return 'none';
 }
 
@@ -211,6 +217,7 @@ function scoreReasoning(text: string, taskType: TaskType, messageCount: number):
   let score = 0.05 + complexTerms * 0.16 + sequentialTerms * 0.08;
 
   if (taskType === 'goals' || taskType === 'briefing') score += 0.18;
+  if (taskType === 'council') score += 0.30;
   if (taskType === 'mixed') score += 0.14;
   if (text.length > 500) score += 0.12;
   if (messageCount > 8) score += 0.08;
@@ -275,6 +282,7 @@ function pickTier(score: number): Tier {
 }
 
 function pickExecutionPlan(taskType: TaskType, tier: Tier, needsTools: boolean, writeIntent: WriteIntent): ExecutionPlan {
+  if (taskType === 'council') return 'council_pipeline';
   if (taskType === 'briefing') return 'briefing_pipeline';
   if (taskType === 'notes' && (tier === 'mid' || tier === 'strong')) return 'retrieve_then_plan_then_tool';
   if (needsTools && (tier !== 'cheap' || writeIntent !== 'read_only')) return 'plan_then_tool';

@@ -127,7 +127,18 @@ export default function OnboardingWizard() {
     }
   };
 
-  const finish = () => router.push('/app/flow');
+  const finish = async () => {
+    try {
+      await fetch('/api/v1/onboarding/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ morningTime, eveningTime })
+      });
+    } catch (e) {
+      console.error('Failed to save rhythm settings', e);
+    }
+    router.push('/app/flow');
+  };
 
   const callAI = async (history: AIMessage[], userMsg: string): Promise<any> => {
     const res = await fetch('/api/v1/onboarding/assistant', {

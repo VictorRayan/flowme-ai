@@ -3,6 +3,7 @@ import { Box, Typography, Paper } from '@mui/material';
 import dayjs from 'dayjs';
 import { CalendarEvent } from './types';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import { buildDroppedEventRange, DAY_MINUTES, dropYToMinuteOfDay, eventDurationMinutes, HOUR_HEIGHT, minutesFromDayStart } from '@/lib/calendar/time-grid';
 
 interface CalendarDayGridProps {
   currentDate: dayjs.Dayjs;
@@ -10,8 +11,6 @@ interface CalendarDayGridProps {
   onEventClick: (event: CalendarEvent) => void;
   onEventDrop?: (eventId: string, newStart: string, newEnd?: string) => void;
 }
-
-const HOUR_HEIGHT = 60;
 
 // Shared color helper — same logic as EventChip for consistency
 function eventColors(isMicro: boolean, isWork: boolean) {
@@ -37,6 +36,7 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
 
   // Current time indicator position
   const nowMinutes = dayjs().hour() * 60 + dayjs().minute();
+  const timelineHeight = DAY_MINUTES / 60 * HOUR_HEIGHT;
 
   return (
     <Box sx={{
@@ -74,6 +74,7 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
           width: 60, flexShrink: 0, position: 'relative',
           borderRight: '1px solid', borderColor: 'divider',
           bgcolor: 'background.paper',
+          minHeight: timelineHeight,
         }}>
           {hours.map(h => (
             <Box key={h} sx={{ height: HOUR_HEIGHT, display: 'flex', justifyContent: 'flex-end', pr: 1 }}>
@@ -88,7 +89,7 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
 
         {/* Grid + events */}
         <Box
-          sx={{ flexGrow: 1, position: 'relative' }}
+          sx={{ flexGrow: 1, position: 'relative', minHeight: timelineHeight }}
           onDragOver={e => { if (onEventDrop) e.preventDefault(); }}
           onDrop={e => {
             if (!onEventDrop) return;
@@ -98,26 +99,43 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
             const offsetY = Number(e.dataTransfer.getData('application/offset-y')) || 0;
             const rect = e.currentTarget.getBoundingClientRect();
             const dropY = (e.clientY - offsetY) - rect.top;
-            const snapped = Math.floor(Math.max(0, dropY) / 15) * 15;
             const tgt = events.find(ev => ev.id === eventId);
             if (!tgt) return;
-            const dur = tgt.end_at ? dayjs(tgt.end_at).diff(dayjs(tgt.start_at), 'minute') : 30;
-            const newStart = currentDate.startOf('day').add(snapped, 'minute');
-            onEventDrop(eventId, newStart.toISOString(), newStart.add(dur, 'minute').toISOString());
+            const minuteOfDay = dropYToMinuteOfDay(dropY);
+            const duration = eventDurationMinutes(tgt.start_at, tgt.end_at);
+            const range = buildDroppedEventRange(currentDate, minuteOfDay, duration);
+            onEventDrop(eventId, range.start, range.end);
           }}
         >
           {/* Hour lines — use background-image for reliable rendering */}
-          <Box sx={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT}px)`,
-            backgroundSize: `100% ${HOUR_HEIGHT}px`,
-          }} />
+          {hours.map(h => (
+            <Box
+              key={h}
+              sx={{
+                position: 'absolute',
+                pointerEvents: 'none',
+                left: 0,
+                right: 0,
+                top: h * HOUR_HEIGHT,
+                height: HOUR_HEIGHT,
+                borderTop: '1px solid rgba(42,49,66,0.65)',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: HOUR_HEIGHT / 2,
+                  borderTop: '1px dashed rgba(42,49,66,0.28)',
+                },
+              }}
+            />
+          ))}
 
           {/* Current time line */}
           {isToday && (
             <Box sx={{
               position: 'absolute', left: 0, right: 0,
-              top: `${nowMinutes}px`,
+              top: `${nowMinutes / 60 * HOUR_HEIGHT}px`,
               height: '2px',
               bgcolor: 'primary.main',
               zIndex: 5,
@@ -132,8 +150,8 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
           {/* Events */}
           {dayEvents.map(evt => {
             const start = dayjs(evt.start_at);
-            const top = start.hour() * 60 + start.minute();
-            const dur = evt.end_at ? Math.max(15, dayjs(evt.end_at).diff(start, 'minute')) : 30;
+            const top = minutesFromDayStart(evt.start_at);
+            const dur = eventDurationMinutes(evt.start_at, evt.end_at);
             const { bg, fg, border, bar } = eventColors(evt.source === 'microactivity', evt.account_type === 'work');
 
             return (
@@ -149,9 +167,9 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
                 elevation={0}
                 sx={{
                   position: 'absolute',
-                  top: `${top}px`,
+                  top: `${top / 60 * HOUR_HEIGHT}px`,
                   left: 8, right: 8,
-                  height: `${dur}px`,
+                  height: `${dur / 60 * HOUR_HEIGHT}px`,
                   bgcolor: bg,
                   color: fg,
                   border: '1px solid',

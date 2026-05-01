@@ -9,9 +9,10 @@ const TASK_FIELDS = `
   is_recurring, recurrence_rule, created_at, updated_at
 `;
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth();
+    const { id } = await params;
     const body = await req.json();
 
     const allowedFields = [
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await supabase
       .from('microactivities')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .select(TASK_FIELDS)
       .single();
@@ -56,14 +57,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth();
+    const { id } = await params;
 
     const { error } = await supabase
       .from('microactivities')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id);
 
     if (error) throw error;

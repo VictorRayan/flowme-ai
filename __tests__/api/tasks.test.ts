@@ -107,7 +107,7 @@ describe('PATCH /api/tasks/[id]', () => {
       method: 'PATCH',
       body: JSON.stringify({ status: 'completed' }),
     });
-    const res = await PATCH(req, { params: { id: 'task-1' } });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'task-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -118,7 +118,7 @@ describe('PATCH /api/tasks/[id]', () => {
       method: 'PATCH',
       body: JSON.stringify({}),
     });
-    const res = await PATCH(req, { params: { id: 'task-1' } });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'task-1' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
@@ -128,7 +128,7 @@ describe('PATCH /api/tasks/[id]', () => {
 describe('DELETE /api/tasks/[id]', () => {
   it('deletes a task and returns deleted:true', async () => {
     const req = new NextRequest('http://localhost/api/tasks/task-1', { method: 'DELETE' });
-    const res = await DELETE(req, { params: { id: 'task-1' } });
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'task-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);

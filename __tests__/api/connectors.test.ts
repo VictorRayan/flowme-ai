@@ -97,7 +97,7 @@ describe('PATCH /api/connectors/[id]', () => {
       method: 'PATCH',
       body: JSON.stringify({ name: 'Personal email' }),
     });
-    const res = await PATCH(req, { params: { id: 'conn-1' } });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'conn-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -108,7 +108,7 @@ describe('PATCH /api/connectors/[id]', () => {
       method: 'PATCH',
       body: JSON.stringify({ is_active: false }),
     });
-    const res = await PATCH(req, { params: { id: 'conn-1' } });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'conn-1' }) });
     expect(res.status).toBe(200);
   });
 
@@ -117,7 +117,7 @@ describe('PATCH /api/connectors/[id]', () => {
       method: 'PATCH',
       body: JSON.stringify({}),
     });
-    const res = await PATCH(req, { params: { id: 'conn-1' } });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'conn-1' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
@@ -128,7 +128,7 @@ describe('PATCH /api/connectors/[id]', () => {
       method: 'PATCH',
       body: JSON.stringify({ name: 'X' }),
     });
-    const res = await PATCH(req, { params: { id: 'conn-1' } });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'conn-1' }) });
     expect(res.status).toBe(400);
   });
 });
@@ -136,7 +136,7 @@ describe('PATCH /api/connectors/[id]', () => {
 describe('DELETE /api/connectors/[id]', () => {
   it('deletes a connector and returns deleted:true', async () => {
     const req = new NextRequest('http://localhost/api/connectors/conn-1', { method: 'DELETE' });
-    const res = await DELETE(req, { params: { id: 'conn-1' } });
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'conn-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);

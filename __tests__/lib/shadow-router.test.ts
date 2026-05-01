@@ -172,6 +172,19 @@ describe('output shape', () => {
     expect(dec.primary.model.length).toBeGreaterThan(0);
   });
 
+  it('does not select the unavailable Gemini flash-lite model', () => {
+    const dec = route('hello');
+    const routedModels = [
+      dec.primary.model,
+      dec.planner.model,
+      dec.executor.model,
+      dec.verifier.model,
+      ...dec.fallbacks.map(fallback => fallback.target.model),
+    ];
+
+    expect(routedModels).not.toContain('gemini-2.5-flash-lite');
+  });
+
   it('always returns a userFacingLabel', () => {
     const dec = route('create a note');
     expect(dec.userFacingLabel).toMatch(/Shadow Router/);

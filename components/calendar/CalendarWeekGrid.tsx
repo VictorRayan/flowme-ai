@@ -3,6 +3,7 @@ import { Box, Typography, Paper } from '@mui/material';
 import dayjs from 'dayjs';
 import { CalendarEvent } from './types';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import { buildDroppedEventRange, DAY_MINUTES, dropYToMinuteOfDay, eventDurationMinutes, HOUR_HEIGHT, minutesFromDayStart } from '@/lib/calendar/time-grid';
 
 interface CalendarWeekGridProps {
   currentDate: dayjs.Dayjs;
@@ -10,8 +11,6 @@ interface CalendarWeekGridProps {
   onEventClick: (event: CalendarEvent) => void;
   onEventDrop?: (eventId: string, newStart: string, newEnd?: string) => void;
 }
-
-const HOUR_HEIGHT = 60;
 
 function eventColors(isMicro: boolean, isWork: boolean) {
   if (isMicro) return { bg: 'rgba(52,211,153,0.18)',  fg: '#6ee7b7', border: 'rgba(52,211,153,0.35)',  bar: '#34d399' };
@@ -44,6 +43,7 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const nowMinutes = dayjs().hour() * 60 + dayjs().minute();
   const todayStr = dayjs().format('YYYY-MM-DD');
+  const timelineHeight = DAY_MINUTES / 60 * HOUR_HEIGHT;
 
   return (
     <Box sx={{
@@ -91,12 +91,13 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
       </Box>
 
       {/* Scrollable body */}
-      <Box ref={scrollRef} sx={{ display: 'flex', flexGrow: 1, overflowY: 'auto', position: 'relative' }}>
+      <Box ref={scrollRef} sx={{ display: 'flex', flexGrow: 1, overflow: 'auto', position: 'relative' }}>
         {/* Time axis */}
         <Box sx={{
           width: 60, flexShrink: 0,
           borderRight: '1px solid', borderColor: 'divider',
           bgcolor: 'background.paper', position: 'relative',
+          minHeight: timelineHeight,
         }}>
           {hours.map(h => (
             <Box key={h} sx={{ height: HOUR_HEIGHT, display: 'flex', justifyContent: 'flex-end', pr: 1 }}>
@@ -110,13 +111,30 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
         </Box>
 
         {/* Day columns */}
-        <Box sx={{ flexGrow: 1, position: 'relative', display: 'flex' }}>
+        <Box sx={{ flexGrow: 1, position: 'relative', display: 'flex', minHeight: timelineHeight, minWidth: { xs: 720, md: 0 } }}>
           {/* Horizontal hour lines — background-image for reliable rendering */}
-          <Box sx={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-            backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT - 1}px, rgba(42,49,66,0.55) ${HOUR_HEIGHT}px)`,
-            backgroundSize: `100% ${HOUR_HEIGHT}px`,
-          }} />
+          {hours.map(h => (
+            <Box
+              key={h}
+              sx={{
+                position: 'absolute',
+                pointerEvents: 'none',
+                left: 0,
+                right: 0,
+                top: h * HOUR_HEIGHT,
+                height: HOUR_HEIGHT,
+                borderTop: '1px solid rgba(42,49,66,0.65)',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: HOUR_HEIGHT / 2,
+                  borderTop: '1px dashed rgba(42,49,66,0.28)',
+                },
+              }}
+            />
+          ))}
 
           {weekDates.map(date => {
             const dateStr = date.format('YYYY-MM-DD');
@@ -140,18 +158,19 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
                   if (!eventId) return;
                   const offsetY = Number(e.dataTransfer.getData('application/offset-y')) || 0;
                   const rect = e.currentTarget.getBoundingClientRect();
-                  const snapped = Math.floor(Math.max(0, (e.clientY - offsetY) - rect.top) / 15) * 15;
+                  const dropY = (e.clientY - offsetY) - rect.top;
                   const tgt = events.find(ev => ev.id === eventId);
                   if (!tgt) return;
-                  const dur = tgt.end_at ? dayjs(tgt.end_at).diff(dayjs(tgt.start_at), 'minute') : 30;
-                  const newStart = date.startOf('day').add(snapped, 'minute');
-                  onEventDrop(eventId, newStart.toISOString(), newStart.add(dur, 'minute').toISOString());
+                  const minuteOfDay = dropYToMinuteOfDay(dropY);
+                  const duration = eventDurationMinutes(tgt.start_at, tgt.end_at);
+                  const range = buildDroppedEventRange(date, minuteOfDay, duration);
+                  onEventDrop(eventId, range.start, range.end);
                 }}
               >
                 {/* Today current-time line */}
                 {isToday && (
                   <Box sx={{
-                    position: 'absolute', left: 0, right: 0, top: `${nowMinutes}px`,
+                    position: 'absolute', left: 0, right: 0, top: `${nowMinutes / 60 * HOUR_HEIGHT}px`,
                     height: '2px', bgcolor: 'primary.main', zIndex: 5, pointerEvents: 'none',
                     '&::before': {
                       content: '""', position: 'absolute', left: -3, top: -4,
@@ -162,8 +181,8 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
 
                 {dayEvents.map(evt => {
                   const start = dayjs(evt.start_at);
-                  const top = start.hour() * 60 + start.minute();
-                  const dur = evt.end_at ? Math.max(15, dayjs(evt.end_at).diff(start, 'minute')) : 30;
+                  const top = minutesFromDayStart(evt.start_at);
+                  const dur = eventDurationMinutes(evt.start_at, evt.end_at);
                   const { bg, fg, border, bar } = eventColors(evt.source === 'microactivity', evt.account_type === 'work');
 
                   return (
@@ -179,9 +198,9 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
                       elevation={0}
                       sx={{
                         position: 'absolute',
-                        top: `${top}px`,
+                        top: `${top / 60 * HOUR_HEIGHT}px`,
                         left: 2, right: 2,
-                        height: `${dur}px`,
+                        height: `${dur / 60 * HOUR_HEIGHT}px`,
                         bgcolor: bg,
                         border: '1px solid', borderColor: border,
                         borderLeft: `3px solid ${bar}`,

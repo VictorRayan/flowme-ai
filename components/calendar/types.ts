@@ -1,6 +1,7 @@
 export interface CalendarEvent {
   source: 'google' | 'microactivity';
   id: string;
+  provider_event_id?: string | null;
   linked_account_id?: string;
   account_name?: string;
   account_type?: 'work' | 'personal';

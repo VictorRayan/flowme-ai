@@ -2,9 +2,10 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth();
+    const { id } = await params;
     const body = await req.json();
     const { name, is_active, config } = body;
 
@@ -25,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data, error } = await supabase
       .from('connectors')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .select('id, name, type, is_active, config, created_at')
       .single();
@@ -41,14 +42,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth();
+    const { id } = await params;
 
     const { error } = await supabase
       .from('connectors')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id);
 
     if (error) throw error;

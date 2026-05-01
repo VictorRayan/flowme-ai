@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Box, Typography, IconButton, Fab, Button, CircularProgress, TextField, InputAdornment, Select, MenuItem, Autocomplete } from '@mui/material';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import AddIcon from '@mui/icons-material/Add';
@@ -17,6 +17,7 @@ import DayDetailPanel from '@/components/calendar/DayDetailPanel';
 import LinkAccountModal from '@/components/calendar/LinkAccountModal';
 import EventEditorModal from '@/components/calendar/EventEditorModal';
 import { CalendarEvent } from '@/components/calendar/types';
+import { buildEventMoveRequest, buildMovedEventTimes } from '@/lib/calendar/event-move';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(dayjs());
@@ -24,7 +25,11 @@ export default function CalendarPage() {
   
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<dayjs.Dayjs | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const activeFetchRef = useRef<AbortController | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
   const [filters, setFilters] = useState<FilterState>({
@@ -59,8 +64,10 @@ export default function CalendarPage() {
   }, []);
 
   // Fetch events based on dates and filters
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
+  const fetchEvents = useCallback(async (options: { silent?: boolean; signal?: AbortSignal } = {}) => {
+    const { silent = false, signal } = options;
+    if (silent) setSyncing(true);
+    else setLoading(true);
     setError(null);
     try {
       // Calculate start and end based on current view
@@ -88,11 +95,12 @@ export default function CalendarPage() {
 
       if (!filters.showMicroactivities && !filters.showGoogleEvents) {
         setEvents([]);
-        setLoading(false);
+        setLastSyncedAt(dayjs());
         return;
       }
 
-      const res = await fetch(`/api/calendar/events?${queryParams.toString()}`);
+      const res = await fetch(`/api/calendar/events?${queryParams.toString()}`, { signal });
+      if (signal?.aborted) return;
       const data = await res.json();
       
       if (!res.ok || !data.ok) {
@@ -100,73 +108,61 @@ export default function CalendarPage() {
       }
 
       setEvents(data.events || []);
+      setLastSyncedAt(dayjs());
     } catch (err: any) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       console.error('Error fetching events:', err);
-      setError("Some events couldn't be loaded. Try reconnecting your accounts.");
+      if (!silent) setError("Some events couldn't be loaded. Try reconnecting your accounts.");
     } finally {
-      setLoading(false);
+      if (silent) setSyncing(false);
+      else setLoading(false);
     }
   }, [currentDate, filters, view]);
 
+  const refreshAfterMutation = useCallback(() => {
+    window.setTimeout(() => {
+      mutationInFlightRef.current = false;
+      fetchEvents({ silent: true });
+    }, 1200);
+  }, [fetchEvents]);
+
   const handleEventDrop = async (eventId: string, newStart: string, newEnd?: string) => {
+    const targetEvent = events.find(e => e.id === eventId);
+    if (!targetEvent) return;
+
+    const moved = buildMovedEventTimes(targetEvent, newStart, newEnd);
+    mutationInFlightRef.current = true;
+
     // Optimistic UI update
     setEvents(prev => prev.map(ev => {
       if (ev.id === eventId) {
-        let finalStart = dayjs(newStart);
-        let finalEnd = newEnd ? dayjs(newEnd) : undefined;
-
-        // If it's a date-only string from Month view, preserve the original time
-        if (newStart.length === 10) {
-            const oldStart = dayjs(ev.start_at);
-            finalStart = dayjs(newStart).hour(oldStart.hour()).minute(oldStart.minute());
-            
-            if (ev.end_at && !finalEnd) {
-                const oldEnd = dayjs(ev.end_at);
-                const duration = oldEnd.diff(oldStart, 'minute');
-                finalEnd = finalStart.add(duration, 'minute');
-            }
-        }
-        
         return {
           ...ev,
-          start_at: finalStart.toISOString(),
-          end_at: finalEnd ? finalEnd.toISOString() : ev.end_at,
+          start_at: moved.start_at,
+          end_at: moved.end_at,
         };
       }
       return ev;
     }));
 
     try {
-      const targetEvent = events.find(e => e.id === eventId);
-      if (!targetEvent) return;
-
-      const oldStart = dayjs(targetEvent.start_at);
-      let finalStartStr = newStart;
-      let finalEndStr = newEnd;
-
-      if (newStart.length === 10) { 
-          const combinedStart = dayjs(newStart).hour(oldStart.hour()).minute(oldStart.minute());
-          finalStartStr = combinedStart.toISOString();
-          const mins = targetEvent.end_at ? dayjs(targetEvent.end_at).diff(oldStart, 'minute') : 30;
-          finalEndStr = combinedStart.add(mins, 'minute').toISOString();
-      }
-
-      const res = await fetch('/api/calendar/edit-event', {
-        method: 'PATCH',
+      const request = buildEventMoveRequest(targetEvent, moved);
+      const res = await fetch(request.url, {
+        method: request.method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: eventId,
-          start_at: finalStartStr,
-          end_at: finalEndStr || targetEvent.end_at,
-          linked_account_id: targetEvent.linked_account_id
-        }),
+        body: JSON.stringify(request.body),
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error('Failed to update event position');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error?.message || 'Failed to update event position');
+      }
+      refreshAfterMutation();
       
-    } catch (err) {
-      console.error('Failed to move event via drag and drop', err);
-      fetchEvents(); // Rollback if failed
+    } catch (err: unknown) {
+      mutationInFlightRef.current = false;
+      const message = err instanceof Error ? err.message : 'Failed to update event position';
+      setError(message);
+      fetchEvents();
     }
   };
 
@@ -176,6 +172,32 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchEvents();
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    const pollGoogle = () => {
+      if (document.visibilityState !== 'visible' || mutationInFlightRef.current) return;
+      activeFetchRef.current?.abort();
+      const controller = new AbortController();
+      activeFetchRef.current = controller;
+      fetchEvents({ silent: true, signal: controller.signal });
+    };
+
+    const intervalId = window.setInterval(pollGoogle, 45000);
+    const handleFocus = () => pollGoogle();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') pollGoogle();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      activeFetchRef.current?.abort();
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchEvents]);
 
   const navigatePrev = () => {
@@ -257,6 +279,16 @@ export default function CalendarPage() {
               {headerTitle}
             </Typography>
             {loading && <CircularProgress size={20} />}
+            {!loading && syncing && (
+              <Typography variant="caption" color="text.secondary">
+                Syncing Google...
+              </Typography>
+            )}
+            {!loading && !syncing && lastSyncedAt && (
+              <Typography variant="caption" color="text.disabled" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                Synced {lastSyncedAt.format('HH:mm')}
+              </Typography>
+            )}
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -400,14 +432,17 @@ export default function CalendarPage() {
         onClose={() => setLinkAccountOpen(false)} 
         onSuccess={() => {
           fetchAccounts();
-          fetchEvents();
+          fetchEvents({ silent: true });
         }} 
       />
 
       <EventEditorModal 
         open={eventEditorOpen} 
         onClose={() => setEventEditorOpen(false)} 
-        onSuccess={() => fetchEvents()} 
+        onSuccess={() => {
+          mutationInFlightRef.current = true;
+          refreshAfterMutation();
+        }} 
         linkedAccounts={linkedAccounts.filter(a => a.is_active)}
         existingEvent={editingEvent}
         allEvents={events}

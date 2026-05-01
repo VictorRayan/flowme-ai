@@ -185,4 +185,5 @@ Council (`taskType === 'council'`) gets a +0.30 reasoning boost because multi-pe
 - **No features beyond the task** — don't add abstractions for hypothetical future needs
 - **Strict TypeScript** — no `any` in production code; `any` is acceptable only in test mock helpers
 - **MUI v5 dark theme** — all UI uses MUI components, no Tailwind, no raw CSS beyond `globals.css`
+- **Mobile friendly by default** — every page and component must work on mobile, tablet, and desktop with responsive MUI breakpoints, readable text, touch targets around 44px or larger, and no accidental horizontal overflow except intentional scrollable schedulers
 - **Run tests after every change** — `npm test` must pass before considering a task done

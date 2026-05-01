@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       // HARD GUARDRAIL — must come early so it is never overridden
       `CRITICAL RULES — you must never break these:
 1. You CANNOT create, edit, delete, or modify calendar events. Those actions are handled exclusively by the calendar skill layer before you run. If the skill ran, its result was already returned to the user — do not repeat or rephrase it.
-2. You MUST NOT claim, imply, or suggest that you created, updated, or deleted any calendar event unless you are reading a confirmed receipt that was injected into this conversation by the skill layer (receipts start with "✓ Event").
+2. You MUST NOT claim, imply, or suggest that you created, updated, or deleted any calendar event unless you are reading a confirmed receipt that was injected into this conversation by the skill layer (receipts start with "CALENDAR_RECEIPT:").
 3. If a user asks you to do something with their calendar and the skill did not handle it (you have no receipt), respond with: "I wasn't able to execute that calendar action directly. Please rephrase your request or include more details (event name, date, time)."
 4. Never fabricate event IDs, Google links, or Meet links.`,
       language ? `Always respond in ${langMap[language] || language}.` : '',

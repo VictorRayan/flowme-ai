@@ -8,7 +8,6 @@ const GEMINI_LABELS: Record<string, { label: string; desc: string }> = {
   'gemini-3-flash-preview':     { label: 'Gemini 3 Flash',        desc: 'Fast preview' },
   'gemini-2.5-pro':             { label: 'Gemini 2.5 Pro',        desc: 'Powerful & smart' },
   'gemini-2.5-flash':           { label: 'Gemini 2.5 Flash',      desc: 'Fast & smart' },
-  'gemini-2.5-flash-lite':      { label: 'Gemini 2.5 Flash Lite', desc: 'Lightest 2.5' },
   'gemini-2.0-flash':           { label: 'Gemini 2.0 Flash',      desc: 'Multimodal' },
   'gemini-2.0-flash-lite':      { label: 'Gemini 2.0 Flash Lite', desc: 'Fastest' },
   'gemini-pro-latest':          { label: 'Gemini Pro (latest)',    desc: 'Stable pro' },
@@ -16,7 +15,7 @@ const GEMINI_LABELS: Record<string, { label: string; desc: string }> = {
 };
 
 // Priority order for sorting
-const PRIORITY = ['gemini-3.1-pro-preview','gemini-3-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-pro-latest','gemini-flash-latest'];
+const PRIORITY = ['gemini-3.1-pro-preview','gemini-3-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-pro-latest','gemini-flash-latest'];
 
 export async function GET(request: NextRequest) {
   await requireAuth(request);
@@ -58,7 +57,8 @@ export async function GET(request: NextRequest) {
           !m.name.includes('computer-use') && !m.name.includes('research') &&
           !m.name.includes('robotics') && !m.name.includes('banana')
         )
-        .map((m: { name: string }) => m.name.replace('models/', ''));
+        .map((m: { name: string }) => m.name.replace('models/', ''))
+        .filter((id: string) => id !== 'gemini-2.5-flash-lite');
 
       // Sort by priority first, then alphabetically
       const sorted = [

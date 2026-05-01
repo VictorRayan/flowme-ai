@@ -53,7 +53,7 @@ interface RouteInput {
   systemAddendum?: string;
 }
 
-const GEMINI_CHEAP: ModelTarget = { provider: 'gemini', model: 'gemini-2.5-flash-lite' };
+const GEMINI_CHEAP: ModelTarget = { provider: 'gemini', model: 'gemini-2.5-flash' };
 const GEMINI_MID: ModelTarget = { provider: 'gemini', model: 'gemini-2.5-flash' };
 const GEMINI_STRONG: ModelTarget = { provider: 'gemini', model: 'gemini-2.5-pro' };
 const OPENAI_CHEAP: ModelTarget = { provider: 'openai', model: 'gpt-5.4-nano' };

@@ -5,7 +5,7 @@ import { updateCalendarEvent } from '@/lib/google/google-calendar';
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const body = await req.json();
 
     const {
@@ -68,6 +68,9 @@ export async function PATCH(req: NextRequest) {
     }
     if (err.message === ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED) {
         return apiError(ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED, 'Failed to refresh Google token. Please reconnect the account.', 401);
+    }
+    if (err.message === ErrorCode.GOOGLE_API_ERROR) {
+        return apiError(ErrorCode.GOOGLE_API_ERROR, 'Google Calendar rejected this update. Refresh the calendar and try again.', 502);
     }
     
     return apiError(ErrorCode.INTERNAL_ERROR, 'Internal Server Error', 500);

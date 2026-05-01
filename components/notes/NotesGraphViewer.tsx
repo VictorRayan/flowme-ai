@@ -8,11 +8,39 @@ import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useRouter } from 'next/navigation';
 
+interface GraphNode {
+  id: string;
+  name: string;
+  group: 'person' | 'note' | 'event' | 'tag';
+  val: number;
+  color: string;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  val: number;
+}
+
+interface PersonRecord {
+  id: string;
+  name: string;
+}
+
+interface NoteRecord {
+  id: string;
+  title?: string | null;
+  content_text?: string | null;
+  event_id?: string | null;
+  event_title?: string | null;
+  note_mentions?: Array<{ person_id?: string | null }>;
+}
+
 export default function NotesGraphViewer() {
-  const [data, setData] = useState({ nodes: [], links: [] });
+  const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const fgRef = useRef<any>();
+  const fgRef = useRef<any>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -24,16 +52,16 @@ export default function NotesGraphViewer() {
       const notes = await notesRes.json();
       const people = await peopleRes.json();
 
-      const nodesMap = new Map();
-      const links = [];
+      const nodesMap = new Map<string, GraphNode>();
+      const links: GraphLink[] = [];
 
       // Add People Nodes
-      people.forEach((p: any) => {
+      people.forEach((p: PersonRecord) => {
         nodesMap.set(`person_${p.id}`, { id: `person_${p.id}`, name: p.name, group: 'person', val: 5, color: '#ff4081' });
       });
 
       // Add Note Nodes and Extract Edges
-      notes.forEach((n: any) => {
+      notes.forEach((n: NoteRecord) => {
         nodesMap.set(`note_${n.id}`, { id: `note_${n.id}`, name: n.title || 'Untitled', group: 'note', val: 3, color: '#00e5ff' });
 
         // Event Links
@@ -46,7 +74,7 @@ export default function NotesGraphViewer() {
 
         // Mention Links
         if (n.note_mentions) {
-          n.note_mentions.forEach((m: any) => {
+          n.note_mentions.forEach((m) => {
             if (m.person_id) {
               links.push({ source: `note_${n.id}`, target: `person_${m.person_id}`, val: 1 });
             }
@@ -150,7 +178,7 @@ export default function NotesGraphViewer() {
           sprite.color = node.color;
           sprite.textHeight = Math.max(3, node.val * 1.2);
           sprite.fontWeight = 'bold';
-          sprite.material.depthWrite = false; // Make text always legible and on top of lines
+          (sprite as SpriteText & { material: { depthWrite: boolean } }).material.depthWrite = false;
           return sprite;
         }}
         onNodeClick={(node: any) => {

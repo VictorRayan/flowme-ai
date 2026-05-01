@@ -75,6 +75,7 @@ const ACTION_HINTS = [
 
 const CALENDAR_TERMS = ['event', 'events', 'calendar', 'meeting', 'agenda', 'evento', 'eventos', 'calendario', 'reuniao'];
 const TIME_TERMS = ['what time', 'time now', 'what day', 'today date', 'que horas', 'horas agora', 'que dia', 'data de hoje'];
+const CREATE_TERMS = ['create', 'add', 'schedule', 'book', 'new event', 'criar', 'agendar', 'marcar', 'novo evento'];
 
 function normalizeText(value: string): string {
   return (value || '')
@@ -252,6 +253,167 @@ function safeIso(value?: string | null): string | null {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
+}
+
+function extractLatestRequestFromParserText(text: string): string {
+  const marker = 'Latest user request:';
+  const index = text.lastIndexOf(marker);
+  if (index === -1) return text.trim();
+  return text.slice(index + marker.length).trim();
+}
+
+function extractPreviousUserRequestsFromParserText(text: string): string[] {
+  const previousMarker = 'Previous user context:';
+  const latestMarker = 'Latest user request:';
+  const start = text.indexOf(previousMarker);
+  const end = text.lastIndexOf(latestMarker);
+  if (start === -1 || end === -1 || end <= start) return [];
+  return text
+    .slice(start + previousMarker.length, end)
+    .split(/\r?\n/)
+    .map(line => line.trim().replace(/^user:\s*/i, ''))
+    .filter(Boolean);
+}
+
+function dateInTimezone(nowIso: string, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(nowIso));
+  const get = (type: string) => parts.find(part => part.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+function addDaysToYmd(value: string, days: number): string {
+  const date = new Date(`${value}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function parseSimpleDate(text: string, nowIso: string, timezone: string): string | null {
+  const normalized = normalizeText(text);
+  const today = dateInTimezone(nowIso, timezone);
+  if (/\btoday\b|\bhoje\b/.test(normalized)) return today;
+  if (/\btomorrow\b|\bamanha\b|\bamanh[aã]\b/.test(normalized)) return addDaysToYmd(today, 1);
+  const isoDate = normalized.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  return isoDate?.[1] || null;
+}
+
+function parseSimpleTime(text: string): { hour: number; minute: number } | null {
+  const normalized = normalizeText(text);
+  const match = normalized.match(/\b(?:at|as|a las|às|por volta de)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2] || '0');
+  const meridiem = match[3];
+  if (hour > 23 || minute > 59) return null;
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+  return { hour, minute };
+}
+
+function timeZoneOffsetMs(date: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find(part => part.type === type)?.value || '0');
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return asUtc - date.getTime();
+}
+
+function zonedDateTimeToIso(dateYmd: string, time: { hour: number; minute: number }, timezone: string): string {
+  const [year, month, day] = dateYmd.split('-').map(Number);
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, time.hour, time.minute, 0, 0));
+  const offset = timeZoneOffsetMs(utcGuess, timezone);
+  return new Date(utcGuess.getTime() - offset).toISOString();
+}
+
+function extractSimpleDurationMinutes(text: string): number {
+  const normalized = normalizeText(text);
+  const hourMatch = normalized.match(/\b(?:for|por)\s+(\d{1,2})\s*(?:h|hr|hrs|hour|hours|hora|horas)\b/);
+  if (hourMatch) return Math.max(15, Number(hourMatch[1]) * 60);
+  const minuteMatch = normalized.match(/\b(?:for|por)\s+(\d{1,3})\s*(?:m|min|mins|minute|minutes|minuto|minutos)\b/);
+  if (minuteMatch) return Math.max(15, Number(minuteMatch[1]));
+  return 60;
+}
+
+function cleanupSimpleTitle(text: string): string | null {
+  const withoutLatest = extractLatestRequestFromParserText(text)
+    .replace(/\b(for )?(today|tomorrow|hoje|amanha|amanhã)\b/gi, '')
+    .replace(/\b(?:at|as|a las|às)?\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, '')
+    .replace(/\b(?:for|por)\s+\d{1,3}\s*(?:h|hr|hrs|hour|hours|hora|horas|m|min|mins|minute|minutes|minuto|minutos)\b/gi, '')
+    .replace(/\b(named|called|nomeado|chamado)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!withoutLatest || /^(for what time|what time|que horas|\?)$/i.test(withoutLatest)) return null;
+  const normalized = normalizeText(withoutLatest);
+  if (CREATE_TERMS.some(term => normalized.includes(normalizeText(term))) && CALENDAR_TERMS.some(term => normalized.includes(normalizeText(term)))) return null;
+  if (CREATE_TERMS.some(term => normalizeText(withoutLatest) === normalizeText(term))) return null;
+  return withoutLatest;
+}
+
+export function parseCalendarActionRuleBased(params: {
+  text: string;
+  nowIso: string;
+  timezone: string;
+}): ParsedAction | null {
+  const normalized = normalizeText(params.text);
+  const hasCreateContext = CREATE_TERMS.some(term => normalized.includes(normalizeText(term)));
+  if (!hasCreateContext) return null;
+
+  const latest = extractLatestRequestFromParserText(params.text);
+  const previousTitle = extractPreviousUserRequestsFromParserText(params.text)
+    .reverse()
+    .map(request => cleanupSimpleTitle(request))
+    .find((title): title is string => Boolean(title));
+  const title = cleanupSimpleTitle(latest) || previousTitle || cleanupSimpleTitle(params.text);
+  const dateYmd = parseSimpleDate(params.text, params.nowIso, params.timezone);
+  const time = parseSimpleTime(latest) || parseSimpleTime(params.text);
+
+  if (!title) {
+    return {
+      intent: 'create',
+      needs_clarification: true,
+      clarification_question: 'What would you like to name this event?',
+    };
+  }
+
+  if (!dateYmd) {
+    return {
+      intent: 'create',
+      needs_clarification: true,
+      clarification_question: `What date should I create "${title}" for?`,
+    };
+  }
+
+  if (!time) {
+    return {
+      intent: 'create',
+      needs_clarification: true,
+      clarification_question: `I have not created "${title}" yet. What start time should I use?`,
+    };
+  }
+
+  const startAt = zonedDateTimeToIso(dateYmd, time, params.timezone);
+  const endAt = new Date(new Date(startAt).getTime() + extractSimpleDurationMinutes(params.text) * 60_000).toISOString();
+
+  return {
+    intent: 'create',
+    needs_clarification: false,
+    title,
+    start_at: startAt,
+    end_at: endAt,
+    participants: [],
+  };
 }
 
 function extractLatestUserMessage(messages: Array<{ role: 'user' | 'assistant'; content: string }>): string {
@@ -435,7 +597,7 @@ User request: ${params.text}`,
   const models = Array.from(new Set([
     params.model,
     'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
     'gemini-2.5-pro',
   ].filter((value): value is string => Boolean(value))));
   for (const model of models) {
@@ -465,6 +627,9 @@ async function parseCalendarAction(params: {
   provider: Provider;
   model?: string;
 }): Promise<ParsedAction> {
+  const ruleBased = parseCalendarActionRuleBased(params);
+  if (ruleBased?.intent) return ruleBased;
+
   const primary = params.provider === 'openai'
     ? await parseActionWithOpenAI(params)
     : await parseActionWithGemini(params);
@@ -507,12 +672,13 @@ export async function tryRunCalendarSkill(params: {
   const timezone = params.timezone || 'UTC';
   const nowIso = safeIso(params.clientNowIso) || new Date().toISOString();
 
-  if (isTimeRequest(latestInstruction)) {
+  const hasConversationCalendarIntent = Boolean(userOnlyContext) && isLikelyCalendarRequest(userOnlyContext);
+  const pendingClarification = isPendingCalendarClarification(params.messages);
+
+  if (isTimeRequest(latestInstruction) && !hasConversationCalendarIntent && !pendingClarification) {
     return `Current local time: ${formatNow(timezone, nowIso)}`;
   }
 
-  const hasConversationCalendarIntent = Boolean(userOnlyContext) && isLikelyCalendarRequest(userOnlyContext);
-  const pendingClarification = isPendingCalendarClarification(params.messages);
   if (!isLikelyCalendarRequest(latestInstruction) && !hasConversationCalendarIntent && selectedEventContexts.length === 0 && !pendingClarification) {
     return null;
   }
@@ -536,7 +702,7 @@ export async function tryRunCalendarSkill(params: {
     if (!verified) {
       return `I sent the deletion request for "${target.title}" (${target.id}), but I could not verify that Google actually removed it yet. Please refresh Calendar and, if it is still there, I can try again with the exact event id.`;
     }
-    return `Deleted event "${target.title}" (${target.id}) from account ${target.account_name}.`;
+    return `CALENDAR_RECEIPT: Event deleted from Google Calendar.\nTitle: ${target.title}\nEvent ID: ${target.id}\nAccount: ${target.account_name}`;
   }
 
   const selectedEventContextBlock = selectedEventContexts.length
@@ -561,7 +727,9 @@ export async function tryRunCalendarSkill(params: {
     model: params.model,
   });
 
-  if (!action.intent || action.intent === 'none') return null;
+  if (!action.intent || action.intent === 'none') {
+    return 'I did not execute any calendar action. To create an event, send the title, date, start time, and end time in one message.';
+  }
   if (action.needs_clarification) {
     return action.clarification_question || 'I need one more detail to complete that calendar action.';
   }
@@ -613,7 +781,7 @@ export async function tryRunCalendarSkill(params: {
       participants: Array.isArray(action.participants) ? action.participants : undefined,
     });
 
-    return `✓ Event created on Google Calendar.\n` +
+    return `CALENDAR_RECEIPT: Event created on Google Calendar.\n` +
       `Title: ${action.title}\n` +
       `When: ${formatDateTime(startIso, timezone)}\n` +
       `Account: ${account.name}\n` +
@@ -651,7 +819,7 @@ export async function tryRunCalendarSkill(params: {
       participants: Array.isArray(updates.participants) ? updates.participants : undefined,
     });
 
-    return `✓ Event updated on Google Calendar.\n` +
+    return `CALENDAR_RECEIPT: Event updated on Google Calendar.\n` +
       `Title: ${target.title}\n` +
       `Event ID: ${target.id}\n` +
       `Account: ${target.account_name}\n` +

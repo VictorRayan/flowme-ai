@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Button, Paper, List, ListItem, ListItemText, IconButton, Switch, Divider, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel, Stack } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -21,7 +21,7 @@ const AI_LANGUAGES = [
   { code: 'zh', label: '中文' },
 ];
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [aiLanguage, setAiLanguage] = useState('en');
   const [uiLanguage, setUiLanguage] = useState('en');
@@ -445,5 +445,17 @@ export default function SettingsPage() {
         onSuccess={fetchAccounts} 
       />
     </Box>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <CircularProgress />
+      </Box>
+    }>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

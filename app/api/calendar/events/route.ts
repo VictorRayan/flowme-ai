@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
             const mapped = events.filter(e => e.start?.dateTime || e.start?.date).map(e => ({
               source: 'google',
               id: e.id!,
+              provider_event_id: e.id!,
               linked_account_id: account.id,
               account_name: account.name,
               account_type: account.type,

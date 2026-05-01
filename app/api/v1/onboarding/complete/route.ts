@@ -1,20 +1,15 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest } from 'next/server';
+import { requireAuth } from '@/lib/api/auth';
+import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const { supabase, user } = await requireAuth(req);
     const body = await req.json();
     const { morningTime, eveningTime } = body;
 
     if (!morningTime || !eveningTime) {
-      return NextResponse.json({ error: 'Missing morningTime or eveningTime' }, { status: 400 });
+      return apiError(ErrorCode.VALIDATION_ERROR, 'Missing morningTime or eveningTime');
     }
 
     // Upsert user settings
@@ -31,12 +26,13 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('[Onboarding Complete API] Upsert Error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (err: any) {
+    if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('[Onboarding Complete API] Internal Error:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiError(ErrorCode.INTERNAL_ERROR, 'Internal Server Error', 500);
   }
 }

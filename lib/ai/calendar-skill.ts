@@ -190,6 +190,36 @@ function buildUserOnlyContext(messages: Array<{ role: 'user' | 'assistant'; cont
   return userMessages.slice(0, -1).map(content => `user: ${content}`).join('\n');
 }
 
+// Returns true when the last assistant message was a clarification question
+// about a calendar action — meaning the next user reply is the answer to that
+// question and must be routed through the skill, not general chat.
+function isPendingCalendarClarification(messages: Array<{ role: 'user' | 'assistant'; content: string }>): boolean {
+  const CLARIFICATION_SIGNALS = [
+    'what would you like to name',
+    'what time',
+    'which day',
+    'what date',
+    'please provide',
+    'could you specify',
+    'what should i call',
+    'when should',
+    'how long',
+    'what is the title',
+    'name this event',
+    'start time',
+    'end time',
+  ];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') {
+      const lower = (messages[i].content || '').toLowerCase();
+      // If last assistant message was a calendar skill response (clarification question)
+      if (CLARIFICATION_SIGNALS.some(s => lower.includes(s))) return true;
+      break;
+    }
+  }
+  return false;
+}
+
 // deleteCalendarEvent throws on any Google API error and returns normally on success (HTTP 204).
 // We trust the API response directly — re-listing after delete is unreliable due to propagation lag
 // and produces false negatives where the event still appears for several seconds after deletion.
@@ -482,7 +512,8 @@ export async function tryRunCalendarSkill(params: {
   }
 
   const hasConversationCalendarIntent = Boolean(userOnlyContext) && isLikelyCalendarRequest(userOnlyContext);
-  if (!isLikelyCalendarRequest(latestInstruction) && !hasConversationCalendarIntent && selectedEventContexts.length === 0) {
+  const pendingClarification = isPendingCalendarClarification(params.messages);
+  if (!isLikelyCalendarRequest(latestInstruction) && !hasConversationCalendarIntent && selectedEventContexts.length === 0 && !pendingClarification) {
     return null;
   }
 
@@ -582,9 +613,14 @@ export async function tryRunCalendarSkill(params: {
       participants: Array.isArray(action.participants) ? action.participants : undefined,
     });
 
-    return `Created event "${action.title}" on ${formatDateTime(startIso, timezone)} using account ${account.name}.` +
-      `${created.meetLink ? `\nMeet link: ${created.meetLink}` : ''}` +
-      `${created.htmlLink ? `\nGoogle link: ${created.htmlLink}` : ''}`;
+    return `✓ Event created on Google Calendar.\n` +
+      `Title: ${action.title}\n` +
+      `When: ${formatDateTime(startIso, timezone)}\n` +
+      `Account: ${account.name}\n` +
+      `Event ID: ${created.id}\n` +
+      `${created.htmlLink ? `Google link: ${created.htmlLink}\n` : ''}` +
+      `${created.meetLink ? `Meet link: ${created.meetLink}\n` : ''}` +
+      `\nThis receipt confirms the action was executed on Google Calendar. If you do not see the event, use the link above to verify.`;
   }
 
   if (action.intent === 'edit') {
@@ -615,7 +651,12 @@ export async function tryRunCalendarSkill(params: {
       participants: Array.isArray(updates.participants) ? updates.participants : undefined,
     });
 
-    return `Updated event "${target.title}" (${target.id}) successfully.`;
+    return `✓ Event updated on Google Calendar.\n` +
+      `Title: ${target.title}\n` +
+      `Event ID: ${target.id}\n` +
+      `Account: ${target.account_name}\n` +
+      `${target.htmlLink ? `Google link: ${target.htmlLink}\n` : ''}` +
+      `\nThis receipt confirms the action was executed on Google Calendar.`;
   }
 
   if (action.intent === 'delete') {

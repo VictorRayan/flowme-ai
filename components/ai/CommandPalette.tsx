@@ -7,15 +7,55 @@ import {
 } from '@mui/material';
 import NoteIcon from '@mui/icons-material/Note';
 import EventIcon from '@mui/icons-material/Event';
+import GroupsIcon from '@mui/icons-material/Groups';
+import WbSunnyIcon from '@mui/icons-material/WbSunny';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import dayjs from 'dayjs';
 
 export interface ContextItem {
-  kind: 'note' | 'event';
+  kind: 'note' | 'event' | 'action';
   id: string;
   label: string;       // display label
   subtitle?: string;   // date / time
-  content: string;     // text to inject into prompt
+  content: string;     // for 'note'/'event': context block to inject; for 'action': directive prefix
+  action?: 'council' | 'briefing' | 'note';
 }
+
+interface ActionDef {
+  id: string;
+  command: string;
+  label: string;
+  subtitle: string;
+  directive: string;
+  action: 'council' | 'briefing' | 'note';
+}
+
+const ACTIONS: ActionDef[] = [
+  {
+    id: 'council',
+    command: '/council',
+    label: '/council',
+    subtitle: 'Convene the 11-expert mastermind',
+    directive: 'Use the council.convene tool to deliberate on the following situation. Brief the council with the full context the user just provided.',
+    action: 'council',
+  },
+  {
+    id: 'briefing',
+    command: '/briefing',
+    label: '/briefing',
+    subtitle: 'Generate today\'s daily briefing',
+    directive: 'Generate the user\'s daily briefing for today: top calendar events, recent notes, important emails, and 1-3 priorities. Be concise.',
+    action: 'briefing',
+  },
+  {
+    id: 'note',
+    command: '/note',
+    label: '/note',
+    subtitle: 'Save the next message as a note',
+    directive: 'Treat the user\'s message as content to save as a new note. Pick a short title from the content (4-8 words) and call notes.create_note. Confirm naturally.',
+    action: 'note',
+  },
+];
 
 interface NoteResult {
   id: string;
@@ -45,10 +85,10 @@ interface CommandPaletteProps {
   onClose: () => void;
 }
 
-type Tab = 'notes' | 'events';
+type Tab = 'actions' | 'notes' | 'events';
 
 export default function CommandPalette({ anchorEl, query, onSelect, onClose }: CommandPaletteProps) {
-  const [tab, setTab] = useState<Tab>('notes');
+  const [tab, setTab] = useState<Tab>('actions');
   const [notes, setNotes] = useState<NoteResult[]>([]);
   const [events, setEvents] = useState<EventResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,10 +130,25 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
   useEffect(() => {
     setHighlighted(0);
     if (tab === 'notes') fetchNotes(query);
-    else fetchEvents(query);
+    else if (tab === 'events') fetchEvents(query);
   }, [query, tab, fetchNotes, fetchEvents]);
 
-  const items: ContextItem[] = tab === 'notes'
+  const filteredActions = ACTIONS.filter(a => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return a.command.toLowerCase().includes(q) || a.subtitle.toLowerCase().includes(q);
+  });
+
+  const items: ContextItem[] = tab === 'actions'
+    ? filteredActions.map(a => ({
+        kind: 'action' as const,
+        id: a.id,
+        label: a.label,
+        subtitle: a.subtitle,
+        content: a.directive,
+        action: a.action,
+      }))
+    : tab === 'notes'
     ? notes.map(n => ({
         kind: 'note' as const,
         id: n.id,
@@ -129,7 +184,10 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
       if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, items.length - 1)); }
       if (e.key === 'ArrowUp') { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
       if (e.key === 'Enter' && items[highlighted]) { e.preventDefault(); onSelect(items[highlighted]); }
-      if (e.key === 'Tab') { e.preventDefault(); setTab(t => t === 'notes' ? 'events' : 'notes'); }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        setTab(t => t === 'actions' ? 'notes' : t === 'notes' ? 'events' : 'actions');
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -157,7 +215,7 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
     >
       {/* Tab bar */}
       <Box sx={{ display: 'flex', borderBottom: '1px solid', borderColor: 'divider' }}>
-        {(['notes', 'events'] as Tab[]).map(t => (
+        {(['actions', 'notes', 'events'] as Tab[]).map(t => (
           <Box
             key={t}
             onClick={() => setTab(t)}
@@ -170,7 +228,7 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
               '&:hover': { color: 'text.primary' },
             }}
           >
-            {t === 'notes' ? 'Notes' : 'Events'}
+            {t === 'actions' ? 'Actions' : t === 'notes' ? 'Notes' : 'Events'}
           </Box>
         ))}
         <Box sx={{ flex: 1 }} />
@@ -200,9 +258,15 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
                 sx={{ px: 2, py: 0.75 }}
               >
                 <ListItemIcon sx={{ minWidth: 30 }}>
-                  {item.kind === 'note'
-                    ? <NoteIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                    : <EventIcon fontSize="small" sx={{ color: 'info.main' }} />}
+                  {item.kind === 'action'
+                    ? (item.action === 'council'
+                        ? <GroupsIcon fontSize="small" sx={{ color: 'secondary.main' }} />
+                        : item.action === 'briefing'
+                          ? <WbSunnyIcon fontSize="small" sx={{ color: 'warning.main' }} />
+                          : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
+                    : item.kind === 'note'
+                      ? <NoteIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                      : <EventIcon fontSize="small" sx={{ color: 'info.main' }} />}
                 </ListItemIcon>
                 <ListItemText
                   primary={<Typography variant="body2" noWrap>{item.label}</Typography>}

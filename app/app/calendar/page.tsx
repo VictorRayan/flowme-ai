@@ -30,6 +30,7 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const activeFetchRef = useRef<AbortController | null>(null);
   const mutationInFlightRef = useRef(false);
+  const lastFetchMillisRef = useRef(0);
 
   const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
   const [filters, setFilters] = useState<FilterState>({
@@ -109,6 +110,7 @@ export default function CalendarPage() {
 
       setEvents(data.events || []);
       setLastSyncedAt(dayjs());
+      lastFetchMillisRef.current = Date.now();
     } catch (err: any) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error('Error fetching events:', err);
@@ -183,20 +185,47 @@ export default function CalendarPage() {
       fetchEvents({ silent: true, signal: controller.signal });
     };
 
-    const intervalId = window.setInterval(pollGoogle, 45000);
-    const handleFocus = () => pollGoogle();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') pollGoogle();
+    const refetchNow = () => {
+      if (mutationInFlightRef.current) return;
+      activeFetchRef.current?.abort();
+      const controller = new AbortController();
+      activeFetchRef.current = controller;
+      fetchEvents({ silent: true, signal: controller.signal });
     };
+
+    const refetchIfInvalidated = () => {
+      try {
+        const raw = localStorage.getItem('balysai_invalidate_calendar');
+        const ts = raw ? Number(raw) : 0;
+        if (ts && ts > lastFetchMillisRef.current) {
+          refetchNow();
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    const intervalId = window.setInterval(pollGoogle, 45000);
+    const handleFocus = () => { if (!refetchIfInvalidated()) pollGoogle(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !refetchIfInvalidated()) pollGoogle();
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'balysai_invalidate_calendar') refetchNow();
+    };
+
+    refetchIfInvalidated();
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorage);
 
     return () => {
       activeFetchRef.current?.abort();
       window.clearInterval(intervalId);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorage);
     };
   }, [fetchEvents]);
 

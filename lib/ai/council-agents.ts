@@ -117,25 +117,104 @@ export async function runAiCouncilPipeline(
     megaContext += `\n[${res.title}]\n${res.advice}\n`;
   });
 
-  // 3. Fire off the CEO call using a stronger model
-  let ceoDirective = '';
-  try {
-    const ceoCompletion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0.5,
-      messages: [
-        { role: 'system', content: ceoSystenPrompt },
-        { role: 'user', content: megaContext }
-      ]
-    });
-    ceoDirective = ceoCompletion.choices[0]?.message?.content || 'Error generating CEO directive.';
-  } catch (e: any) {
-    console.error(`[Council] Error in CEO module:`, e);
-    ceoDirective = 'The CEO could not consolidate the plan at this moment.';
-  }
+  // 3. CEO consolidation with cascading fallbacks: gpt-4o-mini → gpt-4o → gemini-2.5-pro → manual.
+  const ceoDirective = await consolidateWithFallbacks(megaContext, individualResults);
 
   return {
     individualAdvice: individualResults,
-    ceoDirective
+    ceoDirective,
   };
+}
+
+async function consolidateWithFallbacks(
+  megaContext: string,
+  individualResults: { role: string; title: string; advice: string }[],
+): Promise<string> {
+  const errors: string[] = [];
+
+  // Attempt 1: OpenAI gpt-4o-mini (cheap, fast — works for most cases)
+  if (process.env.OPENAI_API_KEY) {
+    const result = await tryOpenAICeo('gpt-4o-mini', megaContext);
+    if (result.ok) return result.text;
+    errors.push(`gpt-4o-mini: ${result.reason}`);
+  }
+
+  // Attempt 2: OpenAI gpt-4o (stronger but more expensive — try if mini failed)
+  if (process.env.OPENAI_API_KEY) {
+    const result = await tryOpenAICeo('gpt-4o', megaContext);
+    if (result.ok) return result.text;
+    errors.push(`gpt-4o: ${result.reason}`);
+  }
+
+  // Attempt 3: Gemini fallback
+  if (process.env.GEMINI_API_KEY) {
+    const result = await tryGeminiCeo('gemini-2.5-pro', megaContext);
+    if (result.ok) return result.text;
+    errors.push(`gemini-2.5-pro: ${result.reason}`);
+  }
+
+  // Attempt 4: manual synthesis — concatenate top-N advisor reports verbatim so the user gets something.
+  console.error('[Council] All CEO providers failed. Falling back to manual synthesis. Errors:', errors);
+  return buildManualSynthesis(individualResults, errors);
+}
+
+async function tryOpenAICeo(model: string, megaContext: string): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model,
+      temperature: 0.5,
+      messages: [
+        { role: 'system', content: ceoSystenPrompt },
+        { role: 'user', content: megaContext },
+      ],
+    });
+    const text = completion.choices[0]?.message?.content?.trim();
+    if (!text) return { ok: false, reason: 'empty response' };
+    return { ok: true, text };
+  } catch (e: any) {
+    const msg = e?.response?.data?.error?.message || e?.message || String(e);
+    console.error(`[Council] OpenAI CEO ${model} failed:`, msg);
+    return { ok: false, reason: msg };
+  }
+}
+
+async function tryGeminiCeo(model: string, megaContext: string): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY!;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: ceoSystenPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: megaContext }] }],
+        generationConfig: { temperature: 0.5 },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      return { ok: false, reason: `HTTP ${res.status}: ${body.slice(0, 300)}` };
+    }
+    const data = await res.json();
+    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    if (!text) return { ok: false, reason: 'empty response' };
+    return { ok: true, text };
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    console.error('[Council] Gemini CEO failed:', msg);
+    return { ok: false, reason: msg };
+  }
+}
+
+function buildManualSynthesis(
+  individualResults: { role: string; title: string; advice: string }[],
+  errors: string[],
+): string {
+  const valid = individualResults.filter(r => r.advice && !r.advice.startsWith('Unavailable at the moment'));
+  if (valid.length === 0) {
+    return `O conselho não conseguiu deliberar agora. Erros: ${errors.join(' | ')}`;
+  }
+  const top = valid.slice(0, 5).map(r => `**${r.title}**\n${r.advice.split('\n').slice(0, 6).join('\n')}`).join('\n\n');
+  return `*(O CEO Consolidator está indisponível, então segue o resumo direto dos principais conselheiros. Para uma síntese final, tente novamente em alguns minutos.)*\n\n${top}`;
 }

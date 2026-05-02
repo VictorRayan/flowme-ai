@@ -1,9 +1,10 @@
 type Provider = 'openai' | 'gemini';
-type TaskType = 'calendar' | 'notes' | 'goals' | 'briefing' | 'mixed' | 'council';
-type WriteIntent = 'none' | 'read_only' | 'write_notes' | 'write_calendar' | 'write_both';
+type TaskType = 'calendar' | 'notes' | 'goals' | 'briefing' | 'mixed' | 'council' | 'email';
+type WriteIntent = 'none' | 'read_only' | 'write_notes' | 'write_calendar' | 'write_both' | 'write_email';
 type Tier = 'cheap' | 'mid' | 'strong';
 type ExecutionPlan = 'direct_tool' | 'plan_then_tool' | 'retrieve_then_plan_then_tool' | 'briefing_pipeline' | 'council_pipeline';
 type ServiceTier = 'standard' | 'flex' | 'batch' | 'priority';
+type ToolDomain = 'calendar' | 'gmail' | 'connectors' | 'notes' | 'all' | 'none';
 
 export interface RouterMessage {
   role: 'user' | 'assistant';
@@ -20,6 +21,7 @@ export interface ShadowRouterDecision {
   taskType: TaskType;
   needsTools: boolean;
   writeIntent: WriteIntent;
+  toolDomain: ToolDomain;
   scores: {
     ambiguity: number;
     reasoning: number;
@@ -134,11 +136,16 @@ function inferTaskType(text: string): TaskType {
     /\b(council|mastermind|board|advisors)\b/,
     /\b(conselho|mastermind|conselheiros|council)\b/,
   ]);
+  const isEmail = hasAny(text, [
+    /\b(email|emails|gmail|inbox|send)\b/,
+    /\b(email|emails|gmail|caixa de entrada|enviar email)\b/,
+  ]);
 
-  const matches = [isCalendar, isNotes, isGoals, isBriefing, isCouncil].filter(Boolean).length;
+  const matches = [isCalendar, isNotes, isGoals, isBriefing, isCouncil, isEmail].filter(Boolean).length;
   if (matches > 1 && !isCouncil) return 'mixed';
   if (isCouncil) return 'council';
   if (isCalendar) return 'calendar';
+  if (isEmail) return 'email';
   if (isNotes) return 'notes';
   if (isGoals) return 'goals';
   if (isBriefing) return 'briefing';
@@ -159,6 +166,7 @@ function inferWriteIntent(text: string, taskType: TaskType): WriteIntent {
 
   if (taskType === 'calendar') return 'write_calendar';
   if (taskType === 'notes') return 'write_notes';
+  if (taskType === 'email') return 'write_email';
   if (taskType === 'mixed') return 'write_both';
   if (taskType === 'briefing') return readOnly ? 'read_only' : 'write_both';
   if (taskType === 'goals') return 'write_notes';
@@ -166,9 +174,19 @@ function inferWriteIntent(text: string, taskType: TaskType): WriteIntent {
   return 'none';
 }
 
+function inferToolDomain(taskType: TaskType, text: string): ToolDomain {
+  if (taskType === 'calendar') return 'calendar';
+  if (taskType === 'email') return 'gmail';
+  if (taskType === 'notes') return 'notes';
+  if (taskType === 'mixed' || taskType === 'briefing') return 'all';
+  if (hasAny(text, [/\b(connector|connectors|integrations|accounts)\b/, /\b(conector|conectores|integra[cç][oõ]es|contas)\b/])) return 'connectors';
+  return 'none';
+}
+
 function inferNeedsTools(taskType: TaskType, text: string): boolean {
   if (taskType === 'briefing') return true;
   if (taskType === 'calendar' || taskType === 'notes' || taskType === 'goals') return true;
+  if (taskType === 'email' || taskType === 'mixed') return true;
   return hasAny(text, [
     /\b(calendar|note|notes|goal|goals)\b/,
     /\b(calendario|agenda|nota|notas|meta|metas)\b/,
@@ -367,6 +385,7 @@ export function routeBalysRequest(input: RouteInput): ShadowRouterDecision {
   const taskType = inferTaskType(latestUser);
   const writeIntent = inferWriteIntent(latestUser, taskType);
   const needsTools = inferNeedsTools(taskType, latestUser);
+  const toolDomain = inferToolDomain(taskType, latestUser);
   const scores = {
     ambiguity: scoreAmbiguity(latestUser, taskType, writeIntent),
     reasoning: scoreReasoning(latestUser, taskType, input.messages.length),
@@ -388,6 +407,7 @@ export function routeBalysRequest(input: RouteInput): ShadowRouterDecision {
     taskType,
     needsTools,
     writeIntent,
+    toolDomain,
     scores,
     overallScore,
     tier,

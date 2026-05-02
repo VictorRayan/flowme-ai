@@ -29,3 +29,9 @@ npm-debug.log*
 
 # Turbopack
 .turbo/
+
+# Local scratch/evaluation artifacts
+.oc_eval/
+tree.json
+patch_route.js
+patch_route.py

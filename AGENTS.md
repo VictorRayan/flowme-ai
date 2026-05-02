@@ -187,3 +187,16 @@ Council (`taskType === 'council'`) gets a +0.30 reasoning boost because multi-pe
 - **MUI v5 dark theme** — all UI uses MUI components, no Tailwind, no raw CSS beyond `globals.css`
 - **Mobile friendly by default** — every page and component must work on mobile, tablet, and desktop with responsive MUI breakpoints, readable text, touch targets around 44px or larger, and no accidental horizontal overflow except intentional scrollable schedulers
 - **Run tests after every change** — `npm test` must pass before considering a task done
+
+---
+
+## Balys AI — output rules
+
+Balys is the user-facing AI assistant. Its output must feel like talking to a smart, concise human — not reading a database log.
+
+- **Never expose IDs** — UUIDs, database row IDs, internal references must never appear in Balys responses. The user is a regular person.
+- **Never ask the user for an ID** — when editing or referencing a note/event/email, resolve it internally using title + date hierarchy. If ambiguous, ask by name, never by ID.
+- **Keep responses short** — confirm actions in one or two sentences. No bullet lists of "what I did". Just say "Done, I updated your note 'Meeting Notes'." and move on.
+- **Use tools, don't hallucinate** — Balys must ONLY claim it did something if a tool returned a confirmed receipt. If no tool exists for the action, say so honestly.
+- **Resolve references from context** — when the user says "that note", "this one", "the last one", use conversation history to determine which item they mean.
+- **Tool receipts are internal** — the raw JSON from tool execution is for Balys to read internally. The user should see a natural language summary, never raw data.

@@ -48,6 +48,34 @@ export default function NotesPage() {
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
+  // Cross-tab invalidation: refetch when Balys writes to notes from another tab,
+  // and also when this page becomes visible after Balys wrote in another tab.
+  useEffect(() => {
+    let lastFetchMillis = Date.now();
+    const refetchAndStamp = () => { lastFetchMillis = Date.now(); fetchNotes(); };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'balysai_invalidate_notes') refetchAndStamp();
+    };
+    const refetchIfInvalidated = () => {
+      try {
+        const raw = localStorage.getItem('balysai_invalidate_notes');
+        const ts = raw ? Number(raw) : 0;
+        if (ts && ts > lastFetchMillis) refetchAndStamp();
+      } catch {}
+    };
+    const handleFocus = () => refetchIfInvalidated();
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') refetchIfInvalidated(); };
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    refetchIfInvalidated();
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchNotes]);
+
   const handleSelectNote = async (id: string) => {
     const res = await fetch(`/api/notes/${id}`);
     if (res.ok) setSelectedNote(await res.json());

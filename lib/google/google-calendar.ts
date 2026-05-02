@@ -42,7 +42,7 @@ export async function getCalendarEvents(linkedAccountId: string, timeMin: string
       if (err.message === ErrorCode.GOOGLE_AUTH_MISSING || err.message === ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED) {
         throw err;
       }
-      throw new Error(ErrorCode.GOOGLE_API_ERROR);
+      throw err;
     }
   }
   return []; // Should never reach here, but TypeScript needs it
@@ -89,7 +89,7 @@ export async function createCalendarEvent(linkedAccountId: string, params: Creat
     if (err.message === ErrorCode.GOOGLE_AUTH_MISSING || err.message === ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED) {
         throw err;
     }
-    throw new Error(ErrorCode.GOOGLE_API_ERROR);
+    throw err;
   }
 }
 
@@ -134,7 +134,7 @@ export async function updateCalendarEvent(linkedAccountId: string, eventId: stri
     if (err.message === ErrorCode.GOOGLE_AUTH_MISSING || err.message === ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED) {
         throw err;
     }
-    throw new Error(ErrorCode.GOOGLE_API_ERROR);
+    throw err;
   }
 }
 
@@ -155,6 +155,6 @@ export async function deleteCalendarEvent(linkedAccountId: string, eventId: stri
     if (err.message === ErrorCode.GOOGLE_AUTH_MISSING || err.message === ErrorCode.GOOGLE_TOKEN_REFRESH_FAILED) {
       throw err;
     }
-    throw new Error(ErrorCode.GOOGLE_API_ERROR);
+    throw err;
   }
 }

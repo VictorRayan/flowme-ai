@@ -25,6 +25,9 @@ function SettingsPageContent() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [aiLanguage, setAiLanguage] = useState('en');
   const [uiLanguage, setUiLanguage] = useState('en');
+  const [councilMode, setCouncilMode] = useState<'cheap' | 'best'>('cheap');
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [aiBehaviorSaving, setAiBehaviorSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -106,7 +109,35 @@ function SettingsPageContent() {
     setAiLanguage(localStorage.getItem('balysai_language') || 'en');
     setUiLanguage(localStorage.getItem('ui_language') || 'en');
     setSpendCurrency((localStorage.getItem('spend_currency') as 'USD' | 'BRL') || 'USD');
+
+    fetch('/api/ai/settings')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.ok) {
+          setCouncilMode((d.council_mode as 'cheap' | 'best') || 'cheap');
+          setMemoryEnabled(d.memory_enabled ?? true);
+        }
+      })
+      .catch(() => { /* ignore — keeps defaults */ });
   }, [fetchAccounts]);
+
+  const updateAiBehavior = useCallback(async (patch: Partial<{ council_mode: 'cheap' | 'best'; memory_enabled: boolean }>) => {
+    setAiBehaviorSaving(true);
+    try {
+      const res = await fetch('/api/ai/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to save AI settings');
+      setSuccess('AI settings saved');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAiBehaviorSaving(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchSpend();
@@ -382,6 +413,65 @@ function SettingsPageContent() {
             )}
           </Box>
         )}
+      </Paper>
+
+      {/* AI Behavior */}
+      <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box>
+            <Typography variant="h6" fontWeight="bold">AI Behavior</Typography>
+            <Typography variant="body2" color="text.secondary">
+              How Balys reasons and remembers across conversations.
+            </Typography>
+          </Box>
+          {aiBehaviorSaving && <CircularProgress size={18} />}
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <Box sx={{ minWidth: 260 }}>
+            <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Council mode</Typography>
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel>Council mode</InputLabel>
+              <Select
+                value={councilMode}
+                label="Council mode"
+                onChange={e => {
+                  const v = e.target.value as 'cheap' | 'best';
+                  setCouncilMode(v);
+                  updateAiBehavior({ council_mode: v });
+                }}
+              >
+                <MenuItem value="cheap">Cheap — single round (~5s, ~$0.012)</MenuItem>
+                <MenuItem value="best">Best — multi-round debate (~25s, ~$0.04)</MenuItem>
+              </Select>
+            </FormControl>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              "Best" runs up to 3 rounds with cross-examination. Slower and pricier, but the council actually debates.
+            </Typography>
+          </Box>
+
+          <Divider orientation="vertical" flexItem />
+
+          <Box sx={{ minWidth: 240 }}>
+            <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Cross-thread memory</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Switch
+                checked={memoryEnabled}
+                onChange={e => {
+                  setMemoryEnabled(e.target.checked);
+                  updateAiBehavior({ memory_enabled: e.target.checked });
+                }}
+                color="success"
+              />
+              <Typography variant="body2">{memoryEnabled ? 'On' : 'Off'}</Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              When on, Balys remembers facts and past conversations across threads. Your living profile (priorities, ongoing work) is always loaded.
+            </Typography>
+          </Box>
+        </Box>
       </Paper>
 
       {/* Language Settings */}

@@ -4,7 +4,7 @@ import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth(); // enforce auth
+    await requireAuth(req); // enforce auth
     
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');

@@ -2,7 +2,6 @@ import { useMemo, useRef, useEffect } from 'react';
 import { Box, Typography, Paper } from '@mui/material';
 import dayjs from 'dayjs';
 import { CalendarEvent } from './types';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { buildDroppedEventRange, DAY_MINUTES, dropYToMinuteOfDay, eventDurationMinutes, HOUR_HEIGHT, minutesFromDayStart } from '@/lib/calendar/time-grid';
 
 interface CalendarWeekGridProps {
@@ -12,10 +11,9 @@ interface CalendarWeekGridProps {
   onEventDrop?: (eventId: string, newStart: string, newEnd?: string) => void;
 }
 
-function eventColors(isMicro: boolean, isWork: boolean) {
-  if (isMicro) return { bg: 'rgba(52,211,153,0.18)',  fg: '#6ee7b7', border: 'rgba(52,211,153,0.35)',  bar: '#34d399' };
-  if (isWork)  return { bg: 'rgba(139,92,246,0.18)',  fg: '#c4b5fd', border: 'rgba(139,92,246,0.35)',  bar: '#8b5cf6' };
-  return         { bg: 'rgba(99,102,241,0.18)',        fg: '#a5b4fc', border: 'rgba(99,102,241,0.35)',  bar: '#6366f1' };
+function eventColors(isWork: boolean) {
+  if (isWork) return { bg: 'rgba(139,92,246,0.18)', fg: '#c4b5fd', border: 'rgba(139,92,246,0.35)', bar: '#8b5cf6' };
+  return        { bg: 'rgba(99,102,241,0.18)',       fg: '#a5b4fc', border: 'rgba(99,102,241,0.35)', bar: '#6366f1' };
 }
 
 export default function CalendarWeekGrid({ currentDate, events, onEventClick, onEventDrop }: CalendarWeekGridProps) {
@@ -183,7 +181,7 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
                   const start = dayjs(evt.start_at);
                   const top = minutesFromDayStart(evt.start_at);
                   const dur = eventDurationMinutes(evt.start_at, evt.end_at);
-                  const { bg, fg, border, bar } = eventColors(evt.source === 'microactivity', evt.account_type === 'work');
+                  const { bg, fg, border, bar } = eventColors(evt.account_type === 'work');
 
                   return (
                     <Paper
@@ -214,7 +212,6 @@ export default function CalendarWeekGrid({ currentDate, events, onEventClick, on
                       }}
                     >
                       <Typography sx={{ fontWeight: 600, fontSize: 11, lineHeight: 1.2, color: fg, display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                        {evt.source === 'microactivity' && <TaskAltIcon sx={{ fontSize: 11 }} />}
                         {evt.title}
                       </Typography>
                       {dur >= 30 && (

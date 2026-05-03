@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 // Returns cached embedding if fresh, otherwise generates and caches it.
 // Response: { embedding: number[], cached: boolean }
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { supabase, user } = await requireAuth();
+  const { supabase, user } = await requireAuth(request);
   const { id } = await params;
 
   if (!process.env.OPENAI_API_KEY) {

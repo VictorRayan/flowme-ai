@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, ErrorCode } from '@/lib/api/errors';
+import { resolveSelfIdentity } from '@/lib/ai/memory/self';
 
 // GET /api/people
 export async function GET(request: NextRequest) {
@@ -18,7 +19,15 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return apiError(ErrorCode.INTERNAL_ERROR, error.message);
-  return NextResponse.json(data || []);
+  const self = resolveSelfIdentity(user);
+  return NextResponse.json((data || []).map((person: { id: string; name: string; email?: string | null; avatar_url?: string | null }) => ({
+    ...person,
+    is_self: Boolean(
+      (self.email && person.email === self.email)
+      || person.name.toLowerCase() === self.name.toLowerCase()
+      || person.name === 'Myself'
+    ),
+  })));
 }
 
 // POST /api/people

@@ -5,7 +5,7 @@ import { createCalendarEvent } from '@/lib/google/google-calendar';
 
 export async function POST(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const body = await req.json();
 
     const {

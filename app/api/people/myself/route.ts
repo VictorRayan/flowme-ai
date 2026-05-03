@@ -1,28 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, ErrorCode } from '@/lib/api/errors';
+import { cleanupBadGeneratedPeople, ensureSelfPerson, resolveSelfIdentity } from '@/lib/ai/memory/self';
 
-// GET /api/people/myself — get or create the "Myself" person for the current user
-export async function GET(_request: NextRequest) {
-  const { supabase, user } = await requireAuth();
+// GET /api/people/myself — get or create the current user's self-person.
+// This is SaaS-safe: "myself" resolves to the authenticated user's own display name,
+// not a literal "Myself" contact.
+export async function GET(request: NextRequest) {
+  const { supabase, user } = await requireAuth(request);
+  const self = resolveSelfIdentity(user);
+  const result = await ensureSelfPerson(supabase, user.id, self);
 
-  // Try to find existing "Myself" person
-  const { data: existing } = await supabase
-    .from('people')
-    .select('id, name, email')
-    .eq('user_id', user.id)
-    .eq('name', 'Myself')
-    .single();
+  if (!result.ok || !result.person) return apiError(ErrorCode.INTERNAL_ERROR, result.error || 'Failed to resolve self person');
+  return NextResponse.json(result.person);
+}
 
-  if (existing) return NextResponse.json(existing);
+// POST /api/people/myself — cleanup legacy bad generated people for this user.
+export async function POST(request: NextRequest) {
+  const { supabase, user } = await requireAuth(request);
+  const self = resolveSelfIdentity(user);
+  const selfResult = await ensureSelfPerson(supabase, user.id, self);
+  if (!selfResult.ok) return apiError(ErrorCode.INTERNAL_ERROR, selfResult.error || 'Failed to resolve self person');
 
-  // Create it
-  const { data: created, error } = await supabase
-    .from('people')
-    .insert({ user_id: user.id, name: 'Myself' })
-    .select('id, name, email')
-    .single();
-
-  if (error) return apiError(ErrorCode.INTERNAL_ERROR, error.message);
-  return NextResponse.json(created);
+  const cleanup = await cleanupBadGeneratedPeople(supabase, user.id);
+  return NextResponse.json({ self: selfResult.person, cleanup });
 }

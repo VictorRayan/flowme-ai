@@ -9,7 +9,6 @@ interface EventChipProps {
 }
 
 export default function EventChip({ event, onClick, draggable }: EventChipProps) {
-  const isMicro = event.source === 'microactivity';
   const isWork = event.account_type === 'work';
 
   // Color system — high contrast on dark bg
@@ -18,12 +17,7 @@ export default function EventChip({ event, onClick, draggable }: EventChipProps)
   let accentBar: string;
   let border: string;
 
-  if (isMicro) {
-    bg = 'rgba(52,211,153,0.1)';
-    fg = '#6ee7b7';
-    accentBar = '#34d399';
-    border = 'rgba(52,211,153,0.3)';
-  } else if (isWork) {
+  if (isWork) {
     bg = 'rgba(139,92,246,0.18)';
     fg = '#c4b5fd';
     accentBar = '#8b5cf6';

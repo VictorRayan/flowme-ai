@@ -114,7 +114,7 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
       const start = dayjs().subtract(365, 'day').toISOString();
       const end = dayjs().add(365, 'day').toISOString();
       const res = await fetch(
-        `/api/calendar/events?start=${start}&end=${end}&includeGoogleEvents=true&includeMicroactivities=true`
+        `/api/calendar/events?start=${start}&end=${end}&includeGoogleEvents=true&includeFlowmeEvents=true`
       );
       if (res.ok) {
         const data = await res.json();

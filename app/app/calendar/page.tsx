@@ -34,8 +34,6 @@ export default function CalendarPage() {
 
   const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
   const [filters, setFilters] = useState<FilterState>({
-    showMicroactivities: true,
-    showGoogleEvents: true,
     accountIds: [],
     accountTypes: ['work', 'personal'],
   });
@@ -80,24 +78,13 @@ export default function CalendarPage() {
                   view === 'week' ? currentDate.endOf('week').toISOString() :
                   currentDate.endOf('month').endOf('week').toISOString();
       
-      const queryParams = new URLSearchParams({
-        start,
-        end,
-        includeMicroactivities: String(filters.showMicroactivities),
-        includeGoogleEvents: String(filters.showGoogleEvents),
-      });
+      const queryParams = new URLSearchParams({ start, end });
 
       if (filters.accountIds.length > 0) {
         queryParams.append('accountIds', filters.accountIds.join(','));
       }
       if (filters.accountTypes.length > 0) {
         queryParams.append('accountTypes', filters.accountTypes.join(','));
-      }
-
-      if (!filters.showMicroactivities && !filters.showGoogleEvents) {
-        setEvents([]);
-        setLastSyncedAt(dayjs());
-        return;
       }
 
       const res = await fetch(`/api/calendar/events?${queryParams.toString()}`, { signal });
@@ -243,18 +230,13 @@ export default function CalendarPage() {
   
   const today = () => setCurrentDate(dayjs());
 
-  // Filter events locally by Source and Calendars
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
-        if (e.source === 'microactivity' && !filters.showMicroactivities) return false;
-        if (e.source === 'google' && !filters.showGoogleEvents) return false;
-        
-        if (e.account_type && !filters.accountTypes.includes(e.account_type as any)) return false;
-        
-        if (e.source === 'google' && e.linked_account_id && filters.accountIds.length > 0) {
-            if (!filters.accountIds.includes(e.linked_account_id)) return false;
-        }
-        return true;
+      if (e.account_type && !filters.accountTypes.includes(e.account_type as any)) return false;
+      if (e.linked_account_id && filters.accountIds.length > 0) {
+        if (!filters.accountIds.includes(e.linked_account_id)) return false;
+      }
+      return true;
     });
   }, [events, filters]);
 

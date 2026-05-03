@@ -5,7 +5,7 @@ import { apiError, ErrorCode } from '@/lib/api/errors';
 // GET /api/notes/search?q=... — full-text search over notes for the command palette
 export async function GET(request: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q') || '';
 

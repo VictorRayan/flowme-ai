@@ -7,6 +7,7 @@ import { routeBalysRequest } from '@/lib/ai/shadow-router';
 import { ALL_TOOLS, getActiveToolDomains } from '@/lib/ai/tools/registry';
 import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
 import { buildBalysSystemPrompt } from '@/lib/ai/balys-prompt';
+import { scoreThreadContext } from '@/lib/ai/context-scorer';
 import { prepareMessagesWithAttachments, extractLatestUserText } from '@/lib/ai/prepare-messages';
 import { loadProfile, renderProfileForPrompt, callProfileUpdater, persistProfile } from '@/lib/ai/memory/profile';
 import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/facts';
@@ -100,10 +101,13 @@ export async function POST(request: NextRequest) {
 
     const aiSettings = await loadUserAiSettings(auth.supabase, auth.user.id);
 
-    const [notesMap, userProfile, topFacts] = await Promise.all([
+    const [notesMap, userProfile, topFacts, contextScores] = await Promise.all([
       buildNotesGraphMap(auth),
       loadProfile(auth.supabase, auth.user.id),
       aiSettings.memory_enabled ? loadTopFacts(auth.supabase, auth.user.id) : Promise.resolve([]),
+      // Context scorer: reads the thread and returns LLM-derived complexity scores.
+      // Runs in parallel, times out at 4s, returns null on failure — never blocks routing.
+      scoreThreadContext(preparedMessages),
     ]);
     const profileBlock = renderProfileForPrompt(userProfile);
     const factsBlock = aiSettings.memory_enabled ? renderFactsForPrompt(topFacts) : '';
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
       messages: preparedMessages,
       rawUserInput: typeof rawUserInput === 'string' && rawUserInput.trim() ? rawUserInput : transcribedUserText,
       systemAddendum: typeof systemAddendum === 'string' ? systemAddendum : undefined,
+      contextScores: contextScores ?? undefined,
     });
 
     const systemPromptFull = buildBalysSystemPrompt({

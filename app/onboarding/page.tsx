@@ -81,6 +81,11 @@ const dict = {
 };
 
 type AIMessage = { role: 'user' | 'model'; content: string };
+type ProposalData = {
+  annual_smart_goal: string;
+  monthly_milestone: string;
+  weekly_routine: string;
+};
 
 export default function OnboardingWizard() {
   const [step, setStep] = React.useState(0);
@@ -93,7 +98,8 @@ export default function OnboardingWizard() {
   const [chatHistory, setChatHistory] = React.useState<AIMessage[]>([]);
   const [inputValue, setInputValue] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
-  const [aiProposal, setAiProposal] = React.useState<any>(null);
+  const [aiProposal, setAiProposal] = React.useState<{ buttonText: string; data: ProposalData } | null>(null);
+  const [acceptedProposals, setAcceptedProposals] = React.useState<ProposalData[]>([]);
 
   // Ritual Times
   const [morningTime, setMorningTime] = React.useState('08:00');
@@ -128,16 +134,20 @@ export default function OnboardingWizard() {
   };
 
   const finish = async () => {
+    const proposalsToPersist = [...acceptedProposals];
+    if (aiProposal?.data && proposalsToPersist.length < goalCount) {
+      proposalsToPersist[currentGoalIndex - 1] = aiProposal.data;
+    }
     try {
       await fetch('/api/v1/onboarding/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ morningTime, eveningTime })
+        body: JSON.stringify({ morningTime, eveningTime, goalProposals: proposalsToPersist.filter(Boolean) })
       });
     } catch (e) {
       console.error('Failed to save rhythm settings', e);
     }
-    router.push('/app/flow');
+    router.push('/app/today');
   };
 
   const callAI = async (history: AIMessage[], userMsg: string): Promise<any> => {
@@ -148,6 +158,16 @@ export default function OnboardingWizard() {
     });
     const data = await res.json();
     return data;
+  };
+
+  const acceptCurrentProposal = () => {
+    if (!aiProposal?.data) return;
+    setAcceptedProposals(prev => {
+      const next = [...prev];
+      next[currentGoalIndex - 1] = aiProposal.data;
+      return next;
+    });
+    nextStep();
   };
 
   const sendMessage = async () => {
@@ -386,7 +406,7 @@ export default function OnboardingWizard() {
 
               {aiProposal && !isLoading && (
                 <Button 
-                  fullWidth variant="contained" size="large" onClick={nextStep}
+                  fullWidth variant="contained" size="large" onClick={acceptCurrentProposal}
                   sx={{ py: 2, borderRadius: 3, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', mb: 2 }}
                 >
                   {aiProposal.buttonText}

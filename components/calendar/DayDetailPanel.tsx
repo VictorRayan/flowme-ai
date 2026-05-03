@@ -3,7 +3,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import { CalendarEvent } from './types';
 import dayjs from 'dayjs';
 import VideocamIcon from '@mui/icons-material/Videocam';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import EditIcon from '@mui/icons-material/Edit';
@@ -53,13 +52,11 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
             {sorted.map(evt => {
               const start = dayjs(evt.start_at).format('h:mm A');
               const end = evt.end_at ? dayjs(evt.end_at).format('h:mm A') : '';
-              const isMicro = evt.source === 'microactivity';
               const isWork = evt.account_type === 'work';
 
-              // Accent color per type
-              const accent = isMicro ? '#34d399' : isWork ? '#8b5cf6' : '#6366f1';
-              const accentBg = isMicro ? 'rgba(52,211,153,0.1)' : isWork ? 'rgba(139,92,246,0.1)' : 'rgba(99,102,241,0.1)';
-              const accentBorder = isMicro ? 'rgba(52,211,153,0.25)' : isWork ? 'rgba(139,92,246,0.25)' : 'rgba(99,102,241,0.25)';
+              const accent = isWork ? '#8b5cf6' : '#6366f1';
+              const accentBg = isWork ? 'rgba(139,92,246,0.1)' : 'rgba(99,102,241,0.1)';
+              const accentBorder = isWork ? 'rgba(139,92,246,0.25)' : 'rgba(99,102,241,0.25)';
 
               return (
                 <Paper
@@ -79,7 +76,6 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
                   {/* Title row */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
                     <Typography variant="subtitle2" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: 'text.primary' }}>
-                      {isMicro && <TaskAltIcon sx={{ fontSize: 15, color: '#34d399' }} />}
                       {evt.title}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, flexShrink: 0, ml: 1, fontSize: 11 }}>

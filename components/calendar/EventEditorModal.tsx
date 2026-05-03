@@ -150,7 +150,7 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
 
     try {
       if (isEditing) {
-          // PATCH / Edit
+        {
           const res = await fetch('/api/calendar/edit-event', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -162,18 +162,19 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
               location,
               start_at: startAt.toISOString(),
               end_at: endAt.toISOString(),
-              create_meet: createMeet && !existingEvent.meet_link, // only request if adding new
+              create_meet: createMeet && !existingEvent.meet_link,
               participants: finalParticipants,
-              reminders: payloadReminders
+              reminders: payloadReminders,
             }),
           });
           const data = await res.json();
           if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to update event');
+        }
 
       } else {
         // POST / Create
         if (linkedAccounts.length === 0) {
-            const res = await fetch('/api/microactivities', {
+            const res = await fetch('/api/events', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -184,7 +185,7 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
               }),
             });
             const data = await res.json();
-            if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to create microactivity');
+            if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to create Flowme event');
         } else {
           const res = await fetch('/api/calendar/create-event', {
               method: 'POST',
@@ -365,7 +366,7 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
               </Select>
             </FormControl>
           ) : !isEditing && (
-             <Alert severity="info" sx={{ mb: 2 }}>You have no linked accounts. This will be created as a local Microactivity instead.</Alert>
+             <Alert severity="info" sx={{ mb: 2 }}>You have no linked accounts. This will be created as a Flowme event instead.</Alert>
           )}
 
           {(!isEditing && linkedAccounts.length > 0) || (isEditing && !existingEvent?.meet_link && existingEvent?.source === 'google') ? (

@@ -5,10 +5,10 @@ import DayCell from '@/components/calendar/DayCell';
 describe('DayCell', () => {
   it('renders correctly and shows +N more for overflow events', () => {
     const events = [
-      { id: '1', title: 'Ev 1', source: 'microactivity', start_at: '2025-01-01' },
+      { id: '1', title: 'Ev 1', source: 'flowme', start_at: '2025-01-01' },
       { id: '2', title: 'Ev 2', source: 'google', start_at: '2025-01-01' },
       { id: '3', title: 'Ev 3', source: 'google', start_at: '2025-01-01' },
-      { id: '4', title: 'Ev 4', source: 'microactivity', start_at: '2025-01-01' },
+      { id: '4', title: 'Ev 4', source: 'flowme', start_at: '2025-01-01' },
       { id: '5', title: 'Ev 5', source: 'google', start_at: '2025-01-01' },
     ] as any;
 

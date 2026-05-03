@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { summarizeAndPersistThread, type ThreadMessage } from '@/lib/ai/memory/recall';
+import { callProfileUpdater, loadProfile, persistProfile } from '@/lib/ai/memory/profile';
 
 /**
  * Stale-thread summarizer cron.
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
   // - summary's summarized_at is older than the thread's last_message_at.
   let refreshed = 0;
   let skipped = 0;
+  let profilesUpdated = 0;
 
   for (const t of candidateThreads) {
     const { data: existingSummary } = await admin
@@ -92,12 +94,31 @@ export async function GET(req: NextRequest) {
 
     await summarizeAndPersistThread(admin, t.user_id, t.id, messages);
     refreshed++;
+
+    try {
+      const currentProfile = await loadProfile(admin, t.user_id);
+      const transcriptText = messages
+        .slice(-30)
+        .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+        .join('\n\n');
+      const profileResult = await callProfileUpdater({
+        current: currentProfile,
+        conversationText: transcriptText,
+      });
+      if (profileResult.changed) {
+        await persistProfile(admin, t.user_id, profileResult.updated);
+        profilesUpdated++;
+      }
+    } catch (profileErr) {
+      console.error('[cron/summarize-stale-threads] profile update error:', profileErr);
+    }
   }
 
   return NextResponse.json({
     ok: true,
     inspected: candidateThreads.length,
     refreshed,
+    profiles_updated: profilesUpdated,
     skipped,
   });
 }

@@ -4,7 +4,7 @@ import { apiError, ErrorCode } from '@/lib/api/errors';
 
 // PATCH /api/people/[id] — rename a person and update all @mention labels in notes
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { supabase, user } = await requireAuth();
+  const { supabase, user } = await requireAuth(request);
   const { id: personId } = await params;
   const { name } = await request.json();
 
@@ -70,8 +70,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 // DELETE /api/people/[id] — delete person and their profile note
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { supabase, user } = await requireAuth();
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { supabase, user } = await requireAuth(request);
   const { id: personId } = await params;
 
   // Verify ownership

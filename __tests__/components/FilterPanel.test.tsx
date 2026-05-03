@@ -14,7 +14,7 @@ describe('FilterPanel', () => {
   it('toggles modify filter state', () => {
     const setFilters = jest.fn();
     const filters = {
-      showMicroactivities: true,
+      showFlowmeEvents: true,
       showGoogleEvents: true,
       accountIds: [],
       accountTypes: [],
@@ -30,8 +30,8 @@ describe('FilterPanel', () => {
       { wrapper: Wrapper }
     );
 
-    const microCheckbox = screen.getByLabelText('Microactivities');
-    fireEvent.click(microCheckbox);
+    const flowmeCheckbox = screen.getByLabelText('Flowme Events');
+    fireEvent.click(flowmeCheckbox);
     
     expect(setFilters).toHaveBeenCalled();
   });

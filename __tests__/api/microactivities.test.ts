@@ -17,7 +17,7 @@ jest.mock('@/lib/api/auth', () => ({
   })
 }));
 
-describe('/api/microactivities', () => {
+describe('/api/microactivities legacy route', () => {
   it('GET should require start and end dates', async () => {
     const req = new NextRequest('http://localhost/api/microactivities');
     const res = await GET(req);
@@ -28,7 +28,7 @@ describe('/api/microactivities', () => {
     expect(data.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('POST should create microactivity successfully', async () => {
+  it('POST should create a legacy local event successfully', async () => {
     const req = new NextRequest('http://localhost/api/microactivities', {
       method: 'POST',
       body: JSON.stringify({ title: 'New Activity', start_at: '2025-01-01T10:00:00Z' })

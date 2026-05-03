@@ -4,8 +4,9 @@ import { connectorsListTool, gmailCreateDraftTool, gmailSearchMessagesTool } fro
 import { notesCreateTool, notesListTool, notesEditTool } from './notes-tools';
 import { councilConveneTool } from './council-tools';
 import { peopleSearchTool } from './people-tools';
-import { microactivitiesCreateTool, microactivitiesDeleteTool, microactivitiesListTool } from './microactivities-tools';
-import { memorySaveFactTool, memoryRecallThreadsTool } from './memory-tools';
+import { eventsCreateTool, eventsDeleteTool, eventsListTool } from './events-tools';
+import { memoryAppendToBriefingTool, memoryAppendToPersonTool, memorySaveFactTool, memoryRecallThreadsTool } from './memory-tools';
+import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListTool } from './goals-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
@@ -13,9 +14,9 @@ export const ALL_TOOLS: Tool[] = [
   calendarUpdateEventTool,
   calendarDeleteEventTool,
   calendarDeleteEventsBatchTool,
-  microactivitiesListTool,
-  microactivitiesCreateTool,
-  microactivitiesDeleteTool,
+  eventsListTool,
+  eventsCreateTool,
+  eventsDeleteTool,
   connectorsListTool,
   gmailSearchMessagesTool,
   gmailCreateDraftTool,
@@ -24,8 +25,13 @@ export const ALL_TOOLS: Tool[] = [
   notesEditTool,
   councilConveneTool,
   peopleSearchTool,
+  goalsListTool,
+  goalsCreateOperatingPlanTool,
+  goalsCreateShortActionPlanTool,
   memorySaveFactTool,
   memoryRecallThreadsTool,
+  memoryAppendToPersonTool,
+  memoryAppendToBriefingTool,
 ];
 
 const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
@@ -35,11 +41,12 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   notes: 'notes.',
   council: 'council.',
   people: 'people.',
-  microactivities: 'microactivities.',
+  events: 'events.',
   memory: 'memory.',
+  goals: 'goals.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'events' | 'goals' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

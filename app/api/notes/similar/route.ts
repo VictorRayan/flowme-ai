@@ -8,7 +8,7 @@ import OpenAI from 'openai';
 // Embeds the query, then finds the most relevant notes from the given IDs using cosine similarity.
 // Returns the top_k notes with their content_text ranked by relevance.
 export async function POST(request: NextRequest) {
-  const { supabase, user } = await requireAuth();
+  const { supabase, user } = await requireAuth(request);
   const { query, note_ids, top_k = 3 } = await request.json();
 
   if (!query || !note_ids?.length) {

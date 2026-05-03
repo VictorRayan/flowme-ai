@@ -4,7 +4,7 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const { id } = await params;
     const body = await req.json();
     const { name, is_active, config } = body;
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const { id } = await params;
 
     const { error } = await supabase

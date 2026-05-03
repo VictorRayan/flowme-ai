@@ -7,7 +7,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const { id } = await params;
     const body = await req.json();
 
@@ -48,7 +48,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const { id } = await params;
 
     // Check if it's the primary account

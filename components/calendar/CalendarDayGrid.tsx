@@ -2,7 +2,6 @@ import { useMemo, useRef, useEffect } from 'react';
 import { Box, Typography, Paper } from '@mui/material';
 import dayjs from 'dayjs';
 import { CalendarEvent } from './types';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { buildDroppedEventRange, DAY_MINUTES, dropYToMinuteOfDay, eventDurationMinutes, HOUR_HEIGHT, minutesFromDayStart } from '@/lib/calendar/time-grid';
 
 interface CalendarDayGridProps {
@@ -13,10 +12,9 @@ interface CalendarDayGridProps {
 }
 
 // Shared color helper — same logic as EventChip for consistency
-function eventColors(isMicro: boolean, isWork: boolean) {
-  if (isMicro)  return { bg: 'rgba(52,211,153,0.18)',  fg: '#6ee7b7', border: 'rgba(52,211,153,0.35)',  bar: '#34d399' };
-  if (isWork)   return { bg: 'rgba(139,92,246,0.18)',  fg: '#c4b5fd', border: 'rgba(139,92,246,0.35)',  bar: '#8b5cf6' };
-  return          { bg: 'rgba(99,102,241,0.18)',        fg: '#a5b4fc', border: 'rgba(99,102,241,0.35)',  bar: '#6366f1' };
+function eventColors(isWork: boolean) {
+  if (isWork) return { bg: 'rgba(139,92,246,0.18)', fg: '#c4b5fd', border: 'rgba(139,92,246,0.35)', bar: '#8b5cf6' };
+  return        { bg: 'rgba(99,102,241,0.18)',       fg: '#a5b4fc', border: 'rgba(99,102,241,0.35)', bar: '#6366f1' };
 }
 
 export default function CalendarDayGrid({ currentDate, events, onEventClick, onEventDrop }: CalendarDayGridProps) {
@@ -152,7 +150,7 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
             const start = dayjs(evt.start_at);
             const top = minutesFromDayStart(evt.start_at);
             const dur = eventDurationMinutes(evt.start_at, evt.end_at);
-            const { bg, fg, border, bar } = eventColors(evt.source === 'microactivity', evt.account_type === 'work');
+            const { bg, fg, border, bar } = eventColors(evt.account_type === 'work');
 
             return (
               <Paper
@@ -184,7 +182,6 @@ export default function CalendarDayGrid({ currentDate, events, onEventClick, onE
                 }}
               >
                 <Typography sx={{ fontWeight: 600, fontSize: 13, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 0.5, color: fg }}>
-                  {evt.source === 'microactivity' && <TaskAltIcon sx={{ fontSize: 13 }} />}
                   {evt.title}
                 </Typography>
                 {dur >= 25 && (

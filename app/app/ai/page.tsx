@@ -717,10 +717,14 @@ Rules:
                 'calendar.update_event': ['calendar'],
                 'calendar.delete_event': ['calendar'],
                 'calendar.delete_events_batch': ['calendar'],
-                'microactivities.create': ['calendar'],
-                'microactivities.delete': ['calendar'],
+                'events.create': ['calendar', 'today'],
+                'events.delete': ['calendar', 'today'],
                 'notes.create_note': ['notes'],
                 'notes.edit_note': ['notes'],
+                'memory.append_to_person': ['notes'],
+                'memory.append_to_briefing': ['notes'],
+                'goals.create_operating_plan': ['calendar', 'today', 'goals'],
+                'goals.create_short_action_plan': ['calendar', 'today', 'goals'],
                 'gmail.create_draft': ['gmail'],
               };
               const domains = writeToolToDomains[ev.tool];
@@ -813,24 +817,9 @@ Rules:
           <SmartToyIcon color="secondary" fontSize="small" />
           <Box>
             <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
-            <Typography variant="caption" color="text.disabled">
-              Gemini + OpenAI automatic routing
-            </Typography>
           </Box>
           <Box sx={{ flex: 1 }} />
 
-          <Chip
-            label={activeThread?.routeLabel || 'Shadow Router'}
-            size="small"
-            color="secondary"
-            variant="outlined"
-            sx={{ maxWidth: 240 }}
-          />
-          {activeThread && (
-            <Typography variant="caption" color="text.disabled" sx={{ display: { xs: 'none', md: 'block' } }}>
-              {activeThread.provider === 'auto' ? 'Adaptive route pending' : `${activeThread.provider.toUpperCase()} - ${activeThread.model}`}
-            </Typography>
-          )}
 
           <Tooltip title="Clear chat">
             <span>
@@ -1045,6 +1034,12 @@ const TOOL_LABELS: Record<Lang, Record<string, string>> = {
     'notes.edit_note': 'Editing note',
     'connectors.list': 'Listing connections',
     'council.convene': 'Convening the council',
+    'council.round_1': 'Council round 1',
+    'council.round_2': 'Council round 2',
+    'council.alignment': 'CEO alignment check',
+    'council.cross_examination': 'Council cross-examination',
+    'council.ceo': 'CEO moderation',
+    'council.voice': 'Advisor voice',
     'people.search': 'Searching contact',
   },
   pt: {
@@ -1060,6 +1055,12 @@ const TOOL_LABELS: Record<Lang, Record<string, string>> = {
     'notes.edit_note': 'Editando nota',
     'connectors.list': 'Listando conexões',
     'council.convene': 'Convocando o conselho',
+    'council.round_1': 'Rodada 1 do conselho',
+    'council.round_2': 'Rodada 2 do conselho',
+    'council.alignment': 'Checagem do CEO',
+    'council.cross_examination': 'Questionamento entre conselheiros',
+    'council.ceo': 'Moderação do CEO',
+    'council.voice': 'Voz do conselheiro',
     'people.search': 'Buscando contato',
   },
   es: {
@@ -1321,6 +1322,13 @@ function resolveLang(input: string | null | undefined): Lang {
 function summarizeReceipt(tool: string, receipt: any, lang: Lang): string {
   if (!receipt || typeof receipt !== 'object') return '';
   const t = I18N[lang];
+  if (receipt.status === 'council_phase' && typeof receipt.summary === 'string') {
+    return receipt.summary;
+  }
+  if (receipt.status === 'council_voice' && typeof receipt.summary === 'string') {
+    const speaker = typeof receipt.speaker === 'string' ? `${receipt.speaker}: ` : '';
+    return `${speaker}${receipt.summary}`;
+  }
   if (typeof receipt.count === 'number') {
     return t.found(tool, receipt.count);
   }
@@ -1333,6 +1341,67 @@ function summarizeReceipt(tool: string, receipt: any, lang: Lang): string {
   if (receipt.status === 'consulted') return t.consulted(receipt.members_consulted || 0);
   if (receipt.status === 'draft_created') return t.draftSaved;
   return '';
+}
+
+// Colour per advisor role — matches the council member roster
+const ADVISOR_COLORS: Record<string, string> = {
+  advogado:    '#f59e0b',
+  revops:      '#3b82f6',
+  empreendedor:'#10b981',
+  contador:    '#8b5cf6',
+  politico:    '#ef4444',
+  psicologo:   '#ec4899',
+  medico:      '#06b6d4',
+  espiritual:  '#a78bfa',
+  amoroso:     '#f472b6',
+  mecanico:    '#78716c',
+  economista:  '#84cc16',
+};
+
+function CouncilVoiceCard({ receipt }: { receipt: any }) {
+  const [open, setOpen] = React.useState(false);
+  const color = ADVISOR_COLORS[receipt.role] || '#94a3b8';
+  const roundLabel = receipt.phase === 'refinement' ? 'R2'
+    : receipt.phase === 'cross_examination' ? 'R3'
+    : 'R1';
+
+  return (
+    <Box sx={{ mb: 0.5 }}>
+      <Box
+        onClick={() => setOpen(o => !o)}
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 0.75,
+          cursor: 'pointer', py: '2px',
+          '&:hover': { opacity: 0.85 },
+        }}
+      >
+        {/* colour dot */}
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+        <Typography variant="caption" sx={{ color, fontWeight: 600, lineHeight: 1 }}>
+          {receipt.speaker}
+        </Typography>
+        <Chip label={roundLabel} size="small" sx={{ height: 14, fontSize: 9, bgcolor: `${color}22`, color, px: 0 }} />
+        <Box component="span" sx={{ fontSize: 10, color: 'text.disabled', ml: 'auto' }}>
+          {open ? '▾' : '▸'}
+        </Box>
+      </Box>
+
+      {open && (
+        <Box sx={{
+          mt: 0.5, ml: 1.5,
+          p: 1.25,
+          bgcolor: 'rgba(15,23,42,0.7)',
+          border: `1px solid ${color}33`,
+          borderLeft: `3px solid ${color}`,
+          borderRadius: '0 6px 6px 0',
+        }}>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+            {receipt.advice}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
 }
 
 interface ThinkingTimelineProps { steps: ThinkingStep[]; done: boolean; lang: Lang }
@@ -1383,6 +1452,14 @@ function ThinkingTimeline({ steps, done, lang }: ThinkingTimelineProps) {
           {steps.map((step, i) => {
             const label = labels[step.tool] || step.tool;
             const summary = step.status === 'ok' ? summarizeReceipt(step.tool, step.receipt, lang) : '';
+
+            // Council voice — rich expandable advisor card
+            if (step.tool === 'council.voice' && step.receipt?.advice) {
+              return (
+                <CouncilVoiceCard key={step.call_id || i} receipt={step.receipt} />
+              );
+            }
+
             return (
               <Box key={step.call_id || i} sx={{ mb: 0.5, fontSize: 12 }}>
                 {step.preliminary_text && (

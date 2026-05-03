@@ -4,7 +4,7 @@ import { apiError, ErrorCode } from '@/lib/api/errors';
 
 // GET /api/people/[id]/note — get or create the profile note for a person
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { supabase, user } = await requireAuth();
+  const { supabase, user } = await requireAuth(request);
   const { id: personId } = await params;
 
   // Verify person belongs to user

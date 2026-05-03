@@ -39,7 +39,7 @@ flowme-ai/
 │   │   ├── calendar/        — Events CRUD
 │   │   ├── documents/       — Upload, list, search, detail
 │   │   ├── linked-accounts/ — Account management
-│   │   ├── microactivities/ — Local events
+│   │   ├── events/ — Flowme-native local events
 │   │   ├── notes/           — Notes CRUD
 │   │   ├── people/          — Contacts CRUD
 │   │   └── v1/              — External API (API key auth)

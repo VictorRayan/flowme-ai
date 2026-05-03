@@ -41,7 +41,7 @@ describe('CalendarPage', () => {
 
     await waitFor(() => {
         expect(screen.getByText('Filters')).toBeInTheDocument();
-        expect(screen.getByLabelText('Microactivities')).toBeInTheDocument();
+        expect(screen.getByLabelText('Flowme Events')).toBeInTheDocument();
     });
     
     // "+" Fab button has AddIcon, verify it's there

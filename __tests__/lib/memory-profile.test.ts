@@ -3,6 +3,7 @@ import {
   EMPTY_PROFILE,
   profileIsEmpty,
   renderProfileForPrompt,
+  normalizeProfile,
   validateProfileChange,
   type UserProfile,
 } from '@/lib/ai/memory/profile';
@@ -118,5 +119,28 @@ describe('validateProfileChange (anti-drift)', () => {
     const next: UserProfile = { ...EMPTY_PROFILE, priorities: [] };
     const safe = validateProfileChange(prior, next);
     expect(safe.priorities).toEqual([]);
+  });
+
+  it('preserves communication_style if the proposal blanks it', () => {
+    const prior: UserProfile = { ...EMPTY_PROFILE, communication_style: 'concise, direct' };
+    const next: UserProfile = { ...EMPTY_PROFILE, communication_style: '' };
+    const safe = validateProfileChange(prior, next);
+    expect(safe.communication_style).toBe('concise, direct');
+  });
+});
+
+describe('normalizeProfile', () => {
+  it('deduplicates and trims noisy profile arrays', () => {
+    const profile: UserProfile = {
+      ...EMPTY_PROFILE,
+      priorities: [' Launch Flowme ', 'launch flowme', 'Ship KG'],
+      important_people: [
+        { name: ' Anna ', relation: ' partner ' },
+        { name: 'anna', relation: 'wife' },
+      ],
+    };
+    const normalized = normalizeProfile(profile);
+    expect(normalized.priorities).toEqual(['Launch Flowme', 'Ship KG']);
+    expect(normalized.important_people).toEqual([{ name: 'Anna', relation: 'partner' }]);
   });
 });

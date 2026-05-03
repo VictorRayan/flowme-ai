@@ -39,11 +39,21 @@ export default function NotesPage() {
     if (res.ok) setPeople(await res.json());
   }, []);
 
-  // Ensure "Myself" person always exists
+  // Ensure the current user's self-person exists, and cleanup legacy generated people once.
   useEffect(() => {
-    fetch('/api/people/myself').then(r => r.ok ? r.json() : null).then(() => {
-      fetchPeople();
-    });
+    let cancelled = false;
+    const syncSelf = async () => {
+      await fetch('/api/people/myself').catch(() => null);
+      try {
+        if (!localStorage.getItem('balysai_people_cleanup_v1')) {
+          await fetch('/api/people/myself', { method: 'POST' }).catch(() => null);
+          localStorage.setItem('balysai_people_cleanup_v1', '1');
+        }
+      } catch {}
+      if (!cancelled) fetchPeople();
+    };
+    syncSelf();
+    return () => { cancelled = true; };
   }, [fetchPeople]);
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);

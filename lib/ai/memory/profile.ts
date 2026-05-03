@@ -137,7 +137,7 @@ export interface UpdateProfileResult {
  * Returns the next profile to use (either the proposal, or current with selective fields rejected).
  */
 export function validateProfileChange(prior: UserProfile, next: UserProfile): UserProfile {
-  const out: UserProfile = { ...next };
+  const out: UserProfile = normalizeProfile(next);
 
   const arrayFields: Array<keyof Pick<UserProfile, 'priorities' | 'ongoing_work' | 'important_people' | 'recent_decisions'>> = [
     'priorities',
@@ -148,7 +148,7 @@ export function validateProfileChange(prior: UserProfile, next: UserProfile): Us
 
   for (const field of arrayFields) {
     const priorArr = prior[field] as unknown[];
-    const nextArr = next[field] as unknown[];
+    const nextArr = out[field] as unknown[];
     if (priorArr.length >= 3 && nextArr.length < priorArr.length / 2) {
       // Suspicious mass deletion — keep the prior values for this field.
       console.warn(`[memory.profile] Rejected suspicious mass deletion of '${field}': prior=${priorArr.length} next=${nextArr.length}. Keeping prior.`);
@@ -156,7 +156,60 @@ export function validateProfileChange(prior: UserProfile, next: UserProfile): Us
     }
   }
 
+  if (prior.communication_style.trim() && !out.communication_style.trim()) {
+    out.communication_style = prior.communication_style;
+  }
+
   return out;
+}
+
+export function normalizeProfile(profile: UserProfile): UserProfile {
+  return {
+    priorities: dedupeStrings(profile.priorities).slice(0, 10),
+    ongoing_work: dedupeObjects(profile.ongoing_work, (item) => item.title).slice(0, 10),
+    important_people: dedupeObjects(profile.important_people, (item) => item.name).slice(0, 20),
+    recent_decisions: dedupeObjects(profile.recent_decisions, (item) => item.decision).slice(0, 8),
+    communication_style: cleanText(profile.communication_style).slice(0, 280),
+    last_updated_summary: cleanText(profile.last_updated_summary).slice(0, 400),
+  };
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const cleaned = cleanText(value);
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+function dedupeObjects<T extends Record<string, unknown>>(values: T[], keyFn: (item: T) => unknown): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const value of values) {
+    const key = cleanText(String(keyFn(value) || '')).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleanObjectStrings(value));
+  }
+  return out;
+}
+
+function cleanObjectStrings<T extends Record<string, unknown>>(value: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value)) {
+    out[key] = typeof val === 'string' ? cleanText(val) : val;
+  }
+  return out as T;
+}
+
+function cleanText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 export async function callProfileUpdater(input: UpdateProfileInput): Promise<UpdateProfileResult> {

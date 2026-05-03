@@ -6,7 +6,7 @@ const VALID_TYPES = ['gmail', 'google_docs', 'google_sheets', 'google_drive'];
 
 export async function GET(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
 
     const { data, error } = await supabase
       .from('connectors')
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const body = await req.json();
     const { name, type, config } = body;
 

@@ -31,6 +31,7 @@ export interface PersonItem {
   id: string;
   name: string;
   email?: string;
+  is_self?: boolean;
 }
 
 interface NotesTreeProps {
@@ -321,7 +322,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
           )}
           {people.map(person => {
             const count = notesPerPerson(person.id);
-            const isMyself = person.name === 'Myself';
+            const isMyself = Boolean(person.is_self || person.name === 'Myself');
             const isRenaming = renamingPersonId === person.id;
 
             return (

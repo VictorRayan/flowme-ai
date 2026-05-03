@@ -10,7 +10,7 @@ import { getCalendarEvents } from '@/lib/google/google-calendar';
  * Query params:
  *   - start (required): ISO date string
  *   - end (required): ISO date string
- *   - include_microactivities: "true" to include microactivities
+ *   - include_flowme_events: "true" to include Flowme-native events
  *   - include_google_events: "true" to include Google Calendar events
  *   - account_ids: comma-separated linked account IDs
  *
@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const start = url.searchParams.get('start');
     const end = url.searchParams.get('end');
-    const includeMicroactivities = url.searchParams.get('include_microactivities') === 'true';
+    const includeFlowmeEvents = url.searchParams.get('include_flowme_events') === 'true'
+      || url.searchParams.get('include_microactivities') === 'true';
     const includeGoogleEvents = url.searchParams.get('include_google_events') !== 'false'; // default true
     const accountIdsParam = url.searchParams.get('account_ids');
 
@@ -36,9 +37,8 @@ export async function GET(req: NextRequest) {
     const accountIds = accountIdsParam ? accountIdsParam.split(',').filter(Boolean) : null;
     const aggregatedEvents: any[] = [];
 
-    // 1. Fetch Microactivities
-    if (includeMicroactivities) {
-      const { data: microactivities, error: mError } = await supabase
+    if (includeFlowmeEvents) {
+      const { data: flowmeEvents, error: mError } = await supabase
         .from('microactivities')
         .select('id, title, description, start_at, end_at')
         .eq('user_id', userId)
@@ -47,10 +47,10 @@ export async function GET(req: NextRequest) {
 
       if (mError) throw mError;
 
-      if (microactivities) {
+      if (flowmeEvents) {
         aggregatedEvents.push(
-          ...microactivities.map((m: any) => ({
-            source: 'microactivity',
+          ...flowmeEvents.map((m: any) => ({
+            source: 'flowme',
             id: m.id,
             title: m.title,
             description: m.description,

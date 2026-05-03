@@ -5,13 +5,11 @@ import { getCalendarEvents } from '@/lib/google/google-calendar';
 
 export async function GET(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
-    
+    const { supabase, user } = await requireAuth(req);
+
     const url = new URL(req.url);
     const start = url.searchParams.get('start');
     const end = url.searchParams.get('end');
-    const includeMicroactivities = url.searchParams.get('includeMicroactivities') === 'true';
-    const includeGoogleEvents = url.searchParams.get('includeGoogleEvents') === 'true';
     const accountIdsParam = url.searchParams.get('accountIds');
     const accountTypesParam = url.searchParams.get('accountTypes');
 
@@ -22,60 +20,32 @@ export async function GET(req: NextRequest) {
     const accountIds = accountIdsParam ? accountIdsParam.split(',').filter(Boolean) : null;
     const accountTypes = accountTypesParam ? accountTypesParam.split(',').filter(Boolean) : null;
 
-    let aggregatedEvents: any[] = [];
+    let accountsQuery = supabase
+      .from('linked_accounts')
+      .select('id, name, type, provider')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
+      .eq('provider', 'google');
 
-    // 1. Fetch Microactivities
-    if (includeMicroactivities) {
-      const { data: microactivities, error: mError } = await supabase
-        .from('microactivities')
-        .select('id, title, description, start_at, end_at')
-        .eq('user_id', user.id)
-        .gte('start_at', start)
-        .lt('start_at', end);
-
-      if (mError) throw mError;
-
-      if (microactivities) {
-        aggregatedEvents.push(
-          ...microactivities.map(m => ({
-            source: 'microactivity',
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            start_at: m.start_at,
-            end_at: m.end_at,
-          }))
-        );
-      }
+    if (accountIds && accountIds.length > 0) {
+      accountsQuery = accountsQuery.in('id', accountIds);
+    }
+    if (accountTypes && accountTypes.length > 0) {
+      accountsQuery = accountsQuery.in('type', accountTypes);
     }
 
-    // 2. Fetch Google Calendar Events
-    if (includeGoogleEvents) {
-      // Get all active linked accounts
-      let accountsQuery = supabase
-        .from('linked_accounts')
-        .select('id, name, type, provider')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .eq('is_deleted', false)
-        .eq('provider', 'google');
+    const { data: accounts, error: aError } = await accountsQuery;
+    if (aError) throw aError;
 
-      if (accountIds && accountIds.length > 0) {
-        accountsQuery = accountsQuery.in('id', accountIds);
-      }
-      if (accountTypes && accountTypes.length > 0) {
-        accountsQuery = accountsQuery.in('type', accountTypes);
-      }
+    const events: any[] = [];
 
-      const { data: accounts, error: aError } = await accountsQuery;
-      if (aError) throw aError;
-
-      if (accounts && accounts.length > 0) {
-        // Fetch from Google for each connected account concurrently
-        const googleEventPromises = accounts.map(async (account) => {
+    if (accounts && accounts.length > 0) {
+      const eventBatches = await Promise.all(
+        accounts.map(async (account) => {
           try {
-            const events = await getCalendarEvents(account.id, new Date(start).toISOString(), new Date(end).toISOString());
-            const mapped = events.filter(e => e.start?.dateTime || e.start?.date).map(e => ({
+            const raw = await getCalendarEvents(account.id, new Date(start).toISOString(), new Date(end).toISOString());
+            return raw.filter(e => e.start?.dateTime || e.start?.date).map(e => ({
               source: 'google',
               id: e.id!,
               provider_event_id: e.id!,
@@ -91,24 +61,19 @@ export async function GET(req: NextRequest) {
               location: e.location || null,
               htmlLink: e.htmlLink || null,
             }));
-            return mapped;
           } catch (err: any) {
             console.error(`Error fetching events for account ${account.name} (${account.id}):`, err?.message || err);
             return [];
           }
-        });
+        })
+      );
 
-        const accountsEvents = await Promise.all(googleEventPromises);
-        for (const evBatch of accountsEvents) {
-          aggregatedEvents.push(...evBatch);
-        }
-      }
+      for (const batch of eventBatches) events.push(...batch);
     }
 
-    // Sort all aggregated events by start_at
-    aggregatedEvents.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+    events.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
 
-    return apiSuccess({ events: aggregatedEvents });
+    return apiSuccess({ events });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('GET /api/calendar/events error:', err);

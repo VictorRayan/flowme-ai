@@ -4,7 +4,7 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
 export async function GET(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const url = new URL(req.url);
     const start = url.searchParams.get('start');
     const end = url.searchParams.get('end');
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     // A valid ISO string check could be done here, but Supabase handles timestamptz gracefully
-    const { data: microactivities, error } = await supabase
+    const { data: events, error } = await supabase
       .from('microactivities')
       .select('id, title, description, start_at, end_at')
       .eq('user_id', user.id)
@@ -24,17 +24,17 @@ export async function GET(req: NextRequest) {
 
     if (error) throw error;
 
-    return apiSuccess({ microactivities: microactivities || [] });
+    return apiSuccess({ microactivities: events || [], events: events || [] });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('GET /api/microactivities error:', err);
-    return apiError(ErrorCode.SUPABASE_ERROR, 'Failed to fetch microactivities', 500);
+    return apiError(ErrorCode.SUPABASE_ERROR, 'Failed to fetch events', 500);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const body = await req.json();
     const { title, description, start_at, end_at } = body;
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'end_at must be strictly greater than start_at');
     }
 
-    const { data: microactivity, error } = await supabase
+    const { data: event, error } = await supabase
       .from('microactivities')
       .insert({
         user_id: user.id,
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
-    return apiSuccess({ microactivity });
+    return apiSuccess({ microactivity: event, event });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('POST /api/microactivities error:', err);

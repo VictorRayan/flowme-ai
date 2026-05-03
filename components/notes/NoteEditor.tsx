@@ -168,8 +168,8 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
         suggestion: {
           items: async ({ query }) => fetchSuggestions(query),
           render: () => {
-            let component: ReactRenderer<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean }>;
-            let popup: TippyInstance[];
+            let component: ReactRenderer<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean }> | null = null;
+            let popup: TippyInstance[] = [];
 
             return {
               onStart: (props) => {
@@ -185,15 +185,15 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
                 });
               },
               onUpdate: (props) => {
-                component.updateProps(props);
-                popup[0].setProps({ getReferenceClientRect: props.clientRect as () => DOMRect });
+                component?.updateProps(props);
+                popup[0]?.setProps({ getReferenceClientRect: props.clientRect as () => DOMRect });
               },
               onKeyDown: (props) => {
-                if (props.event.key === 'Escape') { popup[0].hide(); return true; }
-                const ref = component.ref as { onKeyDown?: (p: typeof props) => boolean } | null;
+                if (props.event.key === 'Escape') { popup[0]?.hide(); return true; }
+                const ref = component?.ref as { onKeyDown?: (p: typeof props) => boolean } | null;
                 return ref?.onKeyDown?.(props) ?? false;
               },
-              onExit: () => { popup[0].destroy(); component.destroy(); },
+              onExit: () => { popup?.[0]?.destroy(); component?.destroy(); },
             };
           },
         },
@@ -205,8 +205,8 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           pluginKey: new PluginKey('documentMention'),
           items: async ({ query }) => fetchDocumentSuggestions(query),
           render: () => {
-            let component: ReactRenderer<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean }>;
-            let popup: TippyInstance[];
+            let component: ReactRenderer<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean }> | null = null;
+            let popup: TippyInstance[] = [];
 
             return {
               onStart: (props) => {
@@ -222,15 +222,15 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
                 });
               },
               onUpdate: (props) => {
-                component.updateProps(props);
-                popup[0].setProps({ getReferenceClientRect: props.clientRect as () => DOMRect });
+                component?.updateProps(props);
+                popup[0]?.setProps({ getReferenceClientRect: props.clientRect as () => DOMRect });
               },
               onKeyDown: (props) => {
-                if (props.event.key === 'Escape') { popup[0].hide(); return true; }
-                const ref = component.ref as { onKeyDown?: (p: typeof props) => boolean } | null;
+                if (props.event.key === 'Escape') { popup[0]?.hide(); return true; }
+                const ref = component?.ref as { onKeyDown?: (p: typeof props) => boolean } | null;
                 return ref?.onKeyDown?.(props) ?? false;
               },
-              onExit: () => { popup[0].destroy(); component.destroy(); },
+              onExit: () => { popup?.[0]?.destroy(); component?.destroy(); },
             };
           },
         },
@@ -502,11 +502,11 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
 
             {/* Mic / stop / spinner */}
             {transcribing ? (
-              <Tooltip title={`Transcribing with ${selectedOption.label}...`}>
+              <Tooltip title={`Transcribing with ${selectedOption?.label ?? ''}...`}>
                 <span><CircularProgress size={18} sx={{ mx: 0.5 }} /></span>
               </Tooltip>
             ) : (
-              <Tooltip title={recording ? 'Stop & transcribe' : `Record voice note → ${selectedOption.label}`}>
+              <Tooltip title={recording ? 'Stop & transcribe' : `Record voice note → ${selectedOption?.label ?? ''}`}>
                 <IconButton
                   size="small"
                   onClick={recording ? stopRecording : startRecording}

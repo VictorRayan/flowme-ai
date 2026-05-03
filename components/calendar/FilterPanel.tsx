@@ -3,8 +3,6 @@ import { Box, Typography, Checkbox, FormControlLabel, FormGroup, Divider, Button
 import AddIcon from '@mui/icons-material/Add';
 
 export interface FilterState {
-  showMicroactivities: boolean;
-  showGoogleEvents: boolean;
   accountIds: string[];
   accountTypes: string[];
 }
@@ -53,20 +51,6 @@ export default function FilterPanel({
         <Typography variant="h6" fontWeight="bold">Filters</Typography>
       </Box>
       
-      <Typography variant="subtitle2" color="text.secondary" fontWeight="bold" sx={{ mt: 2, mb: 1, textTransform: 'uppercase' }}>
-        Event Types
-      </Typography>
-      <FormGroup>
-        <FormControlLabel 
-          control={<Checkbox checked={filters.showMicroactivities} onChange={(e) => setFilters(prev => ({ ...prev, showMicroactivities: e.target.checked }))} />} 
-          label="Microactivities" 
-        />
-        <FormControlLabel 
-          control={<Checkbox checked={filters.showGoogleEvents} onChange={(e) => setFilters(prev => ({ ...prev, showGoogleEvents: e.target.checked }))} />} 
-          label="Calendar Events" 
-        />
-      </FormGroup>
-
       <Divider sx={{ my: 2 }} />
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>

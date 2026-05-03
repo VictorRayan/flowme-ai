@@ -21,16 +21,65 @@ export type AgentLoopOptions = {
   onProgress?: (event: AgentProgressEvent) => void;
 };
 
-// Map Zod schemas to JSON schema for the OpenAI tools parameter
+// Map Zod schemas to JSON schema for the OpenAI tools parameter.
+// We strip $schema and definitions to keep payloads clean, and add
+// additionalProperties: false so models don't hallucinate nested wrappers.
 function mapToolsToOpenAI(tools: Tool[]): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  return tools.map(tool => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: zodToJsonSchema(tool.inputSchema as any) as any,
+  return tools.map(tool => {
+    const raw = zodToJsonSchema(tool.inputSchema as any, { target: 'openApi3' }) as any;
+    // Remove JSON-schema-only fields that confuse some providers
+    delete raw['$schema'];
+    delete raw['definitions'];
+    delete raw['$defs'];
+    // Enforce flat structure — no nested wrapping allowed
+    if (raw.type === 'object') {
+      raw.additionalProperties = false;
     }
-  }));
+    return {
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: raw,
+        strict: false, // strict:true would require ALL properties to be listed; we have optionals
+      },
+    };
+  });
+}
+
+// Some models (Gemini) wrap flat tool arguments inside a single nested object key,
+// e.g. { plan: { problem_statement: "..." } } instead of { problem_statement: "..." }.
+// Detects that pattern and unwraps one level so tools always receive flat args.
+function unwrapNestedArgs(args: any, schema: z.ZodTypeAny): any {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
+
+  // Extract the shape from ZodObject — shape can be a function or plain object
+  let shape: Record<string, unknown> | null = null;
+  try {
+    const def = (schema as any)._def;
+    if (def?.shape) {
+      shape = typeof def.shape === 'function' ? def.shape() : def.shape;
+    }
+  } catch {
+    return args;
+  }
+  if (!shape) return args;
+
+  const expectedKeys = Object.keys(shape);
+
+  // Already flat — has at least one expected key at top level
+  if (expectedKeys.some(k => k in args)) return args;
+
+  // Exactly one top-level key wrapping an object that contains expected keys → unwrap
+  const topKeys = Object.keys(args);
+  if (topKeys.length === 1) {
+    const inner = args[topKeys[0]];
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+      if (expectedKeys.some(k => k in inner)) return inner;
+    }
+  }
+
+  return args;
 }
 
 export async function runBalysAgentLoop(options: AgentLoopOptions) {
@@ -122,6 +171,32 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
           continue;
         }
 
+        // Log raw args to diagnose model wrapping issues
+        console.log(`[agent-loop] tool=${toolCall.function.name} raw_args=${JSON.stringify(parsedArgs)}`);
+
+        // Auto-unwrap: some models (Gemini) wrap flat args inside a single nested object.
+        // If the top-level has exactly one key whose value is an object containing the
+        // expected fields, unwrap one level so the tool still works.
+        parsedArgs = unwrapNestedArgs(parsedArgs, tool.inputSchema as any);
+
+        const validation = tool.inputSchema.safeParse(parsedArgs);
+        if (!validation.success) {
+          const details = validation.error.issues
+            .map((issue) => `${issue.path.join('.') || 'args'}: ${issue.message}`)
+            .join('; ');
+          const errorMessage = `Invalid arguments for ${toolCall.function.name}: ${details}`;
+          emit({ type: 'tool_call_start', tool: toolCall.function.name, args: parsedArgs, call_id: toolCall.id });
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: toolCall.function.name,
+            content: JSON.stringify({ ok: false, error: errorMessage })
+          });
+          emit({ type: 'tool_call_end', tool: toolCall.function.name, call_id: toolCall.id, ok: false, error: errorMessage });
+          continue;
+        }
+        parsedArgs = validation.data;
+
         emit({ type: 'tool_call_start', tool: toolCall.function.name, args: parsedArgs, call_id: toolCall.id });
 
         // Execute Tool
@@ -131,7 +206,10 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
         let receiptJson: any = null;
 
         try {
-          const result = await tool.call(parsedArgs, options.context);
+          const result = await tool.call(parsedArgs, {
+            ...options.context,
+            onProgress: options.onProgress as any,
+          });
           if (result.ok) {
             resultJson = result.data || result.receipt || { success: true };
             receiptJson = result.receipt || null;

@@ -9,21 +9,21 @@ Google Calendar-like interface with multi-account support, drag-and-drop events,
 - **CRUD**: Create, edit, delete events via Google Calendar API
 - **Google Meet**: Auto-generate Meet links on event creation
 - **Participants**: Add attendees with email
-- **Microactivities**: Local-only events stored in Supabase
+- **Flowme events**: Local-only events stored in Supabase legacy event storage
 - **Drag-and-drop**: Reposition events in day/week views
 
 ## Architecture
 
 ```
 User ↔ Calendar UI ↔ Internal API ↔ Google Calendar API
-                                   ↔ Supabase (microactivities)
+                                   ↔ Supabase (Flowme events)
 ```
 
 ## Internal API (Session Auth)
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/calendar/events` | GET | List events (Google + microactivities) |
+| `/api/calendar/events` | GET | List events (Google + Flowme events) |
 | `/api/calendar/create-event` | POST | Create event via Google Calendar |
 | `/api/calendar/edit-event` | PATCH | Update event via Google Calendar |
 | `/api/calendar/delete-event` | DELETE | Delete event via Google Calendar |
@@ -34,7 +34,7 @@ User ↔ Calendar UI ↔ Internal API ↔ Google Calendar API
 | `start` | ✅ | ISO date — range start |
 | `end` | ✅ | ISO date — range end |
 | `includeGoogleEvents` | — | `true` to fetch from Google |
-| `includeMicroactivities` | — | `true` to include local events |
+| `includeFlowmeEvents` | — | `true` to include local Flowme events |
 | `accountIds` | — | Comma-separated account UUIDs |
 | `accountTypes` | — | Filter by account type (work/personal) |
 
@@ -51,7 +51,7 @@ User ↔ Calendar UI ↔ Internal API ↔ Google Calendar API
 |---|---|---|
 | `linked_accounts` | `000_complete_setup.sql` | Google account connections |
 | `user_google_tokens` | `000_complete_setup.sql` | OAuth tokens per account |
-| `microactivities` | `000_complete_setup.sql` | Local-only events |
+| `microactivities` | `000_complete_setup.sql` | Legacy storage table for Flowme events |
 | `calendar_cache_events` | `000_complete_setup.sql` | Cached Google events |
 
 ## Key Files

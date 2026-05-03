@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/tasks/route';
 import { PATCH, DELETE } from '@/app/api/tasks/[id]/route';
+import { POST as MOVE } from '@/app/api/tasks/[id]/move/route';
 
 const MOCK_TASK = {
   id: 'task-1',
@@ -91,10 +92,30 @@ describe('POST /api/tasks', () => {
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('defaults category to negotiable for unknown category', async () => {
+  it('returns VALIDATION_ERROR for unknown category', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
       body: JSON.stringify({ title: 'My task', category: 'invalid_category' }),
+    });
+    const res = await POST(req);
+    const body = await res.json();
+    expect(res.status).toBe(400);
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('accepts goal operating system task metadata', async () => {
+    const req = new NextRequest('http://localhost/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'Practice negotiation',
+        category: 'non_negotiable',
+        outcome: 'pending',
+        source_type: 'goal_task',
+        duration_minutes: 15,
+        linked_goal_id: 'goal-1',
+        action_plan_id: 'plan-1',
+        priority_source: 'balys',
+      }),
     });
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -133,5 +154,33 @@ describe('DELETE /api/tasks/[id]', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.deleted).toBe(true);
+  });
+});
+
+describe('POST /api/tasks/[id]/move', () => {
+  it('creates a new occurrence and marks the original as moved', async () => {
+    const req = new NextRequest('http://localhost/api/tasks/task-1/move', {
+      method: 'POST',
+      body: JSON.stringify({ scheduled_date: '2026-05-03', outcome_reason: 'Moved from Today' }),
+    });
+    const res = await MOVE(req, { params: Promise.resolve({ id: 'task-1' }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.moved).toBe(true);
+    expect(body.new_task).toBeDefined();
+  });
+
+  it('rejects invalid move date', async () => {
+    const req = new NextRequest('http://localhost/api/tasks/task-1/move', {
+      method: 'POST',
+      body: JSON.stringify({ scheduled_date: 'tomorrow' }),
+    });
+    const res = await MOVE(req, { params: Promise.resolve({ id: 'task-1' }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 });

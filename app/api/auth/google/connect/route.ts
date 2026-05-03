@@ -13,7 +13,7 @@ import { getGoogleOAuthClient } from '@/lib/google/google-auth';
  */
 export async function GET(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const url = new URL(req.url);
     const linkedAccountId = url.searchParams.get('linked_account_id');
 

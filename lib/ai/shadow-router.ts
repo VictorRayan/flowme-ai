@@ -49,10 +49,21 @@ export interface ShadowRouterDecision {
   userFacingLabel: string;
 }
 
+export interface ContextScoreOverride {
+  ambiguity?: number;
+  reasoning?: number;
+  workflowLength?: number;
+  risk?: number;
+  threadDepth?: number;  // boosts reasoning score when thread is deep
+  topicShift?: number;   // reduces ambiguity score when topic just shifted (fresh frame)
+  confidence?: number;   // how much weight to give these overrides (0–1)
+}
+
 interface RouteInput {
   messages: RouterMessage[];
   rawUserInput?: string;
   systemAddendum?: string;
+  contextScores?: ContextScoreOverride;  // from context-scorer, injected by chat route
 }
 
 const GEMINI_CHEAP: ModelTarget = { provider: 'gemini', model: 'gemini-2.5-flash' };
@@ -386,12 +397,31 @@ export function routeBalysRequest(input: RouteInput): ShadowRouterDecision {
   const writeIntent = inferWriteIntent(latestUser, taskType);
   const needsTools = inferNeedsTools(taskType, latestUser);
   const toolDomain = inferToolDomain(taskType, latestUser);
-  const scores = {
-    ambiguity: scoreAmbiguity(latestUser, taskType, writeIntent),
-    reasoning: scoreReasoning(latestUser, taskType, input.messages.length),
+
+  const staticScores = {
+    ambiguity:      scoreAmbiguity(latestUser, taskType, writeIntent),
+    reasoning:      scoreReasoning(latestUser, taskType, input.messages.length),
     workflowLength: scoreWorkflowLength(latestUser, needsTools, attachmentCount),
-    risk: scoreRisk(latestUser, taskType, writeIntent),
+    risk:           scoreRisk(latestUser, taskType, writeIntent),
   };
+
+  // Blend in context scorer signal when available.
+  // confidence controls how much the LLM-derived scores pull the static ones.
+  const ctx = input.contextScores;
+  const w = ctx?.confidence ?? 0; // blend weight: 0 = ignore, 1 = fully trust LLM scorer
+  const blend = (stat: number, override: number | undefined) =>
+    override !== undefined ? clamp01(stat * (1 - w) + override * w) : stat;
+
+  const scores = {
+    ambiguity:      blend(staticScores.ambiguity,      ctx?.ambiguity),
+    reasoning:      blend(staticScores.reasoning,      ctx?.reasoning) +
+                    // deep thread context boosts reasoning requirement
+                    (ctx?.threadDepth !== undefined ? clamp01(ctx.threadDepth * 0.15 * w) : 0),
+    workflowLength: blend(staticScores.workflowLength, ctx?.workflowLength),
+    risk:           blend(staticScores.risk,           ctx?.risk),
+  };
+  // Re-clamp after additions
+  scores.reasoning = clamp01(scores.reasoning);
   const overallScore = scoreOverall(scores);
   const tier = pickTier(overallScore);
   const executionPlan = pickExecutionPlan(taskType, tier, needsTools, writeIntent);

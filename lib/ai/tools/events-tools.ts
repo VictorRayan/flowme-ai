@@ -18,11 +18,11 @@ function normalizeIso(iso: string, fallbackTimezone: string): string | null {
         timeZone: fallbackTimezone,
         timeZoneName: 'shortOffset',
         hour: 'numeric',
-      }).formatToParts(probe).find((p) => p.type === 'timeZoneName')?.value || '';
-      const m = formatted.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
-      if (m) {
-        const sign = m[1] === '-' ? -1 : 1;
-        return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10));
+      }).formatToParts(probe).find((part) => part.type === 'timeZoneName')?.value || '';
+      const match = formatted.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+      if (match) {
+        const signMultiplier = match[1] === '-' ? -1 : 1;
+        return signMultiplier * (parseInt(match[2], 10) * 60 + parseInt(match[3] || '0', 10));
       }
     } catch {}
     return 0;
@@ -34,27 +34,25 @@ function normalizeIso(iso: string, fallbackTimezone: string): string | null {
   return `${dateTimeStr}${sign}${hh}:${mm}`;
 }
 
-export const microactivitiesListTool = defineTool({
-  name: 'microactivities.list',
-  description: `Lists the user's Flowme microactivities (lightweight calendar entries that live in Flowme, NOT in Google Calendar). They appear alongside Google events in the Flowme calendar UI as "Untitled Event" or with a custom title.
+export const eventsListTool = defineTool({
+  name: 'events.list',
+  description: `Lists the user's Flowme events. These are Flowme-native executable commitments that live in Flowme and appear alongside Google Calendar events.
 
 WHEN TO USE:
-- User asks "what's on my Flowme calendar" or asks about events you don't find via calendar.list_events but should be there.
-- Before microactivities.delete to look up IDs.
-- As a complement to calendar.list_events when user says "delete all events" — microactivities show up in the same UI, so usually they want both gone.
+- User asks what is on their Flowme calendar, Today path, goals execution plan, or local events.
+- Before events.delete to look up internal event IDs.
+- As a complement to calendar.list_events when the user says "delete all events" and may mean both Google and Flowme events.
 
 CONTRACT:
 - start_iso / end_iso bound the search window. If omitted, defaults to today + 14 days.
 - Read-only.
-
-RETURNS receipt: { microactivities[], count }. Each: { id, title, description, start_at, end_at }.
-- id is TECHNICAL — never echo. Use only to chain into microactivities.delete.`,
+- IDs are technical. Never echo them to the user.`,
   isReadOnly: true,
   inputSchema: z.object({
     start_iso: z.string().optional().describe('Inclusive start of window. Defaults to today.'),
     end_iso: z.string().optional().describe('Exclusive end of window. Defaults to start_iso + 14 days.'),
   }),
-  call: async (args, context) => {
+  call: async (args, context: ToolContext) => {
     try {
       const tz = context.timezone || 'UTC';
       const start = args.start_iso ? normalizeIso(args.start_iso, tz) : new Date(context.nowIso).toISOString();
@@ -68,7 +66,7 @@ RETURNS receipt: { microactivities[], count }. Each: { id, title, description, s
 
       const { data, error } = await context.supabase
         .from('microactivities')
-        .select('id, title, description, start_at, end_at')
+        .select('id, title, description, start_at, end_at, scheduled_date, duration_minutes, source_type, outcome, is_time_blocked')
         .eq('user_id', context.user.id)
         .gte('start_at', start)
         .lt('start_at', end)
@@ -79,32 +77,30 @@ RETURNS receipt: { microactivities[], count }. Each: { id, title, description, s
       return {
         ok: true,
         receipt: {
-          microactivities: data || [],
+          events: data || [],
           count: (data || []).length,
           window: { start, end },
         },
       };
-    } catch (e: any) {
-      return { ok: false, error: e.message || 'Failed to list microactivities' };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Failed to list events' };
     }
   },
 });
 
-export const microactivitiesDeleteTool = defineTool({
-  name: 'microactivities.delete',
-  description: `Deletes ONE OR MORE Flowme microactivities. DESTRUCTIVE.
+export const eventsDeleteTool = defineTool({
+  name: 'events.delete',
+  description: `Deletes one or more Flowme events. DESTRUCTIVE.
 
-WHEN TO USE: user wants to remove microactivities (often described just as "events"). Pair with microactivities.list to get the IDs first.
+WHEN TO USE: user wants to remove Flowme events. Pair with events.list to get the IDs first.
 
 CONTRACT:
-- ids is REQUIRED — array of microactivity IDs from microactivities.list. Never invent.
+- ids is REQUIRED and must come from events.list.
 - Confirm with the user before deleting more than one.
-
-RETURNS receipt: { deleted_count, requested_count, summary }.
-- summary is the source of truth. Read it before composing the user reply.`,
+- Read the summary before composing the final reply.`,
   isReadOnly: false,
   inputSchema: z.object({
-    ids: z.array(z.string()).describe('Array of microactivity IDs to delete. Required. Must come from microactivities.list.'),
+    ids: z.array(z.string()).describe('Array of Flowme event IDs to delete. Required. Must come from events.list.'),
   }),
   call: async (args, context: ToolContext) => {
     try {
@@ -124,44 +120,45 @@ RETURNS receipt: { deleted_count, requested_count, summary }.
 
       if (error) throw error;
 
-      const deleted_count = (data || []).length;
-      const requested_count = args.ids.length;
-      const summary = deleted_count === requested_count
-        ? `All ${deleted_count} microactivities deleted.`
-        : deleted_count === 0
-          ? `NONE of the ${requested_count} microactivities were deleted (IDs may not exist or belong to another user).`
-          : `PARTIAL: ${deleted_count} of ${requested_count} deleted. The rest were not found.`;
+      const deletedCount = (data || []).length;
+      const requestedCount = args.ids.length;
+      const summary = deletedCount === requestedCount
+        ? `All ${deletedCount} Flowme events deleted.`
+        : deletedCount === 0
+          ? `NONE of the ${requestedCount} Flowme events were deleted.`
+          : `PARTIAL: ${deletedCount} of ${requestedCount} Flowme events deleted.`;
 
       return {
         ok: true,
         receipt: {
-          deleted_count,
-          requested_count,
+          deleted_count: deletedCount,
+          requested_count: requestedCount,
           summary,
         },
       };
-    } catch (e: any) {
-      return { ok: false, error: e.message || 'Failed to delete microactivities' };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Failed to delete events' };
     }
   },
 });
 
-export const microactivitiesCreateTool = defineTool({
-  name: 'microactivities.create',
-  description: `Creates a Flowme microactivity (a lightweight calendar entry that lives in Flowme, NOT Google Calendar).
+export const eventsCreateTool = defineTool({
+  name: 'events.create',
+  description: `Creates a Flowme event: an executable commitment that lives in Flowme and appears in Today and Calendar.
 
-WHEN TO USE: user wants a quick reminder/task on their Flowme calendar that does NOT need to sync to Google or invite anyone. For "schedule a meeting" or "create an event for Anna at 3pm" use calendar.create_event instead — those need Google's invite mechanics.
+WHEN TO USE: user wants a personal task/event/reminder that does not need Google Calendar invites or Google sync. For meetings with invitees or Google Meet, use calendar.create_event.
 
 CONTRACT:
-- title, start_iso are REQUIRED.
-- end_iso is optional — Flowme treats microactivities as time points if omitted.
-
-RETURNS receipt: { id, title, status: 'created' }.`,
+- title is required.
+- start_iso or scheduled_date is required.
+- end_iso is optional. If omitted, the event is flexible on that day.`,
   isReadOnly: false,
   inputSchema: z.object({
     title: z.string().describe('Title. Required, non-empty.'),
-    start_iso: z.string().describe('Start in ISO 8601. Required.'),
+    start_iso: z.string().optional().describe('Start in ISO 8601. Optional when scheduled_date is provided.'),
     end_iso: z.string().optional().describe('End in ISO 8601. Optional.'),
+    scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Day for flexible events.'),
+    duration_minutes: z.number().min(1).max(240).optional().describe('Estimated duration.'),
     description: z.string().optional().describe('Optional notes.'),
   }),
   call: async (args, context: ToolContext) => {
@@ -169,9 +166,11 @@ RETURNS receipt: { id, title, status: 'created' }.`,
       const tz = context.timezone || 'UTC';
       const title = (args.title || '').trim();
       if (!title) return { ok: false, error: 'title is required' };
-      const start = normalizeIso(args.start_iso, tz);
-      if (!start) return { ok: false, error: 'start_iso invalid' };
+      const start = args.start_iso ? normalizeIso(args.start_iso, tz) : null;
       const end = args.end_iso ? normalizeIso(args.end_iso, tz) : null;
+      const scheduledDate = args.scheduled_date || start?.slice(0, 10);
+      if (!scheduledDate) return { ok: false, error: 'start_iso or scheduled_date is required' };
+      const startAt = start || `${scheduledDate}T09:00:00.000Z`;
 
       const { data, error } = await context.supabase
         .from('microactivities')
@@ -179,8 +178,13 @@ RETURNS receipt: { id, title, status: 'created' }.`,
           user_id: context.user.id,
           title,
           description: args.description || null,
-          start_at: start,
+          scheduled_date: scheduledDate,
+          start_at: startAt,
           end_at: end,
+          duration_minutes: args.duration_minutes || null,
+          source_type: 'manual',
+          outcome: 'pending',
+          is_time_blocked: Boolean(start && end),
         })
         .select('id, title')
         .single();
@@ -195,8 +199,8 @@ RETURNS receipt: { id, title, status: 'created' }.`,
           status: 'created',
         },
       };
-    } catch (e: any) {
-      return { ok: false, error: e.message || 'Failed to create microactivity' };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Failed to create event' };
     }
   },
 });

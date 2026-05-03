@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     },
     base_url: `${baseUrl}/api/v1`,
     scopes: {
-      'calendar.read': 'Read calendar events (Google Calendar + microactivities)',
+      'calendar.read': 'Read calendar events (Google Calendar + Flowme events)',
       'calendar.write': 'Create, update, and delete calendar events',
       'notes.read': 'Read and search notes',
       'notes.write': 'Create, update, and delete notes',
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       // ===== CALENDAR =====
       {
         name: 'list_calendar_events',
-        description: 'List calendar events within a date range. Returns both Google Calendar events and local microactivities.',
+        description: 'List calendar events within a date range. Returns both Google Calendar events and Flowme-native events.',
         method: 'GET',
         path: '/calendar/events',
         scope: 'calendar.read',
@@ -49,14 +49,14 @@ export async function GET(req: NextRequest) {
           query: {
             start: { type: 'string', format: 'ISO 8601 date', required: true, description: 'Start of date range' },
             end: { type: 'string', format: 'ISO 8601 date', required: true, description: 'End of date range' },
-            include_microactivities: { type: 'boolean', default: false, description: 'Include local microactivities' },
+            include_flowme_events: { type: 'boolean', default: false, description: 'Include Flowme-native events' },
             include_google_events: { type: 'boolean', default: true, description: 'Include Google Calendar events' },
             account_ids: { type: 'string', description: 'Comma-separated linked account UUIDs to filter' },
           },
         },
         response: {
           events: [{
-            source: 'google | microactivity',
+            source: 'google | flowme',
             id: 'string',
             title: 'string',
             description: 'string | null',

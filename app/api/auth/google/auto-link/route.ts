@@ -16,7 +16,7 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
  */
 export async function POST(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth();
+    const { supabase, user } = await requireAuth(req);
     const body = await req.json();
     const { provider_token, provider_refresh_token } = body;
 

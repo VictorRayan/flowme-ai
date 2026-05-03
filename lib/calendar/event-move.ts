@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 
 export interface MovableCalendarEvent {
   id: string;
-  source: 'google' | 'microactivity';
+  source: 'google' | 'flowme';
   start_at: string;
   end_at?: string | null;
   linked_account_id?: string;
@@ -47,9 +47,9 @@ export function buildMovedEventTimes(event: MovableCalendarEvent, newStart: stri
 }
 
 export function buildEventMoveRequest(event: MovableCalendarEvent, moved: MovedEventTimes): EventMoveRequest {
-  if (event.source === 'microactivity') {
+  if (event.source === 'flowme') {
     return {
-      url: `/api/tasks/${event.id}`,
+      url: `/api/events/${event.id}`,
       method: 'PATCH',
       body: {
         start_at: moved.start_at,

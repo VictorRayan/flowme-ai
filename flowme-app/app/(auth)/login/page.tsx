@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getAuthCallbackUrl } from '@/lib/auth/redirect';
 import { Box, Button, Typography, Paper, Alert, CircularProgress } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 
@@ -16,7 +17,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthCallbackUrl(process.env.NEXT_PUBLIC_APP_URL, window.location.origin),
         scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
         queryParams: {
           access_type: 'offline',

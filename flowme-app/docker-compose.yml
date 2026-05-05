@@ -1,0 +1,44 @@
+services:
+  flowme-app:
+    container_name: flowme-app
+    restart: unless-stopped
+    build:
+      context: ./flowme-app
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      CRON_SECRET: ${CRON_SECRET}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=flowme-proxy
+      - traefik.http.routers.flowme-app.rule=Host(`${FLOWME_APP_DOMAIN}`)
+      - traefik.http.routers.flowme-app.entrypoints=websecure
+      - traefik.http.routers.flowme-app.tls=true
+      - traefik.http.routers.flowme-app.tls.certresolver=letsencrypt
+      - traefik.http.services.flowme-app.loadbalancer.server.port=3000
+      - traefik.http.services.flowme-app.loadbalancer.passhostheader=true
+    networks:
+      - flowme-proxy
+
+networks:
+  flowme-proxy:
+    external: true

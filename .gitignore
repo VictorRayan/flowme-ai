@@ -1,18 +1,26 @@
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Next.js
 .next/
+**/.next/
 out/
+**/out/
 
-# Environment variables — NEVER commit these
+# Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.production.example
+!flowme-app/.env.local.example
+!evolution-api/.env.example
 
 # Build output
 dist/
 build/
+**/dist/
+**/build/
 
 # OS
 .DS_Store
@@ -27,11 +35,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Turbopack
-.turbo/
-
 # Local scratch/evaluation artifacts
 .oc_eval/
+**/.oc_eval/
 tree.json
 patch_route.js
 patch_route.py

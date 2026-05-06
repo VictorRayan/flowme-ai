@@ -7,7 +7,9 @@ import AddIcon from '@mui/icons-material/Add';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import GoogleIcon from '@mui/icons-material/Google';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import LinkAccountModal from '@/components/calendar/LinkAccountModal';
+import WhatsAppChannelPanel from '@/components/settings/WhatsAppChannelPanel';
 import { useSearchParams } from 'next/navigation';
 
 const AI_LANGUAGES = [
@@ -529,10 +531,24 @@ function SettingsPageContent() {
         </Box>
       </Paper>
 
+      {/* Channels */}
+      <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <WhatsAppIcon sx={{ color: '#25D366' }} />
+          <Typography variant="h6" fontWeight="bold">Channels</Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Connect external channels so Balys can receive and reply to messages on your behalf.
+        </Typography>
+        <Divider sx={{ mb: 3 }} />
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>WhatsApp</Typography>
+        <WhatsAppChannelPanel />
+      </Paper>
+
       <LinkAccountModal
-        open={linkModalOpen} 
-        onClose={() => setLinkModalOpen(false)} 
-        onSuccess={fetchAccounts} 
+        open={linkModalOpen}
+        onClose={() => setLinkModalOpen(false)}
+        onSuccess={fetchAccounts}
       />
     </Box>
   );

@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 import {
   Box, Typography, Button, Paper, List, ListItem, ListItemText,
   IconButton, Chip, Dialog, DialogTitle, DialogContent,
@@ -31,36 +32,37 @@ interface Connector {
   created_at: string;
 }
 
-const CONNECTOR_META: Record<ConnectorType, { label: string; icon: React.ReactNode; color: string; description: string; scopes: string }> = {
-  gmail: {
-    label: 'Gmail',
-    icon: <EmailIcon />,
-    color: '#EA4335',
-    description: 'Read emails and use them as context for Balys',
-    scopes: 'Read & draft emails',
-  },
-  google_docs: {
-    label: 'Google Docs',
-    icon: <DescriptionIcon />,
-    color: '#4285F4',
-    description: 'Connect documents so Balys can reference them',
-    scopes: 'Read documents',
-  },
-  google_sheets: {
-    label: 'Google Sheets',
-    icon: <GridOnIcon />,
-    color: '#0F9D58',
-    description: 'Connect spreadsheets for financial or data context',
-    scopes: 'Read spreadsheets',
-  },
-  google_drive: {
-    label: 'Google Drive',
-    icon: <FolderIcon />,
-    color: '#FBBC04',
-    description: 'Connect a Drive folder to index its files',
-    scopes: 'Read Drive files',
-  },
+const CONNECTOR_ICONS: Record<ConnectorType, React.ReactNode> = {
+  gmail: <EmailIcon />,
+  google_docs: <DescriptionIcon />,
+  google_sheets: <GridOnIcon />,
+  google_drive: <FolderIcon />,
 };
+
+const CONNECTOR_COLORS: Record<ConnectorType, string> = {
+  gmail: '#EA4335',
+  google_docs: '#4285F4',
+  google_sheets: '#0F9D58',
+  google_drive: '#FBBC04',
+};
+
+const CONNECTOR_LABELS: Record<ConnectorType, string> = {
+  gmail: 'Gmail',
+  google_docs: 'Google Docs',
+  google_sheets: 'Google Sheets',
+  google_drive: 'Google Drive',
+};
+
+function getConnectorMeta(type: ConnectorType, uiLang: UiLang) {
+  const t = UI[uiLang].connectors.connectorMeta;
+  return {
+    label: CONNECTOR_LABELS[type],
+    icon: CONNECTOR_ICONS[type],
+    color: CONNECTOR_COLORS[type],
+    description: t[type].description,
+    scopes: t[type].scopes,
+  };
+}
 
 function isAuthorized(connector: Connector): boolean {
   return Boolean(connector.config?.linked_account_id) && connector.is_active;
@@ -110,14 +112,15 @@ function configKey(type: ConnectorType): string {
 const NEEDS_URL: ConnectorType[] = ['google_sheets', 'google_docs', 'google_drive'];
 
 /* ── Add connector dialog ── */
-function AddConnectorDialog({ open, onClose, onCreated }: {
-  open: boolean; onClose: () => void; onCreated: (c: Connector) => void;
+function AddConnectorDialog({ open, onClose, onCreated, uiLang }: {
+  open: boolean; onClose: () => void; onCreated: (c: Connector) => void; uiLang: UiLang;
 }) {
   const [name, setName]           = useState('');
   const [type, setType]           = useState<ConnectorType>('gmail');
   const [resourceUrl, setResourceUrl] = useState('');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const t = UI[uiLang].connectors;
 
   const needsUrl = NEEDS_URL.includes(type);
 
@@ -128,16 +131,15 @@ function AddConnectorDialog({ open, onClose, onCreated }: {
     e.preventDefault();
     setError(null);
 
-    // Validate URL and extract resource ID for non-Gmail types
     const config: Record<string, string> = {};
     if (needsUrl) {
       if (!resourceUrl.trim()) {
-        setError(`Please paste the ${resourceUrlLabel(type)} so Balys knows which file to access.`);
+        setError(t.urlMissing(resourceUrlLabel(type)));
         return;
       }
       const extracted = extractGoogleId(resourceUrl.trim(), type);
       if (!extracted) {
-        setError(`Couldn't find a valid Google ID in that URL. Copy the URL directly from your browser address bar.`);
+        setError(t.urlInvalid);
         return;
       }
       config[configKey(type)] = extracted;
@@ -161,34 +163,39 @@ function AddConnectorDialog({ open, onClose, onCreated }: {
     }
   };
 
+  const meta = getConnectorMeta(type, uiLang);
+
   return (
     <Dialog open={open} onClose={!loading ? handleClose : undefined} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle>Add Connector</DialogTitle>
+        <DialogTitle>{t.addConnectorTitle}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: '20px !important' }}>
           {error && <Alert severity="error">{error}</Alert>}
           <FormControl fullWidth>
-            <InputLabel>Source type</InputLabel>
-            <Select value={type} label="Source type" onChange={e => { setType(e.target.value as ConnectorType); setResourceUrl(''); }}>
-              {(Object.keys(CONNECTOR_META) as ConnectorType[]).map(t => (
-                <MenuItem key={t} value={t}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box sx={{ color: CONNECTOR_META[t].color, display: 'flex' }}>{CONNECTOR_META[t].icon}</Box>
-                    {CONNECTOR_META[t].label}
-                  </Box>
-                </MenuItem>
-              ))}
+            <InputLabel>{t.sourceType}</InputLabel>
+            <Select value={type} label={t.sourceType} onChange={e => { setType(e.target.value as ConnectorType); setResourceUrl(''); }}>
+              {(Object.keys(CONNECTOR_ICONS) as ConnectorType[]).map(ct => {
+                const m = getConnectorMeta(ct, uiLang);
+                return (
+                  <MenuItem key={ct} value={ct}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Box sx={{ color: m.color, display: 'flex' }}>{m.icon}</Box>
+                      {m.label}
+                    </Box>
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
           <TextField
-            label="Name"
+            label={t.nameLabel}
             placeholder={`e.g. ${type === 'gmail' ? 'Work email' : type === 'google_sheets' ? 'Financial Sheet' : type === 'google_docs' ? 'Contracts' : 'My Drive'}`}
             value={name}
             onChange={e => setName(e.target.value)}
             fullWidth
             required
             autoFocus
-            helperText="Give this connector a descriptive name so Balys knows what it is"
+            helperText={t.nameHelper}
           />
           {needsUrl && (
             <TextField
@@ -198,22 +205,22 @@ function AddConnectorDialog({ open, onClose, onCreated }: {
               onChange={e => setResourceUrl(e.target.value)}
               fullWidth
               required
-              helperText="Paste the URL from your browser. Balys uses this to know exactly which file to read."
+              helperText={t.urlHelper}
             />
           )}
           <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              {CONNECTOR_META[type].description}
+              {meta.description}
             </Typography>
             <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
-              Permissions needed: {CONNECTOR_META[type].scopes}
+              {t.permissionsNeeded}: {meta.scopes}
             </Typography>
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose} disabled={loading}>Cancel</Button>
+          <Button onClick={handleClose} disabled={loading}>{t.cancel}</Button>
           <Button type="submit" variant="contained" disabled={loading || name.trim().length < 2}>
-            {loading ? <CircularProgress size={18} /> : 'Add & authorize'}
+            {loading ? <CircularProgress size={18} /> : t.addAndAuthorize}
           </Button>
         </DialogActions>
       </form>
@@ -222,12 +229,13 @@ function AddConnectorDialog({ open, onClose, onCreated }: {
 }
 
 /* ── Edit name dialog ── */
-function EditNameDialog({ connector, onClose, onUpdated }: {
-  connector: Connector; onClose: () => void; onUpdated: (c: Connector) => void;
+function EditNameDialog({ connector, onClose, onUpdated, uiLang }: {
+  connector: Connector; onClose: () => void; onUpdated: (c: Connector) => void; uiLang: UiLang;
 }) {
   const [name, setName] = useState(connector.name);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = UI[uiLang].connectors;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,15 +260,15 @@ function EditNameDialog({ connector, onClose, onUpdated }: {
   return (
     <Dialog open onClose={!loading ? onClose : undefined} maxWidth="xs" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle>Edit name</DialogTitle>
+        <DialogTitle>{t.editName}</DialogTitle>
         <DialogContent sx={{ pt: '20px !important' }}>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          <TextField label="Name" value={name} onChange={e => setName(e.target.value)} fullWidth autoFocus required />
+          <TextField label={t.nameLabel} value={name} onChange={e => setName(e.target.value)} fullWidth autoFocus required />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button onClick={onClose} disabled={loading}>{t.cancel}</Button>
           <Button type="submit" variant="contained" disabled={loading || name.trim().length < 2}>
-            {loading ? <CircularProgress size={18} /> : 'Save'}
+            {loading ? <CircularProgress size={18} /> : t.save}
           </Button>
         </DialogActions>
       </form>
@@ -269,11 +277,12 @@ function EditNameDialog({ connector, onClose, onUpdated }: {
 }
 
 /* ── Delete dialog ── */
-function DeleteDialog({ connector, onClose, onDeleted }: {
-  connector: Connector; onClose: () => void; onDeleted: (id: string) => void;
+function DeleteDialog({ connector, onClose, onDeleted, uiLang }: {
+  connector: Connector; onClose: () => void; onDeleted: (id: string) => void; uiLang: UiLang;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = UI[uiLang].connectors;
 
   const handleDelete = async () => {
     setLoading(true);
@@ -291,18 +300,17 @@ function DeleteDialog({ connector, onClose, onDeleted }: {
 
   return (
     <Dialog open onClose={!loading ? onClose : undefined} maxWidth="xs" fullWidth>
-      <DialogTitle>Remove connector?</DialogTitle>
+      <DialogTitle>{t.removeConnector}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Typography variant="body2" color="text.secondary">
-          <strong>{connector.name}</strong> ({CONNECTOR_META[connector.type].label}) will be removed and disconnected.
-          Balys will no longer have access to this source.
+          {t.removeBody(connector.name, CONNECTOR_LABELS[connector.type])}
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button onClick={onClose} disabled={loading}>{t.cancel}</Button>
         <Button onClick={handleDelete} color="error" variant="contained" disabled={loading}>
-          {loading ? <CircularProgress size={18} /> : 'Remove'}
+          {loading ? <CircularProgress size={18} /> : t.remove}
         </Button>
       </DialogActions>
     </Dialog>
@@ -321,20 +329,31 @@ function ConnectorsContent() {
   const [deleting, setDeleting] = useState<Connector | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [uiLang, setUiLang] = useState<UiLang>('en');
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const t = UI[uiLang].connectors;
 
   // Handle OAuth return params
   useEffect(() => {
     const connectedId = searchParams.get('connector_connected');
     const errorParam = searchParams.get('google_error');
     if (connectedId) {
-      setBanner({ type: 'success', message: 'Connector authorized successfully. Balys can now access this source.' });
+      setBanner({ type: 'success', message: t.authorizedSuccess });
       fetchConnectors();
       window.history.replaceState({}, '', '/app/connectors');
     } else if (errorParam) {
-      setBanner({ type: 'error', message: `Authorization failed: ${errorParam.replace(/_/g, ' ')}. Please try again.` });
+      setBanner({ type: 'error', message: t.authFailed(errorParam.replace(/_/g, ' ')) });
       window.history.replaceState({}, '', '/app/connectors');
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchConnectors = useCallback(async () => {
     setLoading(true);
@@ -381,7 +400,7 @@ function ConnectorsContent() {
     }
   };
 
-  const grouped = (Object.keys(CONNECTOR_META) as ConnectorType[]).reduce<Record<ConnectorType, Connector[]>>(
+  const grouped = (Object.keys(CONNECTOR_ICONS) as ConnectorType[]).reduce<Record<ConnectorType, Connector[]>>(
     (acc, t) => { acc[t] = connectors.filter(c => c.type === t); return acc; },
     {} as any
   );
@@ -393,10 +412,10 @@ function ConnectorsContent() {
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 4 }}>
         <Box>
           <Typography variant="h5" fontWeight={700} sx={{ letterSpacing: '-0.3px' }}>
-            Connectors
+            {t.title}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Connect your external sources so Balys can use them as context. Each connector requires a one-time Google authorization.
+            {t.desc}
           </Typography>
         </Box>
         <Button
@@ -405,7 +424,7 @@ function ConnectorsContent() {
           onClick={() => setAddOpen(true)}
           sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, flexShrink: 0, ml: 2 }}
         >
-          Add connector
+          {t.addConnector}
         </Button>
       </Box>
 
@@ -428,20 +447,20 @@ function ConnectorsContent() {
         </Box>
       ) : connectors.length === 0 ? (
         <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
-          <Typography variant="h6" fontWeight={600} gutterBottom>No connectors yet</Typography>
+          <Typography variant="h6" fontWeight={600} gutterBottom>{t.noConnectors}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Connect Gmail, Google Docs, Sheets or Drive so Balys can read and reference your data.
+            {t.noConnectorsBody}
           </Typography>
           <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAddOpen(true)} sx={{ borderRadius: 2, textTransform: 'none' }}>
-            Add your first connector
+            {t.addFirst}
           </Button>
         </Paper>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {(Object.keys(CONNECTOR_META) as ConnectorType[]).map(type => {
+          {(Object.keys(CONNECTOR_ICONS) as ConnectorType[]).map(type => {
             const items = grouped[type];
             if (items.length === 0) return null;
-            const meta = CONNECTOR_META[type];
+            const meta = getConnectorMeta(type, uiLang);
             return (
               <Paper key={type} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden' }}>
                 {/* Group header */}
@@ -472,24 +491,24 @@ function ConnectorsContent() {
                                 {authorized && (
                                   <Chip
                                     icon={<CheckCircleIcon sx={{ fontSize: '14px !important' }} />}
-                                    label="Connected"
+                                    label={t.connected}
                                     size="small"
                                     color="success"
                                     sx={{ height: 20, fontSize: 10 }}
                                   />
                                 )}
                                 {pending && (
-                                  <Chip label="Auth pending" size="small" color="warning" sx={{ height: 20, fontSize: 10 }} />
+                                  <Chip label={t.authPending} size="small" color="warning" sx={{ height: 20, fontSize: 10 }} />
                                 )}
                                 {!authorized && !pending && (
-                                  <Chip label="Not connected" size="small" color="default" sx={{ height: 20, fontSize: 10 }} />
+                                  <Chip label={t.notConnected} size="small" color="default" sx={{ height: 20, fontSize: 10 }} />
                                 )}
                               </Stack>
                             }
                             secondary={
                               <Typography variant="caption" color="text.disabled">
-                                Added {new Date(connector.created_at).toLocaleDateString()}
-                                {authorized && ' · Balys can read this source'}
+                                {t.added} {new Date(connector.created_at).toLocaleDateString()}
+                                {authorized && ` · ${t.balysCanRead}`}
                               </Typography>
                             }
                           />
@@ -498,14 +517,14 @@ function ConnectorsContent() {
                           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1, flexShrink: 0 }}>
                             {authorized ? (
                               <>
-                                <Tooltip title="Re-authorize (refresh token)">
+                                <Tooltip title={t.reauthorize}>
                                   <span>
                                     <IconButton size="small" onClick={() => handleConnect(connector)} disabled={isConnecting}>
                                       {isConnecting ? <CircularProgress size={16} /> : <LinkIcon sx={{ fontSize: 18 }} />}
                                     </IconButton>
                                   </span>
                                 </Tooltip>
-                                <Tooltip title="Disconnect">
+                                <Tooltip title={t.disconnect}>
                                   <span>
                                     <IconButton size="small" onClick={() => handleDisconnect(connector)} disabled={isDisconnecting}>
                                       {isDisconnecting ? <CircularProgress size={16} /> : <LinkOffIcon sx={{ fontSize: 18, color: 'warning.main' }} />}
@@ -522,15 +541,15 @@ function ConnectorsContent() {
                                 disabled={isConnecting}
                                 sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5 }}
                               >
-                                {isConnecting ? 'Redirecting…' : 'Authorize'}
+                                {isConnecting ? t.redirecting : t.authorize}
                               </Button>
                             )}
-                            <Tooltip title="Edit name">
+                            <Tooltip title={t.editNameTooltip}>
                               <IconButton size="small" onClick={() => setEditing(connector)}>
                                 <EditIcon sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Remove">
+                            <Tooltip title={t.removeTooltip}>
                               <IconButton size="small" onClick={() => setDeleting(connector)}>
                                 <DeleteIcon sx={{ fontSize: 18, color: 'error.main' }} />
                               </IconButton>
@@ -552,12 +571,14 @@ function ConnectorsContent() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={c => { setConnectors(prev => [...prev, c]); handleConnect(c); }}
+        uiLang={uiLang}
       />
       {editing && (
         <EditNameDialog
           connector={editing}
           onClose={() => setEditing(null)}
           onUpdated={c => setConnectors(prev => prev.map(x => x.id === c.id ? c : x))}
+          uiLang={uiLang}
         />
       )}
       {deleting && (
@@ -565,6 +586,7 @@ function ConnectorsContent() {
           connector={deleting}
           onClose={() => setDeleting(null)}
           onDeleted={id => setConnectors(prev => prev.filter(c => c.id !== id))}
+          uiLang={uiLang}
         />
       )}
     </Box>

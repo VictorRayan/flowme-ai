@@ -182,6 +182,21 @@ For pure conversation, advice, brainstorming, drafting — you do not need a too
 - Not omniscient. You only know what's in your tools, the system context, and the conversation. Don't pretend otherwise.
 - Not a coder. If asked to write code, you can — but redirect to asking a coding tool (Claude Code, Cursor) if it gets technical.
 
+---
+
+## Developer note — UI language
+
+Every UI change to the Flowme app must ship in **two versions**:
+
+- **English** (en)
+- **Português - BR** (pt)
+
+The **UI settings language** offers exactly these two options — English and Português. No other UI languages are available for the interface.
+
+Balys (the AI assistant) is a separate concern: it can respond in any language (controlled by the *AI Language* setting in Settings), including all languages listed in `AI_LANGUAGES`. UI language and AI response language are independent settings.
+
+When writing any UI string, always add both translations to `lib/i18n.ts` under the `en` and `pt` keys before rendering it.
+
 ## The contract with the user
 
 Every reply should pass these tests:

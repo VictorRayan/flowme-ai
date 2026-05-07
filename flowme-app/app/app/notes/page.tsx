@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import NotesTree, { NoteItem, PersonItem } from '@/components/notes/NotesTree';
 import NoteEditor from '@/components/notes/NoteEditor';
 import DeleteConfirmDialog from '@/components/notes/DeleteConfirmDialog';
+import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 
 interface FullNote extends Omit<NoteItem, 'note_type'> {
   content: object | null;
@@ -26,6 +27,15 @@ export default function NotesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [uiLang, setUiLang] = useState<UiLang>('en');
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const fetchNotes = useCallback(async (personId?: string) => {
     const url = personId ? `/api/notes?person_id=${personId}` : '/api/notes';
@@ -159,7 +169,7 @@ export default function NotesPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: opts?.title || 'Untitled',
+        title: opts?.title || UI[uiLang].notes.untitled,
         note_date: opts?.date || dayjs().format('YYYY-MM-DD'),
         note_type: opts?.note_type || 'manual',
       }),
@@ -239,7 +249,7 @@ export default function NotesPage() {
         />
 
         {!selectedNote && (
-          <Tooltip title="New note">
+          <Tooltip title={UI[uiLang].notes.newNote}>
             <Fab color="primary" onClick={() => handleNewNote()} sx={{ position: 'absolute', bottom: 24, right: 24 }}>
               <AddIcon />
             </Fab>
@@ -252,12 +262,14 @@ export default function NotesPage() {
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={deleteTarget?.kind === 'person' ? handleDeletePerson : handleDeleteNote}
-        title={deleteTarget?.kind === 'person' ? `Delete person "${deleteTarget.name}"` : `Delete note "${deleteTarget?.name}"`}
+        title={deleteTarget?.kind === 'person'
+          ? (uiLang === 'pt' ? `Excluir pessoa "${deleteTarget.name}"` : `Delete person "${deleteTarget.name}"`)
+          : (uiLang === 'pt' ? `Excluir nota "${deleteTarget?.name}"` : `Delete note "${deleteTarget?.name}"`)}
         targetName={deleteTarget?.name || ''}
         confirmCount={deleteTarget?.kind === 'person' ? 2 : 1}
         description={deleteTarget?.kind === 'person'
-          ? 'This will delete the person and their profile note. Notes that mention them will keep the mentions.'
-          : 'This will permanently delete this note.'}
+          ? (uiLang === 'pt' ? 'Isso excluirá a pessoa e sua nota de perfil. Notas que a mencionam manterão as menções.' : 'This will delete the person and their profile note. Notes that mention them will keep the mentions.')
+          : (uiLang === 'pt' ? 'Isso excluirá permanentemente esta nota.' : 'This will permanently delete this note.')}
       />
     </Box>
   );

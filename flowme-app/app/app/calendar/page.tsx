@@ -18,10 +18,20 @@ import LinkAccountModal from '@/components/calendar/LinkAccountModal';
 import EventEditorModal from '@/components/calendar/EventEditorModal';
 import { CalendarEvent } from '@/components/calendar/types';
 import { buildEventMoveRequest, buildMovedEventTimes } from '@/lib/calendar/event-move';
+import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(dayjs());
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [uiLang, setUiLang] = useState<UiLang>('en');
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -292,12 +302,12 @@ export default function CalendarPage() {
             {loading && <CircularProgress size={20} />}
             {!loading && syncing && (
               <Typography variant="caption" color="text.secondary">
-                Syncing Google...
+                {UI[uiLang].calendar.syncing}
               </Typography>
             )}
             {!loading && !syncing && lastSyncedAt && (
               <Typography variant="caption" color="text.disabled" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                Synced {lastSyncedAt.format('HH:mm')}
+                {UI[uiLang].calendar.sync} {lastSyncedAt.format('HH:mm')}
               </Typography>
             )}
           </Box>
@@ -325,7 +335,7 @@ export default function CalendarPage() {
                 <TextField 
                   {...params}
                   size="small"
-                  placeholder="Search events to edit..."
+                  placeholder={uiLang === 'pt' ? 'Buscar eventos para editar...' : 'Search events to edit...'}
                   InputProps={{
                     ...params.InputProps,
                     startAdornment: (
@@ -348,13 +358,13 @@ export default function CalendarPage() {
                 onChange={(e) => setView(e.target.value as any)}
                 sx={{ bgcolor: 'background.paper', minWidth: 100 }}
               >
-                <MenuItem value="month">Month</MenuItem>
-                <MenuItem value="week">Week</MenuItem>
-                <MenuItem value="day">Day</MenuItem>
+                <MenuItem value="month">{UI[uiLang].calendar.month}</MenuItem>
+                <MenuItem value="week">{UI[uiLang].calendar.week}</MenuItem>
+                <MenuItem value="day">{UI[uiLang].calendar.day}</MenuItem>
               </Select>
-              
+
               <Button variant="outlined" onClick={today} size="small" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                Today
+                {UI[uiLang].calendar.today}
               </Button>
               <IconButton onClick={navigatePrev} size="small"><ChevronLeftIcon /></IconButton>
               <IconButton onClick={navigateNext} size="small"><ChevronRightIcon /></IconButton>

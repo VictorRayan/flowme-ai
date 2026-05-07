@@ -26,6 +26,7 @@ import EventIcon from '@mui/icons-material/Event';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import CommandPalette, { ContextItem } from '@/components/ai/CommandPalette';
+import { UI, resolveUiLang } from '@/lib/i18n';
 
 // ── Note edit block parsing ───────────────────────────────────────────────────
 const NOTE_EDIT_RE = /%%NOTE_EDIT_START(?::([^%]+))?%%([\s\S]*?)%%NOTE_EDIT_END%%/g;
@@ -43,7 +44,7 @@ function parseNoteEdits(text: string): { clean: string; edits: NoteEditBlock[] }
 }
 
 // ── Note edit preview card ────────────────────────────────────────────────────
-function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: NoteEditBlock) => Promise<void> }) {
+function NoteEditCard({ block, onApply, labels }: { block: NoteEditBlock; onApply: (b: NoteEditBlock) => Promise<void>; labels: { noteEditPreview: string; applied: string; applying: string; applyToNote: string; viewNote: string } }) {
   const [applying, setApplying] = React.useState(false);
   const [applied, setApplied] = React.useState(false);
 
@@ -63,7 +64,7 @@ function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: N
       <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(99,102,241,0.08)' }}>
         <EditNoteIcon sx={{ fontSize: 15, color: '#818cf8' }} />
         <Typography variant="caption" sx={{ fontWeight: 700, color: '#818cf8', flex: 1, fontSize: 11, letterSpacing: '0.04em' }}>
-          NOTE EDIT PREVIEW — {block.noteTitle}
+          {labels.noteEditPreview} — {block.noteTitle}
         </Typography>
         <Box
           onClick={applied ? undefined : handleApply}
@@ -85,7 +86,7 @@ function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: N
             <CheckCircleIcon sx={{ fontSize: 13, color: '#818cf8' }} />
           )}
           <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: applied ? '#34d399' : '#818cf8' }}>
-            {applied ? 'Applied' : applying ? 'Applying…' : 'Apply to note'}
+            {applied ? labels.applied : applying ? labels.applying : labels.applyToNote}
           </Typography>
         </Box>
         {/* View note button */}
@@ -107,7 +108,7 @@ function NoteEditCard({ block, onApply }: { block: NoteEditBlock; onApply: (b: N
           >
             <NoteIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
             <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary' }}>
-              View note
+              {labels.viewNote}
             </Typography>
           </Box>
         )}
@@ -223,10 +224,16 @@ export default function AIPage() {
   const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: 'council' | 'briefing' | 'note' } | null>(null);
   const [destructiveDialog, setDestructiveDialog] = useState<DestructiveDialog>(null);
   const [uiLang, setUiLang] = useState<Lang>('en');
+  const [interfaceLang, setInterfaceLang] = useState<'en' | 'pt'>('en');
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('balysai_language') : null;
     setUiLang(resolveLang(stored));
-    const onStorage = (e: StorageEvent) => { if (e.key === 'balysai_language') setUiLang(resolveLang(e.newValue)); };
+    const storedUi = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setInterfaceLang(resolveUiLang(storedUi));
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'balysai_language') setUiLang(resolveLang(e.newValue));
+      if (e.key === 'ui_language') setInterfaceLang(resolveUiLang(e.newValue));
+    };
     if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
     return () => { if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage); };
   }, []);
@@ -837,21 +844,22 @@ Rules:
   };
 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const at = UI[interfaceLang].ai;
   const destructiveIsFinal = destructiveDialog?.step === 2;
-  const destructiveTitle = destructiveDialog?.kind === 'deleteThread' ? 'Delete chat' : 'Clear chat';
+  const destructiveTitle = destructiveDialog?.kind === 'deleteThread' ? at.deleteChat : at.clearChatTitle;
   const destructiveBody = destructiveDialog?.kind === 'deleteThread'
     ? destructiveIsFinal
-      ? `Final confirmation: permanently delete "${destructiveDialog.title}" from your chat history?`
-      : `This will delete "${destructiveDialog.title}" from your chat history. You will need to confirm once more.`
+      ? at.deleteStep2(destructiveDialog.title)
+      : at.deleteStep1(destructiveDialog.title)
     : destructiveIsFinal
-      ? `Final confirmation: permanently clear all messages in "${destructiveDialog?.title || 'this chat'}"?`
-      : `This will clear the messages in "${destructiveDialog?.title || 'this chat'}". You will need to confirm once more.`;
+      ? at.clearStep2(destructiveDialog?.title || 'this chat')
+      : at.clearStep1(destructiveDialog?.title || 'this chat');
 
   const sidebarContent = (
     <Box sx={{ width: 220, display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'background.paper' }}>
       <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 10, color: 'text.disabled' }}>Chats</Typography>
-        <Tooltip title="New chat"><IconButton size="small" onClick={() => { newChat(); setSidebarOpen(false); }}><AddIcon fontSize="small" /></IconButton></Tooltip>
+        <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 10, color: 'text.disabled' }}>{at.chats}</Typography>
+        <Tooltip title={at.newChat}><IconButton size="small" onClick={() => { newChat(); setSidebarOpen(false); }}><AddIcon fontSize="small" /></IconButton></Tooltip>
       </Box>
       <List dense disablePadding sx={{ flex: 1, overflowY: 'auto' }}>
         {threads.map(t => {
@@ -894,7 +902,7 @@ Rules:
         {/* Header */}
         <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* Thread history button — mobile only (replaces second hamburger) */}
-          <Tooltip title="Chat history">
+          <Tooltip title={at.chatHistory}>
             <IconButton size="small" onClick={() => setSidebarOpen(true)} sx={{ display: { xs: 'flex', md: 'none' }, mr: 0.5 }}>
               <HistoryIcon fontSize="small" />
             </IconButton>
@@ -904,7 +912,7 @@ Rules:
             : <SmartToyIcon color="secondary" fontSize="small" />}
           <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
           <Box sx={{ flex: 1 }} />
-          <Tooltip title="Clear chat">
+          <Tooltip title={at.clearChat}>
             <span>
               <IconButton size="small" onClick={requestClearActiveThread} disabled={!activeThread?.messages.length}>
                 <DeleteIcon fontSize="small" />
@@ -918,8 +926,8 @@ Rules:
           {(!activeThread || activeThread.messages.length === 0) && (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 2 }}>
               <SmartToyIcon sx={{ fontSize: 64, opacity: 0.12 }} />
-              <Typography variant="h6" color="text.secondary">How can I help you today?</Typography>
-              <Typography variant="body2" color="text.disabled">Send a message, attach files, images, or record audio</Typography>
+              <Typography variant="h6" color="text.secondary">{at.howCanIHelp}</Typography>
+              <Typography variant="body2" color="text.disabled">{at.sendMessageHint}</Typography>
             </Box>
           )}
 
@@ -981,7 +989,7 @@ Rules:
                     {/* Note edit preview cards */}
                     {edits.map((block, ei) => (
                       <Box key={ei} sx={{ width: '100%', maxWidth: 520 }}>
-                        <NoteEditCard block={block} onApply={applyNoteEdit} />
+                        <NoteEditCard block={block} onApply={applyNoteEdit} labels={at} />
                       </Box>
                     ))}
                   </Box>
@@ -997,7 +1005,7 @@ Rules:
               </Avatar>
               <Paper elevation={0} sx={{ px: 2, py: 1.5, bgcolor: 'grey.100', borderRadius: '18px 18px 18px 4px', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <CircularProgress size={13} thickness={5} />
-                <Typography variant="body2" color="text.secondary">Thinking...</Typography>
+                <Typography variant="body2" color="text.secondary">{at.thinking}</Typography>
               </Paper>
             </Box>
           )}
@@ -1041,7 +1049,7 @@ Rules:
         {activeIsWhatsAppThread && (
           <Box sx={{ px: 2, py: 1, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'rgba(37, 211, 102, 0.06)' }}>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              This conversation is WhatsApp-only. Send new messages from WhatsApp; this view is read-only history.
+              {at.whatsappReadOnly}
             </Typography>
           </Box>
         )}
@@ -1067,16 +1075,16 @@ Rules:
         <Box ref={inputBoxRef} sx={{ px: { xs: 1, md: 2 }, py: 1.5, display: 'flex', gap: { xs: 0.5, md: 1 }, alignItems: 'flex-end' }}>
           <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={e => handleFileChange(e, 'image')} />
           <input ref={fileInputRef} type="file" multiple hidden onChange={e => handleFileChange(e, 'file')} />
-          <Tooltip title={activeIsWhatsAppThread ? 'Use WhatsApp to send media in this conversation' : 'Image'}><IconButton size="small" onClick={() => imageInputRef.current?.click()} disabled={loading || activeIsWhatsAppThread}><ImageIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title={activeIsWhatsAppThread ? 'Use WhatsApp to send files in this conversation' : 'File'}><IconButton size="small" onClick={() => fileInputRef.current?.click()} disabled={loading || activeIsWhatsAppThread}><AttachFileIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title={activeIsWhatsAppThread ? 'Use WhatsApp to send audio in this conversation' : recording ? 'Stop' : 'Record audio'}>
+          <Tooltip title={activeIsWhatsAppThread ? at.whatsappMediaTooltip : at.imageTooltip}><IconButton size="small" onClick={() => imageInputRef.current?.click()} disabled={loading || activeIsWhatsAppThread}><ImageIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={activeIsWhatsAppThread ? at.whatsappFileTooltip : at.fileTooltip}><IconButton size="small" onClick={() => fileInputRef.current?.click()} disabled={loading || activeIsWhatsAppThread}><AttachFileIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={activeIsWhatsAppThread ? at.whatsappAudioTooltip : recording ? at.stop : at.recordAudio}>
             <IconButton size="small" onClick={recording ? stopRecording : startRecording} color={recording ? 'error' : 'default'} disabled={activeIsWhatsAppThread}>
               {recording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
-          {recording && <Chip label="Recording..." color="error" size="small" />}
+          {recording && <Chip label={at.recording} color="error" size="small" />}
           <TextField fullWidth multiline maxRows={4}
-            placeholder={activeIsWhatsAppThread ? 'WhatsApp-only conversation' : 'Message BalysAI...'}
+            placeholder={activeIsWhatsAppThread ? at.whatsappPlaceholder : at.messageBalys}
             inputProps={{ 'aria-label': 'Message BalysAI' }}
             value={input}
             onChange={e => handleInputChange(e.target.value)}
@@ -1116,9 +1124,9 @@ Rules:
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDestructiveDialog(null)} color="inherit">Cancel</Button>
+          <Button onClick={() => setDestructiveDialog(null)} color="inherit">{at.cancel}</Button>
           <Button onClick={confirmDestructiveAction} color="error" variant={destructiveIsFinal ? 'contained' : 'outlined'}>
-            {destructiveIsFinal ? 'Delete permanently' : 'Continue'}
+            {destructiveIsFinal ? at.deletePermanently : at.continue}
           </Button>
         </DialogActions>
       </Dialog>

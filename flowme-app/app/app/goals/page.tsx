@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 import {
   Alert,
   Box,
@@ -73,6 +74,15 @@ export default function GoalsPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uiLang, setUiLang] = useState<UiLang>('en');
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const fetchGoals = useCallback(async () => {
     setLoading(true);
@@ -134,27 +144,29 @@ export default function GoalsPage() {
   const completedTaskCount = tasks.filter(task => task.status === 'completed' || task.outcome === 'completed').length;
   const completionRate = linkedTaskCount > 0 ? Math.round((completedTaskCount / linkedTaskCount) * 100) : 0;
 
+  const g = UI[uiLang].goals;
+
   return (
     <Box sx={{ height: '100%', overflow: 'auto', bgcolor: '#090d14' }}>
       <Box sx={{ maxWidth: 1240, mx: 'auto', px: { xs: 2, md: 4 }, py: { xs: 2.5, md: 4 } }}>
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2.5} sx={{ mb: 3 }}>
           <Box>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-              <Chip size="small" icon={<TrackChangesIcon />} label="Goal OS" sx={{ bgcolor: 'rgba(20,184,166,0.14)', color: '#5eead4', border: '1px solid rgba(94,234,212,0.24)' }} />
+              <Chip size="small" icon={<TrackChangesIcon />} label={g.goalOs} sx={{ bgcolor: 'rgba(20,184,166,0.14)', color: '#5eead4', border: '1px solid rgba(94,234,212,0.24)' }} />
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                Year, month, week, and recovery plans
+                {g.subtitle}
               </Typography>
             </Stack>
             <Typography variant="h3" sx={{ fontWeight: 800, fontSize: { xs: 30, md: 42 }, letterSpacing: 0 }}>
-              Goals Dashboard
+              {g.title}
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
             <Button component={Link} href="/app/today" variant="outlined" endIcon={<ArrowForwardIcon />} sx={{ borderColor: 'rgba(148,163,184,0.25)', color: 'text.primary' }}>
-              Today Path
+              {g.todayPath}
             </Button>
             <Button component={Link} href="/app/ai" variant="contained" sx={{ bgcolor: '#4f46e5' }}>
-              Ask Balys
+              {g.askBalys}
             </Button>
           </Stack>
         </Stack>
@@ -169,39 +181,39 @@ export default function GoalsPage() {
           <>
             <Box sx={{ py: 2.5, borderTop: '1px solid rgba(148,163,184,0.14)', borderBottom: '1px solid rgba(148,163,184,0.14)', mb: 3 }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                <Metric label="Active goals" value={activeGoals.length} tone="#5eead4" />
-                <Metric label="Action plans" value={activePlans.length} tone="#fbbf24" />
-                <Metric label="Linked tasks" value={linkedTaskCount} tone="#93c5fd" />
-                <Metric label="Task completion" value={`${completionRate}%`} tone="#86efac" />
+                <Metric label={g.activeGoals} value={activeGoals.length} tone="#5eead4" />
+                <Metric label={g.actionPlans} value={activePlans.length} tone="#fbbf24" />
+                <Metric label={g.linkedTasks} value={linkedTaskCount} tone="#93c5fd" />
+                <Metric label={g.taskCompletion} value={`${completionRate}%`} tone="#86efac" />
               </Stack>
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1fr) 360px' }, gap: 3 }}>
               <Stack spacing={3}>
-                <GoalBand title="Year" subtitle="The long arc" goals={grouped.yearly} tasks={tasks} accent="#5eead4" />
-                <GoalBand title="Month" subtitle="The current milestone" goals={grouped.monthly} tasks={tasks} accent="#93c5fd" />
-                <GoalBand title="Week" subtitle="The execution commitment" goals={grouped.weekly} tasks={tasks} accent="#fbbf24" />
+                <GoalBand title={g.year} subtitle={g.yearSubtitle} goals={grouped.yearly} tasks={tasks} accent="#5eead4" uiLang={uiLang} />
+                <GoalBand title={g.month} subtitle={g.monthSubtitle} goals={grouped.monthly} tasks={tasks} accent="#93c5fd" uiLang={uiLang} />
+                <GoalBand title={g.week} subtitle={g.weekSubtitle} goals={grouped.weekly} tasks={tasks} accent="#fbbf24" uiLang={uiLang} />
               </Stack>
 
               <Box sx={{ borderLeft: { xl: '1px solid rgba(148,163,184,0.14)' }, pl: { xl: 3 } }}>
                 <Typography variant="overline" sx={{ color: '#fbbf24', letterSpacing: 1.4 }}>
-                  Action Plans
+                  {g.actionPlansTitle}
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0, mb: 2 }}>
-                  Active problem-solving loops
+                  {g.activeProblems}
                 </Typography>
                 <Stack spacing={1.5}>
                   {activePlans.length > 0 ? activePlans.map(plan => (
-                    <ActionPlanItem key={plan.id} plan={plan} tasks={tasks.filter(task => task.action_plan_id === plan.id)} />
+                    <ActionPlanItem key={plan.id} plan={plan} tasks={tasks.filter(task => task.action_plan_id === plan.id)} uiLang={uiLang} />
                   )) : (
-                    <EmptyState title="No active action plans" body="When a recurring problem threatens progress, Balys can create a short-term plan here." />
+                    <EmptyState title={g.noActionPlans} body={g.noActionPlansBody} />
                   )}
                 </Stack>
 
                 <Divider sx={{ my: 3 }} />
 
                 <Typography variant="overline" sx={{ color: '#93c5fd', letterSpacing: 1.4 }}>
-                  Next linked tasks
+                  {g.nextLinkedTasks}
                 </Typography>
                 <Stack spacing={1.1} sx={{ mt: 1.5 }}>
                   {tasks
@@ -214,7 +226,7 @@ export default function GoalsPage() {
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.6 }}>
                           <Chip size="small" label={task.category || 'negotiable'} sx={priorityChipSx(task.category || 'negotiable')} />
                           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                            {task.scheduled_date ? dayjs(task.scheduled_date).format('MMM D') : 'unscheduled'}
+                            {task.scheduled_date ? dayjs(task.scheduled_date).format('MMM D') : g.unscheduled}
                           </Typography>
                         </Stack>
                       </Box>
@@ -229,7 +241,8 @@ export default function GoalsPage() {
   );
 }
 
-function GoalBand({ title, subtitle, goals, tasks, accent }: { title: string; subtitle: string; goals: Goal[]; tasks: Task[]; accent: string }) {
+function GoalBand({ title, subtitle, goals, tasks, accent, uiLang }: { title: string; subtitle: string; goals: Goal[]; tasks: Task[]; accent: string; uiLang: UiLang }) {
+  const g = UI[uiLang].goals;
   return (
     <Box sx={{ py: 1 }}>
       <Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 1.5 }}>
@@ -247,19 +260,20 @@ function GoalBand({ title, subtitle, goals, tasks, accent }: { title: string; su
       {goals.length > 0 ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>
           {goals.map(goal => (
-            <GoalItem key={goal.id} goal={goal} tasks={tasks.filter(task => task.linked_goal_id === goal.id)} accent={accent} />
+            <GoalItem key={goal.id} goal={goal} tasks={tasks.filter(task => task.linked_goal_id === goal.id)} accent={accent} uiLang={uiLang} />
           ))}
         </Box>
       ) : (
-        <EmptyState title={`No ${title.toLowerCase()} goals yet`} body="Ask Balys to create a goal operating plan when you are ready." />
+        <EmptyState title={g.noGoals(title.toLowerCase())} body={g.noGoalsBody} />
       )}
     </Box>
   );
 }
 
-function GoalItem({ goal, tasks, accent }: { goal: Goal; tasks: Task[]; accent: string }) {
+function GoalItem({ goal, tasks, accent, uiLang }: { goal: Goal; tasks: Task[]; accent: string; uiLang: UiLang }) {
   const progress = calculateGoalProgress(goal, tasks);
   const complete = tasks.filter(task => task.status === 'completed' || task.outcome === 'completed').length;
+  const g = UI[uiLang].goals;
 
   return (
     <Box sx={{
@@ -272,14 +286,14 @@ function GoalItem({ goal, tasks, accent }: { goal: Goal; tasks: Task[]; accent: 
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, lineHeight: 1.25 }}>{goal.title}</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.7, lineHeight: 1.55 }}>
-            {goal.success_criteria || goal.description || 'No success criteria yet.'}
+            {goal.success_criteria || goal.description || g.noSuccessCriteria}
           </Typography>
         </Box>
         <Chip size="small" label={goal.status.replace('_', ' ')} sx={{ bgcolor: 'rgba(148,163,184,0.12)', color: 'text.secondary', flexShrink: 0 }} />
       </Stack>
       <Box sx={{ mt: 2 }}>
         <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.8 }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>Progress</Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{g.progress}</Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>{progress}%</Typography>
         </Stack>
         <LinearProgress
@@ -294,26 +308,27 @@ function GoalItem({ goal, tasks, accent }: { goal: Goal; tasks: Task[]; accent: 
         />
       </Box>
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mt: 1.4 }}>
-        <Chip size="small" icon={<FlagIcon />} label={`${complete}/${tasks.length || 0} tasks`} sx={{ bgcolor: 'rgba(99,102,241,0.13)', color: '#c4b5fd' }} />
-        {goal.due_on && <Chip size="small" label={`Due ${dayjs(goal.due_on).format('MMM D')}`} sx={{ bgcolor: 'rgba(20,184,166,0.12)', color: '#5eead4' }} />}
+        <Chip size="small" icon={<FlagIcon />} label={`${complete}/${tasks.length || 0} ${g.tasks}`} sx={{ bgcolor: 'rgba(99,102,241,0.13)', color: '#c4b5fd' }} />
+        {goal.due_on && <Chip size="small" label={`${g.due} ${dayjs(goal.due_on).format('MMM D')}`} sx={{ bgcolor: 'rgba(20,184,166,0.12)', color: '#5eead4' }} />}
       </Stack>
     </Box>
   );
 }
 
-function ActionPlanItem({ plan, tasks }: { plan: ActionPlan; tasks: Task[] }) {
+function ActionPlanItem({ plan, tasks, uiLang }: { plan: ActionPlan; tasks: Task[]; uiLang: UiLang }) {
   const complete = tasks.filter(task => task.status === 'completed' || task.outcome === 'completed').length;
   const progress = tasks.length > 0 ? Math.round((complete / tasks.length) * 100) : 0;
+  const g = UI[uiLang].goals;
   return (
     <Box sx={{ p: 2, borderRadius: 2, border: '1px solid rgba(148,163,184,0.15)', bgcolor: 'rgba(15,23,42,0.58)' }}>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
         <InsightsIcon sx={{ fontSize: 18, color: plan.plan_type === 'short_term_problem' ? '#fbbf24' : '#93c5fd' }} />
-        <Chip size="small" label={plan.plan_type === 'short_term_problem' ? 'short-term' : 'goal plan'} sx={{ bgcolor: 'rgba(251,191,36,0.12)', color: '#fbbf24' }} />
+        <Chip size="small" label={plan.plan_type === 'short_term_problem' ? g.shortTerm : g.goalPlan} sx={{ bgcolor: 'rgba(251,191,36,0.12)', color: '#fbbf24' }} />
         <Chip size="small" label={plan.priority_label} sx={priorityChipSx(plan.priority_label)} />
       </Stack>
       <Typography sx={{ fontWeight: 800, lineHeight: 1.25 }}>{plan.title}</Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.8, lineHeight: 1.55 }}>
-        {plan.problem_statement || plan.description || plan.success_criteria || 'No plan context yet.'}
+        {plan.problem_statement || plan.description || plan.success_criteria || g.noPlanContext}
       </Typography>
       <LinearProgress
         variant="determinate"
@@ -321,9 +336,9 @@ function ActionPlanItem({ plan, tasks }: { plan: ActionPlan; tasks: Task[] }) {
         sx={{ height: 6, borderRadius: 99, mt: 1.6, bgcolor: 'rgba(148,163,184,0.16)', '& .MuiLinearProgress-bar': { bgcolor: '#fbbf24' } }}
       />
       <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{complete}/{tasks.length} tasks</Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{complete}/{tasks.length} {g.tasks}</Typography>
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-          {plan.review_date ? `Review ${dayjs(plan.review_date).format('MMM D')}` : 'No review date'}
+          {plan.review_date ? `${g.review} ${dayjs(plan.review_date).format('MMM D')}` : g.noReviewDate}
         </Typography>
       </Stack>
     </Box>

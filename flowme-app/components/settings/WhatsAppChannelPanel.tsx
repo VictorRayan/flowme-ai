@@ -8,6 +8,7 @@ import {
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { resolveUiLang, type UiLang } from '@/lib/i18n';
 
 type ChannelStatus = 'none' | 'pending_verification' | 'active';
 
@@ -18,6 +19,47 @@ interface Channel {
   verified_at: string | null;
 }
 
+const STRINGS = {
+  en: {
+    codeSent: 'Verification code sent to your WhatsApp. Check your messages!',
+    connected: (date: string) => `Connected since ${date}`,
+    connectedSimple: 'Connected',
+    active: 'Active',
+    disconnect: 'Disconnect',
+    disconnectConfirm: 'Disconnect your WhatsApp number from Balys?',
+    disconnected: 'WhatsApp disconnected.',
+    whatsappConnected: 'WhatsApp connected! You can now chat with Balys on WhatsApp.',
+    enterCode: 'We sent a 6-digit code to your WhatsApp. Enter it below to activate Balys.',
+    codeLabel: '6-digit code',
+    verify: 'Verify',
+    useDifferentNumber: 'Use a different number',
+    enterNumber: 'Enter your WhatsApp number in international format (e.g. +5511999999999).',
+    willSendFrom: (phone: string) => ` Balys will send a verification code from ${phone}.`,
+    numberLabel: 'WhatsApp number',
+    sendCode: 'Send verification code',
+    footerNote: 'Once verified, send any message to Balys on WhatsApp — text, image, or voice note — and Balys will reply with your full context and tools.',
+  },
+  pt: {
+    codeSent: 'Código de verificação enviado para o seu WhatsApp. Verifique suas mensagens!',
+    connected: (date: string) => `Conectado desde ${date}`,
+    connectedSimple: 'Conectado',
+    active: 'Ativo',
+    disconnect: 'Desconectar',
+    disconnectConfirm: 'Desconectar seu número de WhatsApp do Balys?',
+    disconnected: 'WhatsApp desconectado.',
+    whatsappConnected: 'WhatsApp conectado! Agora você pode conversar com o Balys pelo WhatsApp.',
+    enterCode: 'Enviamos um código de 6 dígitos para o seu WhatsApp. Digite abaixo para ativar o Balys.',
+    codeLabel: 'Código de 6 dígitos',
+    verify: 'Verificar',
+    useDifferentNumber: 'Usar um número diferente',
+    enterNumber: 'Digite seu número do WhatsApp no formato internacional (ex: +5511999999999).',
+    willSendFrom: (phone: string) => ` O Balys enviará um código de verificação de ${phone}.`,
+    numberLabel: 'Número do WhatsApp',
+    sendCode: 'Enviar código de verificação',
+    footerNote: 'Uma vez verificado, envie qualquer mensagem ao Balys pelo WhatsApp — texto, imagem ou nota de voz — e o Balys responderá com seu contexto e ferramentas completos.',
+  },
+};
+
 export default function WhatsAppChannelPanel() {
   const [channel, setChannel]     = useState<Channel | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -27,6 +69,17 @@ export default function WhatsAppChannelPanel() {
   const [error, setError]         = useState<string | null>(null);
   const [success, setSuccess]     = useState<string | null>(null);
   const [saving, setSaving]       = useState(false);
+  const [uiLang, setUiLang]       = useState<UiLang>('en');
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const t = STRINGS[uiLang];
 
   const fetchChannel = useCallback(async () => {
     setLoading(true);
@@ -62,7 +115,7 @@ export default function WhatsAppChannelPanel() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to send code');
       setStep('sent');
-      setSuccess('Verification code sent to your WhatsApp. Check your messages!');
+      setSuccess(t.codeSent);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -82,7 +135,7 @@ export default function WhatsAppChannelPanel() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Verification failed');
-      setSuccess('WhatsApp connected! You can now chat with Balys on WhatsApp.');
+      setSuccess(t.whatsappConnected);
       setStep('active');
       fetchChannel();
     } catch (e: any) {
@@ -93,7 +146,7 @@ export default function WhatsAppChannelPanel() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Disconnect your WhatsApp number from Balys?')) return;
+    if (!confirm(t.disconnectConfirm)) return;
     setError(null);
     setSaving(true);
     try {
@@ -102,7 +155,7 @@ export default function WhatsAppChannelPanel() {
       setStep('idle');
       setPhone('');
       setCode('');
-      setSuccess('WhatsApp disconnected.');
+      setSuccess(t.disconnected);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -132,10 +185,12 @@ export default function WhatsAppChannelPanel() {
             <Box>
               <Typography fontWeight={600}>+{channel.phone}</Typography>
               <Typography variant="caption" color="text.secondary">
-                Connected{channel.verified_at ? ` since ${new Date(channel.verified_at).toLocaleDateString()}` : ''}
+                {channel.verified_at
+                  ? t.connected(new Date(channel.verified_at).toLocaleDateString())
+                  : t.connectedSimple}
               </Typography>
             </Box>
-            <Chip icon={<WhatsAppIcon />} label="Active" color="success" size="small" variant="outlined" />
+            <Chip icon={<WhatsAppIcon />} label={t.active} color="success" size="small" variant="outlined" />
           </Box>
           <Button
             variant="outlined"
@@ -145,17 +200,17 @@ export default function WhatsAppChannelPanel() {
             onClick={handleDisconnect}
             disabled={saving}
           >
-            Disconnect
+            {t.disconnect}
           </Button>
         </Box>
       ) : step === 'sent' ? (
         <Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            We sent a 6-digit code to your WhatsApp. Enter it below to activate Balys.
+            {t.enterCode}
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="flex-start">
             <TextField
-              label="6-digit code"
+              label={t.codeLabel}
               size="small"
               value={code}
               onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -163,24 +218,24 @@ export default function WhatsAppChannelPanel() {
               sx={{ width: 160 }}
             />
             <Button variant="contained" onClick={handleVerify} disabled={saving || code.length !== 6}>
-              {saving ? <CircularProgress size={18} /> : 'Verify'}
+              {saving ? <CircularProgress size={18} /> : t.verify}
             </Button>
             <Button variant="text" size="small" onClick={() => { setStep('idle'); setCode(''); }}>
-              Use a different number
+              {t.useDifferentNumber}
             </Button>
           </Stack>
         </Box>
       ) : (
         <Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Enter your WhatsApp number in international format (e.g. +5511999999999).
+            {t.enterNumber}
             {instancePhone && (
-              <> Balys will send a verification code from <strong>{instancePhone}</strong>.</>
+              <strong>{t.willSendFrom(instancePhone)}</strong>
             )}
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="flex-start">
             <TextField
-              label="WhatsApp number"
+              label={t.numberLabel}
               size="small"
               placeholder="+5511999999999"
               value={phone}
@@ -193,7 +248,7 @@ export default function WhatsAppChannelPanel() {
               onClick={handleRegister}
               disabled={saving || !phone.trim()}
             >
-              {saving ? <CircularProgress size={18} /> : 'Send verification code'}
+              {saving ? <CircularProgress size={18} /> : t.sendCode}
             </Button>
           </Stack>
         </Box>
@@ -203,7 +258,7 @@ export default function WhatsAppChannelPanel() {
         <>
           <Divider sx={{ my: 2 }} />
           <Typography variant="caption" color="text.secondary">
-            Once verified, send any message to Balys on WhatsApp — text, image, or voice note — and Balys will reply with your full context and tools.
+            {t.footerNote}
           </Typography>
         </>
       )}

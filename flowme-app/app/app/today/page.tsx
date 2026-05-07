@@ -14,6 +14,7 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import SkipNextIcon       from '@mui/icons-material/SkipNext';
 import Link               from 'next/link';
 import dayjs              from 'dayjs';
+import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 type TaskOutcome   = 'pending'|'completed'|'skipped'|'moved'|'incomplete'|'blocked'|'deferred';
@@ -86,10 +87,19 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState<string|null>(null);
   const [error,   setError]   = useState<string|null>(null);
+  const [uiLang,  setUiLang]  = useState<UiLang>('en');
   const lastFetch  = useRef(0);
   const todayRef   = useRef<HTMLDivElement>(null);
   const tz         = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC', []);
   const today      = dayjs().format('YYYY-MM-DD');
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const fetchRange = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -214,6 +224,7 @@ export default function TodayPage() {
               saving={saving}
               onUpdate={update}
               onMove={moveTo}
+              uiLang={uiLang}
             />
           ))}
         </Box>
@@ -223,18 +234,20 @@ export default function TodayPage() {
 }
 
 /* ── DaySection: one "unit" like Duolingo ──────────────────────────────── */
-function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove }: {
+function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }: {
   day: DayUnit;
   isToday: boolean;
   todayRef?: React.RefObject<HTMLDivElement | null>;
   saving: string|null;
   onUpdate: (task: NormalizedTask, body: Record<string,unknown>) => void;
   onMove:   (task: NormalizedTask, to: string) => void;
+  uiLang: UiLang;
 }) {
   const sorted = useMemo(() => sortTasks(day.tasks), [day.tasks]);
   const isWeekend = dayjs(day.date).day() === 0 || dayjs(day.date).day() === 6;
   const isPast    = day.date < dayjs().format('YYYY-MM-DD');
   const tomorrow  = dayjs(day.date).add(1,'day').format('YYYY-MM-DD');
+  const t = UI[uiLang].today;
 
   // Unit header colour
   const headerBg = isToday
@@ -267,7 +280,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove }: {
         <Box>
           {isToday && (
             <Typography sx={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.6)', letterSpacing:'0.12em', textTransform:'uppercase', lineHeight:1, mb:0.3 }}>
-              TODAY
+              {t.todayLabel}
             </Typography>
           )}
           <Typography sx={{ fontWeight:800, fontSize:{xs:15,md:17}, letterSpacing:'-0.2px', color:'#fff', lineHeight:1 }}>
@@ -297,7 +310,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove }: {
       {sorted.length === 0 ? (
         <Box sx={{ py:4, textAlign:'center' }}>
           <Typography sx={{ fontSize:13, color:'rgba(148,163,184,0.3)', fontStyle:'italic' }}>
-            {isPast ? 'Nothing was planned' : 'Nothing planned yet'}
+            {isPast ? t.nothingPlannedPast : t.nothingPlannedFuture}
           </Typography>
         </Box>
       ) : (
@@ -327,6 +340,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove }: {
                 onUndo={()=>onUpdate(task,{outcome:'pending'})}
                 onSkip={()=>onUpdate(task,{outcome:'skipped',outcome_reason:'Skipped'})}
                 onMove={()=>onMove(task, tomorrow)}
+                uiLang={uiLang}
               />
             );
           })}
@@ -374,9 +388,10 @@ function ConnectorLines({ tasks, containerWidth }: { tasks: NormalizedTask[]; co
 }
 
 /* ── TaskBubble ─────────────────────────────────────────────────────────── */
-function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove }: {
+function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLang }: {
   task: NormalizedTask; cx: number; cy: number;
   saving: boolean; onDone:()=>void; onUndo:()=>void; onSkip:()=>void; onMove:()=>void;
+  uiLang: UiLang;
 }) {
   const [open, setOpen] = useState(false);
   const readonly = task.source_type === 'calendar_event';
@@ -385,6 +400,7 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove }: {
   const blocked  = task.outcome === 'blocked'  || task.outcome === 'deferred';
   const ac       = accentFor(task);
   const tl       = timeLabel(task);
+  const t        = UI[uiLang].today;
 
   // Card pops to the right if bubble is on left half, left if on right half
   const cardSide = cx <= 50 ? 'right' : 'left';
@@ -453,7 +469,7 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove }: {
             zIndex:50,
           }} onClick={e=>e.stopPropagation()}>
             <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{mb:0.6}}>
-              <PChip label={task.priority_label}/>
+              <PChip label={task.priority_label} mustDoLabel={t.mustDo}/>
               {task.source_type==='calendar_event' && (
                 <Chip size="small" icon={<CalendarTodayIcon/>} label="Cal"
                   sx={{height:18,fontSize:10,bgcolor:'rgba(99,102,241,0.15)',color:'#a5b4fc',
@@ -488,15 +504,15 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove }: {
             {!readonly && (
               <Stack direction="row" spacing={0.5} sx={{mt:1,flexWrap:'wrap'}}>
                 {done ? (
-                  <ABtn color="#94a3b8" icon={<RadioButtonUncheckedIcon sx={{fontSize:13}}/>} label="Undo"
+                  <ABtn color="#94a3b8" icon={<RadioButtonUncheckedIcon sx={{fontSize:13}}/>} label={t.undo}
                     onClick={()=>{onUndo();setOpen(false);}} disabled={saving}/>
                 ) : (
                   <>
-                    <ABtn color="#22c55e" icon={<CheckCircleIcon sx={{fontSize:13}}/>} label="Done"
+                    <ABtn color="#22c55e" icon={<CheckCircleIcon sx={{fontSize:13}}/>} label={t.done}
                       onClick={()=>{onDone();setOpen(false);}} disabled={saving}/>
-                    <ABtn color="#a78bfa" icon={<SkipNextIcon sx={{fontSize:13}}/>} label="Tomorrow"
+                    <ABtn color="#a78bfa" icon={<SkipNextIcon sx={{fontSize:13}}/>} label={t.tomorrow}
                       onClick={()=>{onMove();setOpen(false);}} disabled={saving}/>
-                    <ABtn color="#f97316" icon={<BlockIcon sx={{fontSize:13}}/>} label="Skip"
+                    <ABtn color="#f97316" icon={<BlockIcon sx={{fontSize:13}}/>} label={t.skip}
                       onClick={()=>{onSkip();setOpen(false);}} disabled={saving}/>
                   </>
                 )}
@@ -517,11 +533,11 @@ function BIcon({task,color}:{task:NormalizedTask;color:string}) {
   return <RadioButtonUncheckedIcon sx={{fontSize:24,color}}/>;
 }
 
-function PChip({label}:{label:PriorityLabel}) {
+function PChip({label, mustDoLabel}:{label:PriorityLabel; mustDoLabel: string}) {
   const sx = label==='non_negotiable' ? {bgcolor:'rgba(244,63,94,0.15)',color:'#fda4af'}
     : label==='routine'               ? {bgcolor:'rgba(34,197,94,0.12)',color:'#86efac'}
     :                                   {bgcolor:'rgba(34,211,238,0.12)',color:'#67e8f9'};
-  return <Chip size="small" label={label==='non_negotiable'?'must-do':label} sx={{height:18,fontSize:10,...sx}}/>;
+  return <Chip size="small" label={label==='non_negotiable'? mustDoLabel : label} sx={{height:18,fontSize:10,...sx}}/>;
 }
 
 function ABtn({color,icon,label,onClick,disabled}:{color:string;icon:React.ReactNode;label:string;onClick:()=>void;disabled:boolean}) {

@@ -18,20 +18,31 @@ import ElectricalServicesIcon from '@mui/icons-material/ElectricalServices';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 
 const drawerWidth = 240;
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [uiLang, setUiLang] = React.useState<UiLang>('en');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const pathname = usePathname();
   const router = useRouter();
 
+  React.useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
+    setUiLang(resolveUiLang(stored));
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // Parallax: update --sidebar-parallax-y on main content scroll
   React.useEffect(() => {
     const handler = () => {
-      // Find the scrollable main content — any element with overflow scroll/auto
       const scrollable = document.querySelector('[data-main-scroll]') as HTMLElement | null
         ?? document.querySelector('main') as HTMLElement | null;
       const scrollTop = scrollable?.scrollTop ?? window.scrollY;
@@ -39,7 +50,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       document.documentElement.style.setProperty('--sidebar-parallax-y', `${offset}px`);
     };
 
-    // Attach to both window and any scrollable child
     window.addEventListener('scroll', handler, { passive: true });
     const main = document.querySelector('[data-main-scroll]') ?? document.querySelector('main');
     main?.addEventListener('scroll', handler, { passive: true });
@@ -48,7 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       window.removeEventListener('scroll', handler);
       main?.removeEventListener('scroll', handler);
     };
-  }, [pathname]); // re-attach on page change
+  }, [pathname]);
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
@@ -57,21 +67,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const nav = UI[uiLang].nav;
+
   const menuItems = [
-    { text: 'Today',      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today' },
-    { text: 'Goals',      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals' },
-    { text: 'Calendar',   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar' },
-    { text: 'Notes',      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
-    { text: 'BalysAI',   icon: <SmartToyIcon           sx={{ fontSize: 20 }} />, path: '/app/ai' },
-    { text: 'Connectors', icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors' },
-    { text: 'Settings',   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
+    { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today' },
+    { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals' },
+    { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar' },
+    { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
+    { text: nav.balysAi,    icon: <SmartToyIcon          sx={{ fontSize: 20 }} />, path: '/app/ai' },
+    { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors' },
+    { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
   ];
 
   const drawer = (
     <Box className="sidebar-bg">
       {/* Logo */}
       <Box sx={{ px: 2, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        {/* Logo mark */}
         <Box sx={{
           width: 30,
           height: 30,
@@ -87,7 +98,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             F
           </Typography>
         </Box>
-        {/* Gradient wordmark */}
         <Typography
           variant="h6"
           noWrap
@@ -112,7 +122,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {menuItems.map((item) => {
           const active = pathname.startsWith(item.path);
           return (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+            <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 component={Link}
                 href={item.path}
@@ -131,7 +141,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     color: active ? 'primary.light' : 'text.secondary',
                   }}
                 />
-                {/* Active dot indicator */}
                 {active && (
                   <Box sx={{
                     width: 6,
@@ -154,13 +163,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Footer: logout */}
       <List sx={{ px: 0.5, py: 1 }}>
         <ListItem disablePadding>
-          <Tooltip title="Log out" placement="right">
+          <Tooltip title={nav.logOut} placement="right">
             <ListItemButton onClick={handleLogout} sx={{ borderRadius: '0 8px 8px 0', py: 1 }}>
               <ListItemIcon sx={{ color: 'text.disabled', minWidth: 36 }}>
                 <LogoutIcon sx={{ fontSize: 20 }} />
               </ListItemIcon>
               <ListItemText
-                primary="Log out"
+                primary={nav.logOut}
                 primaryTypographyProps={{ fontSize: 14, color: 'text.disabled' }}
               />
             </ListItemButton>

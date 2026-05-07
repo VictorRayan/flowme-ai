@@ -19,6 +19,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import AddIcon from '@mui/icons-material/Add';
 import ChatIcon from '@mui/icons-material/Chat';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import HistoryIcon from '@mui/icons-material/History';
 import NoteIcon from '@mui/icons-material/Note';
 import EventIcon from '@mui/icons-material/Event';
@@ -200,6 +201,10 @@ function normalizeThread(thread: Partial<Thread>): Thread {
   };
 }
 
+function isWhatsAppThread(thread: Pick<Thread, 'title'> | null | undefined): boolean {
+  return (thread?.title || '').trim().toLowerCase() === 'whatsapp';
+}
+
 export default function AIPage() {
   const [threads, setThreads]         = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -336,11 +341,10 @@ export default function AIPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Hydrate messages on demand: when activating a thread that has no local messages.
   useEffect(() => {
     if (!activeThreadId) return;
     const active = threads.find((t) => t.id === activeThreadId);
-    if (!active || active.messages.length > 0) return;
+    if (!active || !UUID_RE.test(activeThreadId)) return;
 
     let cancelled = false;
     fetch(`/api/threads/${activeThreadId}`)
@@ -848,15 +852,19 @@ Rules:
         <Tooltip title="New chat"><IconButton size="small" onClick={() => { newChat(); setSidebarOpen(false); }}><AddIcon fontSize="small" /></IconButton></Tooltip>
       </Box>
       <List dense disablePadding sx={{ flex: 1, overflowY: 'auto' }}>
-        {threads.map(t => (
-          <ListItemButton key={t.id} selected={t.id === activeThreadId} onClick={() => { setActiveThreadId(t.id); setSidebarOpen(false); }} sx={{ px: 1.5, py: 0.75 }}>
-            <ChatIcon sx={{ fontSize: 14, mr: 1, color: 'text.disabled', flexShrink: 0 }} />
-            <ListItemText primary={<Typography variant="body2" noWrap sx={{ maxWidth: 130 }}>{t.title}</Typography>} />
-            <IconButton size="small" onClick={e => requestDeleteThread(t.id, e)} sx={{ opacity: 0, '.MuiListItemButton-root:hover &': { opacity: 1 }, p: 0.2 }}>
-              <CloseIcon sx={{ fontSize: 12 }} />
-            </IconButton>
-          </ListItemButton>
-        ))}
+        {threads.map(t => {
+          const threadIsWhatsApp = isWhatsAppThread(t);
+          const ThreadIcon = threadIsWhatsApp ? WhatsAppIcon : ChatIcon;
+          return (
+            <ListItemButton key={t.id} selected={t.id === activeThreadId} onClick={() => { setActiveThreadId(t.id); setSidebarOpen(false); }} sx={{ px: 1.5, py: 0.75 }}>
+              <ThreadIcon sx={{ fontSize: 14, mr: 1, color: threadIsWhatsApp ? '#25D366' : 'text.disabled', flexShrink: 0 }} />
+              <ListItemText primary={<Typography variant="body2" noWrap sx={{ maxWidth: 130 }}>{t.title}</Typography>} />
+              <IconButton size="small" onClick={e => requestDeleteThread(t.id, e)} sx={{ opacity: 0, '.MuiListItemButton-root:hover &': { opacity: 1 }, p: 0.2 }}>
+                <CloseIcon sx={{ fontSize: 12 }} />
+              </IconButton>
+            </ListItemButton>
+          );
+        })}
       </List>
     </Box>
   );
@@ -889,7 +897,9 @@ Rules:
               <HistoryIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <SmartToyIcon color="secondary" fontSize="small" />
+          {isWhatsAppThread(activeThread)
+            ? <WhatsAppIcon sx={{ color: '#25D366', fontSize: 20 }} />
+            : <SmartToyIcon color="secondary" fontSize="small" />}
           <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
           <Box sx={{ flex: 1 }} />
           <Tooltip title="Clear chat">

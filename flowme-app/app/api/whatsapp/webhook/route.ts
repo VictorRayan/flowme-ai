@@ -57,16 +57,25 @@ export async function POST(request: NextRequest) {
     msg?.documentMessage?.caption ??
     '';
 
-  // When "Webhook Base64" is enabled in Evolution, media arrives inline here.
-  // Shape: data.message.<type>.base64 + data.message.<type>.mimetype
+  // When "Webhook Base64" is enabled, Evolution may place base64 either
+  // inside the typed node or beside it as data.message.base64.
   const MEDIA_TYPES = ['imageMessage', 'audioMessage', 'videoMessage', 'documentMessage', 'stickerMessage'] as const;
   const hasMedia = MEDIA_TYPES.includes(messageType as any);
 
   let mediaBase64: string | undefined;
   let mediaMimetype: string | undefined;
   if (hasMedia && msg[messageType]) {
-    mediaBase64   = msg[messageType]?.base64    ?? undefined;
-    mediaMimetype = msg[messageType]?.mimetype  ?? msg[messageType]?.mediaType ?? undefined;
+    const mediaNode = msg[messageType];
+    const rawBase64 = mediaNode?.base64 ?? msg?.base64 ?? data?.base64;
+    mediaBase64 = typeof rawBase64 === 'string'
+      ? rawBase64.replace(/^data:[^,]+;base64,/, '')
+      : undefined;
+    mediaMimetype =
+      mediaNode?.mimetype ??
+      mediaNode?.mediaType ??
+      msg?.mimetype ??
+      data?.mimetype ??
+      (messageType === 'audioMessage' ? 'audio/ogg' : undefined);
   }
 
   const incoming: WhatsAppIncomingMessage = {

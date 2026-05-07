@@ -18,7 +18,7 @@ export interface ContextItem {
   label: string;       // display label
   subtitle?: string;   // date / time
   content: string;     // for 'note'/'event': context block to inject; for 'action': directive prefix
-  action?: 'council' | 'briefing' | 'note';
+  action?: 'council' | 'briefing' | 'note' | 'weather';
 }
 
 interface ActionDef {
@@ -27,7 +27,7 @@ interface ActionDef {
   label: string;
   subtitle: string;
   directive: string;
-  action: 'council' | 'briefing' | 'note';
+  action: 'council' | 'briefing' | 'note' | 'weather';
 }
 
 const ACTIONS: ActionDef[] = [
@@ -54,6 +54,14 @@ const ACTIONS: ActionDef[] = [
     subtitle: 'Save the next message as a note',
     directive: 'Treat the user\'s message as content to save as a new note. Pick a short title from the content (4-8 words) and call notes.create_note. Confirm naturally.',
     action: 'note',
+  },
+  {
+    id: 'weather',
+    command: '/weather',
+    label: '/weather',
+    subtitle: 'Current weather & 5-day forecast',
+    directive: 'Call weather.get to fetch the current weather. If the user typed a city after /weather use that as the city argument. If userLocation coordinates are in context use those. Otherwise ask the user which city they want.',
+    action: 'weather',
   },
 ];
 
@@ -263,7 +271,9 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
                         ? <GroupsIcon fontSize="small" sx={{ color: 'secondary.main' }} />
                         : item.action === 'briefing'
                           ? <WbSunnyIcon fontSize="small" sx={{ color: 'warning.main' }} />
-                          : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
+                          : item.action === 'weather'
+                            ? <WbSunnyIcon fontSize="small" sx={{ color: '#38bdf8' }} />
+                            : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
                     : item.kind === 'note'
                       ? <NoteIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       : <EventIcon fontSize="small" sx={{ color: 'info.main' }} />}

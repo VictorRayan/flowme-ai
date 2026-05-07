@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export type UserLocation = {
+  lat: number;
+  lon: number;
+  name?: string;
+};
+
 export type ToolContext = {
   supabase: any;
   user: {
@@ -11,6 +17,7 @@ export type ToolContext = {
   timezone: string;
   nowIso: string;
   threadId?: string;
+  userLocation?: UserLocation;
   onProgress?: (event: { type: string; [key: string]: unknown }) => void;
 };
 

@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       timezone,
       clientNowIso,
       rawUserInput,
+      userLocation,
     } = await request.json();
     if (!messages?.length) return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
 
@@ -191,6 +192,9 @@ export async function POST(request: NextRequest) {
               nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
               timezone: typeof timezone === 'string' ? timezone : 'UTC',
               threadId: threadIdForTools,
+              userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
+                ? { lat: userLocation.lat, lon: userLocation.lon, name: userLocation.name }
+                : undefined,
             },
             threadId: threadIdForTools,
             onProgress: (event) => send(event),

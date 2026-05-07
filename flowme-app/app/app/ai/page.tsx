@@ -25,6 +25,8 @@ import NoteIcon from '@mui/icons-material/Note';
 import EventIcon from '@mui/icons-material/Event';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
+import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import CommandPalette, { ContextItem } from '@/components/ai/CommandPalette';
 import { UI, resolveUiLang } from '@/lib/i18n';
 
@@ -221,10 +223,12 @@ export default function AIPage() {
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
-  const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: 'council' | 'briefing' | 'note' } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: 'council' | 'briefing' | 'note' | 'weather' } | null>(null);
   const [destructiveDialog, setDestructiveDialog] = useState<DestructiveDialog>(null);
   const [uiLang, setUiLang] = useState<Lang>('en');
   const [interfaceLang, setInterfaceLang] = useState<'en' | 'pt'>('en');
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number; name?: string } | null>(null);
+  const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('balysai_language') : null;
     setUiLang(resolveLang(stored));
@@ -237,6 +241,25 @@ export default function AIPage() {
     if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
     return () => { if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage); };
   }, []);
+
+  // Request browser GPS once on mount. Tracks permission state so the weather
+  // action can show a nudge if the user denied location access.
+  const requestGps = React.useCallback(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationPermission('denied');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setLocationPermission('granted');
+      },
+      () => setLocationPermission('denied'),
+      { timeout: 8000, maximumAge: 5 * 60 * 1000 }
+    );
+  }, []);
+
+  useEffect(() => { requestGps(); }, [requestGps]);
   const inputBoxRef = useRef<HTMLDivElement>(null);
 
   const bottomRef    = useRef<HTMLDivElement>(null);
@@ -532,6 +555,12 @@ export default function AIPage() {
     setInput(prev => prev.replace(/(^|\s)\/\S*$/, (m, space) => space));
     if (item.kind === 'action' && item.action) {
       setPendingAction({ id: item.id, label: item.label, directive: item.content, action: item.action });
+      // If weather selected and we don't have location yet, re-attempt GPS prompt.
+      // The browser will ask if it hasn't been decided yet; if already denied it
+      // stays 'denied' and we show the nudge banner instead.
+      if (item.action === 'weather' && locationPermission !== 'granted') {
+        requestGps();
+      }
     } else {
       setContextItems(prev => prev.find(c => c.id === item.id) ? prev : [...prev, item]);
     }
@@ -651,6 +680,7 @@ Rules:
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           clientNowIso: new Date().toISOString(),
           rawUserInput,
+          userLocation: userLocation ?? undefined,
         }),
       });
 
@@ -1018,14 +1048,43 @@ Rules:
 
         {/* Pending action */}
         {pendingAction && (
-          <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip
               size="small"
+              icon={pendingAction.action === 'weather' ? <WbSunnyIcon sx={{ fontSize: '14px !important' }} /> : undefined}
               label={pendingAction.label}
               color="primary"
               onDelete={() => setPendingAction(null)}
               sx={{ fontWeight: 600 }}
             />
+            {/* Location granted indicator */}
+            {pendingAction.action === 'weather' && locationPermission === 'granted' && userLocation && (
+              <Chip
+                size="small"
+                icon={<MyLocationIcon sx={{ fontSize: '13px !important' }} />}
+                label={interfaceLang === 'pt' ? 'Localização detectada' : 'Location detected'}
+                color="success"
+                variant="outlined"
+                sx={{ fontSize: 11 }}
+              />
+            )}
+          </Box>
+        )}
+
+        {/* Location denied nudge — shown when /weather is active but GPS was blocked */}
+        {pendingAction?.action === 'weather' && locationPermission === 'denied' && (
+          <Box sx={{
+            mx: 2, mt: 1, px: 1.5, py: 1,
+            border: '1px solid', borderColor: 'warning.dark',
+            borderRadius: 1.5, bgcolor: 'rgba(234,179,8,0.07)',
+            display: 'flex', alignItems: 'center', gap: 1,
+          }}>
+            <MyLocationIcon sx={{ fontSize: 15, color: 'warning.main', flexShrink: 0 }} />
+            <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.5 }}>
+              {interfaceLang === 'pt'
+                ? 'Localização bloqueada. Permita o acesso nas configurações do navegador ou digite o nome da cidade abaixo.'
+                : 'Location blocked. Allow it in browser settings, or just type a city name below.'}
+            </Typography>
           </Box>
         )}
 

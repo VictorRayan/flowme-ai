@@ -8,6 +8,7 @@ import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
 import { loadProfile, renderProfileForPrompt } from '@/lib/ai/memory/profile';
 import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/facts';
 import { ensureThread, persistMessage } from '@/lib/ai/threads';
+import { prepareMessagesWithAttachments } from '@/lib/ai/prepare-messages';
 import { jidToPhone, sendText } from './evolution-client';
 
 const SUPABASE_URL         = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -105,8 +106,8 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
     user: { id: user.id, email: user.email } as any,
   };
 
-  let userText       = incoming.text || '';
-  const mediaAttachment = buildMediaAttachment(incoming);
+  let userText = incoming.text || '';
+  let mediaAttachment = buildMediaAttachment(incoming);
 
   if (incoming.messageType === 'videoMessage') {
     userText = userText || '[Video message — video processing is not supported yet. Describe what you need in text.]';
@@ -122,6 +123,20 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
   if (!userText && !mediaAttachment) {
     await sendText(incoming.senderJid, "Hi! I received your message but couldn't read it. Please try sending text, an image, or a voice note.");
     return;
+  }
+
+  if (mediaAttachment?.type === 'audio') {
+    const [prepared] = await prepareMessagesWithAttachments([
+      { role: 'user', content: userText, attachments: [mediaAttachment] },
+    ]);
+    userText = prepared?.content?.trim() || '';
+    mediaAttachment = null;
+
+    if (!userText || userText.startsWith('[Audio transcription failed:')) {
+      console.error('[whatsapp-balys] audio transcription failed:', userText || 'empty transcript');
+      await sendText(incoming.senderJid, "I couldn't understand that voice note. Can you try sending it again, or write it as text?");
+      return;
+    }
   }
 
   const threadId = threadIdForJid(user.id, incoming.senderJid);

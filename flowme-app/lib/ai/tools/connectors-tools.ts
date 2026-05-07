@@ -457,7 +457,7 @@ ASK THE USER FIRST IF: the query is broad enough to be sensitive ("all emails fr
     const accountId = await getGoogleAccountId(context);
     if (!accountId) return { ok: false, error: 'No active Google account connected.' };
     try {
-      const messages = await searchEmails(accountId, args.query, args.max_results);
+      const messages = await searchEmails(accountId, args.query, args.max_results, context);
       return { ok: true, receipt: { messages, count: messages.length } };
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
@@ -500,7 +500,7 @@ ASK THE USER FIRST IF: recipients are ambiguous or unverified, the email is sens
     const accountId = await getGoogleAccountId(context);
     if (!accountId) return { ok: false, error: 'No active Google account connected.' };
     try {
-      const draft = await createDraft(accountId, args.to, args.subject, args.body);
+      const draft = await createDraft(accountId, args.to, args.subject, args.body, context);
       return { ok: true, receipt: { draft_id: draft.id, message_id: draft.messageId, status: 'draft_created' } };
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;

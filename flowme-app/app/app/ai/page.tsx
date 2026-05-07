@@ -238,6 +238,7 @@ export default function AIPage() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const activeThread = threads.find(t => t.id === activeThreadId) || null;
+  const activeIsWhatsAppThread = isWhatsAppThread(activeThread);
 
   // Hydrate threads: prefer server, fall back to localStorage cache, run one-shot backfill if needed.
   useEffect(() => {
@@ -534,6 +535,7 @@ export default function AIPage() {
   const removeContext = (id: string) => setContextItems(prev => prev.filter(c => c.id !== id));
 
   const sendMessage = async () => {
+    if (activeIsWhatsAppThread) return;
     if ((!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading || !activeThread) return;
 
     const rawUserInput = input.trim();
@@ -897,7 +899,7 @@ Rules:
               <HistoryIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          {isWhatsAppThread(activeThread)
+          {activeIsWhatsAppThread
             ? <WhatsAppIcon sx={{ color: '#25D366', fontSize: 20 }} />
             : <SmartToyIcon color="secondary" fontSize="small" />}
           <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
@@ -1036,8 +1038,16 @@ Rules:
           </Box>
         )}
 
+        {activeIsWhatsAppThread && (
+          <Box sx={{ px: 2, py: 1, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'rgba(37, 211, 102, 0.06)' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              This conversation is WhatsApp-only. Send new messages from WhatsApp; this view is read-only history.
+            </Typography>
+          </Box>
+        )}
+
         {/* Attachment previews */}
-        {attachments.length > 0 && (
+        {!activeIsWhatsAppThread && attachments.length > 0 && (
           <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {attachments.map((att, i) => (
               <Box key={i} sx={{ position: 'relative' }}>
@@ -1057,16 +1067,16 @@ Rules:
         <Box ref={inputBoxRef} sx={{ px: { xs: 1, md: 2 }, py: 1.5, display: 'flex', gap: { xs: 0.5, md: 1 }, alignItems: 'flex-end' }}>
           <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={e => handleFileChange(e, 'image')} />
           <input ref={fileInputRef} type="file" multiple hidden onChange={e => handleFileChange(e, 'file')} />
-          <Tooltip title="Image"><IconButton size="small" onClick={() => imageInputRef.current?.click()} disabled={loading}><ImageIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="File"><IconButton size="small" onClick={() => fileInputRef.current?.click()} disabled={loading}><AttachFileIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title={recording ? 'Stop' : 'Record audio'}>
-            <IconButton size="small" onClick={recording ? stopRecording : startRecording} color={recording ? 'error' : 'default'}>
+          <Tooltip title={activeIsWhatsAppThread ? 'Use WhatsApp to send media in this conversation' : 'Image'}><IconButton size="small" onClick={() => imageInputRef.current?.click()} disabled={loading || activeIsWhatsAppThread}><ImageIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={activeIsWhatsAppThread ? 'Use WhatsApp to send files in this conversation' : 'File'}><IconButton size="small" onClick={() => fileInputRef.current?.click()} disabled={loading || activeIsWhatsAppThread}><AttachFileIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={activeIsWhatsAppThread ? 'Use WhatsApp to send audio in this conversation' : recording ? 'Stop' : 'Record audio'}>
+            <IconButton size="small" onClick={recording ? stopRecording : startRecording} color={recording ? 'error' : 'default'} disabled={activeIsWhatsAppThread}>
               {recording ? <StopIcon fontSize="small" /> : <MicIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
           {recording && <Chip label="Recording..." color="error" size="small" />}
           <TextField fullWidth multiline maxRows={4}
-            placeholder='Message BalysAI...'
+            placeholder={activeIsWhatsAppThread ? 'WhatsApp-only conversation' : 'Message BalysAI...'}
             inputProps={{ 'aria-label': 'Message BalysAI' }}
             value={input}
             onChange={e => handleInputChange(e.target.value)}
@@ -1079,9 +1089,9 @@ Rules:
               }
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }}
-            size="small" disabled={loading} suppressHydrationWarning />
+            size="small" disabled={loading || activeIsWhatsAppThread} suppressHydrationWarning />
           <span suppressHydrationWarning>
-            <IconButton color="primary" onClick={sendMessage} disabled={(!input.trim() && attachments.length === 0 && contextItems.length === 0) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
+            <IconButton color="primary" onClick={sendMessage} disabled={activeIsWhatsAppThread || (!input.trim() && attachments.length === 0 && contextItems.length === 0) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
               {loading ? <CircularProgress size={20} /> : <SendIcon />}
             </IconButton>
           </span>

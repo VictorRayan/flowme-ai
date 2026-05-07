@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { getValidGoogleToken } from './google-auth';
+import { getValidGoogleToken, GoogleTokenAuthContext } from './google-auth';
 
 export type GmailMessageSummary = {
   id: string;
@@ -10,8 +10,8 @@ export type GmailMessageSummary = {
   date: string;
 };
 
-export async function searchEmails(linkedAccountId: string, query: string, maxResults: number = 10): Promise<GmailMessageSummary[]> {
-  const auth = await getValidGoogleToken(linkedAccountId);
+export async function searchEmails(linkedAccountId: string, query: string, maxResults: number = 10, authContext?: GoogleTokenAuthContext): Promise<GmailMessageSummary[]> {
+  const auth = await getValidGoogleToken(linkedAccountId, authContext);
   const gmail = google.gmail({ version: 'v1', auth });
 
   const listRes = await gmail.users.messages.list({
@@ -57,8 +57,8 @@ export async function searchEmails(linkedAccountId: string, query: string, maxRe
   return detailedMessages.filter((m): m is GmailMessageSummary => m !== null);
 }
 
-export async function createDraft(linkedAccountId: string, to: string[], subject: string, bodyText: string): Promise<{ id: string; messageId: string }> {
-  const auth = await getValidGoogleToken(linkedAccountId);
+export async function createDraft(linkedAccountId: string, to: string[], subject: string, bodyText: string, authContext?: GoogleTokenAuthContext): Promise<{ id: string; messageId: string }> {
+  const auth = await getValidGoogleToken(linkedAccountId, authContext);
   const gmail = google.gmail({ version: 'v1', auth });
 
   // Create RFC 2822 formatted email

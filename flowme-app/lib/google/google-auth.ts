@@ -10,11 +10,16 @@ export function getGoogleOAuthClient() {
   );
 }
 
-export async function getValidGoogleToken(linkedAccountId: string) {
-  const auth = await getAuthUser();
+export interface GoogleTokenAuthContext {
+  supabase: any;
+  user?: { id: string };
+}
+
+export async function getValidGoogleToken(linkedAccountId: string, authContext?: GoogleTokenAuthContext) {
+  const auth = authContext || await getAuthUser();
   if (!auth) throw new Error(ErrorCode.UNAUTHORIZED);
 
-  const { supabase, user } = auth;
+  const { supabase } = auth;
 
   // Fetch token for this linked account
   const { data: tokenRecord, error } = await supabase

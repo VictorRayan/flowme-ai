@@ -186,7 +186,7 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
     }
 
     try {
-      const events = await getCalendarEvents(accountId, startIso, endIso);
+      const events = await getCalendarEvents(accountId, startIso, endIso, context);
       let mapped = (events || []).map(e => ({
         id: e.id,
         title: e.summary || 'Untitled Event',
@@ -277,7 +277,7 @@ ASK THE USER FIRST IF: time is ambiguous, the user explicitly named someone but 
         endAt: normalized.endAt,
         createMeet: normalized.createMeet,
         participants: normalized.participants,
-      });
+      }, context);
 
       return {
         ok: true,
@@ -337,7 +337,7 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
         startAt: args.start_iso,
         endAt: args.end_iso,
         participants: args.participants,
-      });
+      }, context);
 
       return {
         ok: true,
@@ -380,7 +380,7 @@ ALWAYS ASK THE USER FIRST IF: the cancellation has invitees, the event is recurr
     if (!accountId) return { ok: false, error: 'No active Google account connected.' };
 
     try {
-      await deleteCalendarEvent(accountId, args.event_id);
+      await deleteCalendarEvent(accountId, args.event_id, context);
       return {
         ok: true,
         receipt: {
@@ -439,7 +439,7 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
     const results = await Promise.all(
       args.event_ids.map(async (event_id) => {
         try {
-          await deleteCalendarEvent(accountId, event_id);
+          await deleteCalendarEvent(accountId, event_id, context);
           return { event_id, status: 'deleted' as const };
         } catch (e: any) {
           const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;

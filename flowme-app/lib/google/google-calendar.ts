@@ -1,5 +1,5 @@
 import { google, calendar_v3 } from 'googleapis';
-import { getValidGoogleToken } from './google-auth';
+import { getValidGoogleToken, GoogleTokenAuthContext } from './google-auth';
 import { ErrorCode } from '../api/errors';
 
 export interface CreateEventParams {
@@ -13,12 +13,12 @@ export interface CreateEventParams {
   reminders?: { useDefault: boolean; overrides?: Array<{ method: string; minutes: number }> };
 }
 
-export async function getCalendarEvents(linkedAccountId: string, timeMin: string, timeMax: string) {
+export async function getCalendarEvents(linkedAccountId: string, timeMin: string, timeMax: string, authContext?: GoogleTokenAuthContext) {
   // Retry once on token refresh failure (handles race condition when multiple concurrent calls 
   // try to refresh the same token — the first succeeds but the others see a stale token)
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const auth = await getValidGoogleToken(linkedAccountId);
+      const auth = await getValidGoogleToken(linkedAccountId, authContext);
       const calendar = google.calendar({ version: 'v3', auth });
 
       const response = await calendar.events.list({
@@ -48,9 +48,9 @@ export async function getCalendarEvents(linkedAccountId: string, timeMin: string
   return []; // Should never reach here, but TypeScript needs it
 }
 
-export async function createCalendarEvent(linkedAccountId: string, params: CreateEventParams) {
+export async function createCalendarEvent(linkedAccountId: string, params: CreateEventParams, authContext?: GoogleTokenAuthContext) {
   try {
-    const auth = await getValidGoogleToken(linkedAccountId);
+    const auth = await getValidGoogleToken(linkedAccountId, authContext);
     const calendar = google.calendar({ version: 'v3', auth });
 
     const event: calendar_v3.Schema$Event = {
@@ -93,9 +93,9 @@ export async function createCalendarEvent(linkedAccountId: string, params: Creat
   }
 }
 
-export async function updateCalendarEvent(linkedAccountId: string, eventId: string, params: Partial<CreateEventParams>) {
+export async function updateCalendarEvent(linkedAccountId: string, eventId: string, params: Partial<CreateEventParams>, authContext?: GoogleTokenAuthContext) {
   try {
-    const auth = await getValidGoogleToken(linkedAccountId);
+    const auth = await getValidGoogleToken(linkedAccountId, authContext);
     const calendar = google.calendar({ version: 'v3', auth });
 
     const event: calendar_v3.Schema$Event = {};
@@ -138,9 +138,9 @@ export async function updateCalendarEvent(linkedAccountId: string, eventId: stri
   }
 }
 
-export async function deleteCalendarEvent(linkedAccountId: string, eventId: string) {
+export async function deleteCalendarEvent(linkedAccountId: string, eventId: string, authContext?: GoogleTokenAuthContext) {
   try {
-    const auth = await getValidGoogleToken(linkedAccountId);
+    const auth = await getValidGoogleToken(linkedAccountId, authContext);
     const calendar = google.calendar({ version: 'v3', auth });
 
     await calendar.events.delete({

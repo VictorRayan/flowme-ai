@@ -54,6 +54,20 @@ interface NormalizedEvent {
   participants?: string[];
 }
 
+interface GoogleAccount {
+  id: string;
+  name: string;
+  type?: string | null;
+}
+
+function normalizeAccountLabel(input: string | null | undefined): string {
+  return String(input || '').trim().toLowerCase();
+}
+
+function renderAccountOptions(accounts: GoogleAccount[]): string {
+  return accounts.map(account => account.name).join(', ');
+}
+
 function validateAndNormalizeCreateArgs(args: any, timezone: string): { ok: true; normalized: NormalizedEvent } | { ok: false; error: string } {
   const title = (args.title || '').trim();
   if (!title) return { ok: false, error: 'title is required and cannot be empty' };
@@ -107,20 +121,47 @@ function validateAndNormalizeCreateArgs(args: any, timezone: string): { ok: true
   };
 }
 
-async function getGoogleAccountId(context: ToolContext): Promise<string | null> {
+async function listGoogleAccounts(context: ToolContext): Promise<GoogleAccount[]> {
   const { data, error } = await context.supabase
     .from('linked_accounts')
-    .select('id')
+    .select('id, name, type')
     .eq('user_id', context.user.id)
     .eq('is_active', true)
     .eq('is_deleted', false)
     .eq('provider', 'google')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: true });
 
-  if (error || !data) return null;
-  return data.id;
+  if (error || !Array.isArray(data)) return [];
+  return data;
+}
+
+async function resolveGoogleAccount(
+  context: ToolContext,
+  accountNickname: string | undefined,
+  requireNicknameWhenMultiple: boolean,
+): Promise<{ ok: true; account: GoogleAccount } | { ok: false; error: string }> {
+  const accounts = await listGoogleAccounts(context);
+  if (accounts.length === 0) {
+    return { ok: false, error: 'No active Google account connected.' };
+  }
+
+  const wanted = normalizeAccountLabel(accountNickname);
+  if (wanted) {
+    const exact = accounts.find(account =>
+      normalizeAccountLabel(account.name) === wanted ||
+      normalizeAccountLabel(account.type) === wanted
+    );
+    const partial = exact || accounts.find(account => normalizeAccountLabel(account.name).includes(wanted));
+    if (partial) return { ok: true, account: partial };
+
+    return { ok: false, error: `I could not find a Google Calendar account called "${accountNickname}". Available account nicknames: ${renderAccountOptions(accounts)}.` };
+  }
+
+  if (accounts.length > 1 && requireNicknameWhenMultiple) {
+    return { ok: false, error: `Which calendar account should I use? Available account nicknames: ${renderAccountOptions(accounts)}.` };
+  }
+
+  return { ok: true, account: accounts[0] };
 }
 
 export const calendarListEventsTool = defineTool({
@@ -155,11 +196,21 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
     start_iso: z.string().optional().describe('Inclusive start of the window in ISO 8601. Defaults to start of today in the user\'s timezone.'),
     end_iso: z.string().optional().describe('Exclusive end of the window in ISO 8601. Defaults to start_iso + 14 days.'),
     query: z.string().optional().describe('Substring filter applied to event title or description after fetch. Case-insensitive. Omit to return all events in the range.'),
+    account_nickname: z.string().optional().describe('Optional linked Google account nickname/name. Omit to read all active calendar accounts.'),
     limit: z.number().optional().default(50).describe('Max events returned (post-filter). Default 50. Pass 0 for no limit (use for batch operations).'),
   }),
   call: async (args, context) => {
-    const accountId = await getGoogleAccountId(context);
-    if (!accountId) return { ok: false, error: 'No active Google account connected.' };
+    const accounts = args.account_nickname
+      ? null
+      : await listGoogleAccounts(context);
+    if (!args.account_nickname && (!accounts || accounts.length === 0)) {
+      return { ok: false, error: 'No active Google account connected.' };
+    }
+
+    const selectedAccount = args.account_nickname
+      ? await resolveGoogleAccount(context, args.account_nickname, false)
+      : null;
+    if (selectedAccount && !selectedAccount.ok) return { ok: false, error: selectedAccount.error };
 
     const tz = context.timezone || 'UTC';
     const startInputRaw = args.start_iso || context.nowIso;
@@ -186,15 +237,21 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
     }
 
     try {
-      const events = await getCalendarEvents(accountId, startIso, endIso, context);
-      let mapped = (events || []).map(e => ({
-        id: e.id,
-        title: e.summary || 'Untitled Event',
-        description: e.description || null,
-        location: e.location || null,
-        start_at: e.start?.dateTime || e.start?.date,
-        end_at: e.end?.dateTime || e.end?.date,
-      })).filter(e => e.start_at);
+      const accountsToRead = selectedAccount?.ok ? [selectedAccount.account] : accounts!;
+      const eventBatches = await Promise.all(accountsToRead.map(async (account) => {
+        const events = await getCalendarEvents(account.id, startIso, endIso, context);
+        return (events || []).map(e => ({
+          id: e.id,
+          linked_account_id: account.id,
+          account_nickname: account.name,
+          title: e.summary || 'Untitled Event',
+          description: e.description || null,
+          location: e.location || null,
+          start_at: e.start?.dateTime || e.start?.date,
+          end_at: e.end?.dateTime || e.end?.date,
+        })).filter(e => e.start_at);
+      }));
+      let mapped = eventBatches.flat();
 
       if (args.query) {
         const q = args.query.toLowerCase();
@@ -214,6 +271,7 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
         receipt: {
           events: limited,
           count: limited.length,
+          accounts: accountsToRead.map(account => account.name),
           window: { start: startIso, end: endIso },
         },
       };
@@ -259,17 +317,18 @@ ASK THE USER FIRST IF: time is ambiguous, the user explicitly named someone but 
     location: z.string().optional().describe('Optional. Only set if the user mentioned a place.'),
     create_meet: z.boolean().optional().describe('Optional. Only true if the user mentioned a video call / Meet / remote meeting.'),
     participants: z.array(z.string()).optional().describe('Optional invitee email addresses (NOT names). Only include people the user explicitly mentioned. Resolve names via people.search first. Never fabricate emails. Omit entirely for solo events.'),
+    account_nickname: z.string().optional().describe('Linked Google account nickname/name to create the event in. Required when the user has more than one active Google account.'),
   }),
   call: async (args, context) => {
-    const accountId = await getGoogleAccountId(context);
-    if (!accountId) return { ok: false, error: 'No active Google account connected.' };
+    const resolved = await resolveGoogleAccount(context, args.account_nickname, true);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
 
     const validation = validateAndNormalizeCreateArgs(args, context.timezone || 'UTC');
     if (!validation.ok) return { ok: false, error: validation.error };
     const normalized = validation.normalized;
 
     try {
-      const created = await createCalendarEvent(accountId, {
+      const created = await createCalendarEvent(resolved.account.id, {
         title: normalized.title,
         description: normalized.description,
         location: normalized.location,
@@ -285,6 +344,7 @@ ASK THE USER FIRST IF: time is ambiguous, the user explicitly named someone but 
           event_id: created.id,
           html_link: created.htmlLink,
           meet_link: created.meetLink,
+          account_nickname: resolved.account.name,
           status: 'created'
         }
       };
@@ -324,13 +384,14 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
     description: z.string().optional().describe('New description. Replaces existing body.'),
     location: z.string().optional().describe('New location. Replaces existing.'),
     participants: z.array(z.string()).optional().describe('REPLACES the entire attendee list. Include all existing invitees you want to keep, plus any additions.'),
+    account_nickname: z.string().optional().describe('Linked Google account nickname/name containing the event. Required when the user has more than one active Google account.'),
   }),
   call: async (args, context) => {
-    const accountId = await getGoogleAccountId(context);
-    if (!accountId) return { ok: false, error: 'No active Google account connected.' };
+    const resolved = await resolveGoogleAccount(context, args.account_nickname, true);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
 
     try {
-      const updated = await updateCalendarEvent(accountId, args.event_id, {
+      const updated = await updateCalendarEvent(resolved.account.id, args.event_id, {
         title: args.title,
         description: args.description,
         location: args.location,
@@ -343,6 +404,7 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
         ok: true,
         receipt: {
           event_id: updated.id,
+          account_nickname: resolved.account.name,
           status: 'updated'
         }
       };
@@ -374,17 +436,19 @@ ALWAYS ASK THE USER FIRST IF: the cancellation has invitees, the event is recurr
   isReadOnly: false,
   inputSchema: z.object({
     event_id: z.string().describe('Google Calendar event ID to cancel. Required. Must come from calendar.list_events — never fabricate.'),
+    account_nickname: z.string().optional().describe('Linked Google account nickname/name containing the event. Required when the user has more than one active Google account.'),
   }),
   call: async (args, context) => {
-    const accountId = await getGoogleAccountId(context);
-    if (!accountId) return { ok: false, error: 'No active Google account connected.' };
+    const resolved = await resolveGoogleAccount(context, args.account_nickname, true);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
 
     try {
-      await deleteCalendarEvent(accountId, args.event_id, context);
+      await deleteCalendarEvent(resolved.account.id, args.event_id, context);
       return {
         ok: true,
         receipt: {
           event_id: args.event_id,
+          account_nickname: resolved.account.name,
           status: 'deleted'
         }
       };
@@ -424,10 +488,11 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
   isReadOnly: false,
   inputSchema: z.object({
     event_ids: z.array(z.string()).describe('Array of Google Calendar event IDs to cancel. Required. Must come from calendar.list_events — never fabricate.'),
+    account_nickname: z.string().optional().describe('Linked Google account nickname/name containing these events. Required when the user has more than one active Google account.'),
   }),
   call: async (args, context) => {
-    const accountId = await getGoogleAccountId(context);
-    if (!accountId) return { ok: false, error: 'No active Google account connected.' };
+    const resolved = await resolveGoogleAccount(context, args.account_nickname, true);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
 
     if (!Array.isArray(args.event_ids) || args.event_ids.length === 0) {
       return { ok: false, error: 'event_ids must be a non-empty array' };
@@ -439,7 +504,7 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
     const results = await Promise.all(
       args.event_ids.map(async (event_id) => {
         try {
-          await deleteCalendarEvent(accountId, event_id, context);
+          await deleteCalendarEvent(resolved.account.id, event_id, context);
           return { event_id, status: 'deleted' as const };
         } catch (e: any) {
           const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
@@ -472,6 +537,7 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
         deleted_count,
         failed_count,
         requested_count,
+        account_nickname: resolved.account.name,
         summary,
         results,
       },

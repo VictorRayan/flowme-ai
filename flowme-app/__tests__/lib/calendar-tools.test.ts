@@ -7,16 +7,22 @@ jest.mock('@/lib/google/google-calendar', () => ({
       end: { dateTime: '2026-05-06T10:00:00-03:00' },
     },
   ]),
-  createCalendarEvent: jest.fn(),
+  createCalendarEvent: jest.fn().mockResolvedValue({ id: 'created-1', htmlLink: 'https://calendar.google.com/event', meetLink: null }),
   updateCalendarEvent: jest.fn(),
   deleteCalendarEvent: jest.fn(),
 }));
 
-import { calendarListEventsTool } from '@/lib/ai/tools/calendar-tools';
-import { getCalendarEvents } from '@/lib/google/google-calendar';
+import { calendarCreateEventTool, calendarListEventsTool } from '@/lib/ai/tools/calendar-tools';
+import { createCalendarEvent, getCalendarEvents } from '@/lib/google/google-calendar';
 
-function makeSupabase() {
+function makeSupabase(accounts = [{ id: 'linked-account-1', name: 'Work', type: 'work' }]) {
   const chain: any = {
+    then(resolve: Function, reject: Function) {
+      return Promise.resolve({ data: accounts, error: null }).then(resolve as any, reject as any);
+    },
+    catch(reject: Function) {
+      return Promise.resolve({ data: accounts, error: null }).catch(reject as any);
+    },
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
@@ -46,6 +52,7 @@ describe('calendar tools', () => {
     const result = await calendarListEventsTool.call({
       start_iso: '2026-05-06T00:00:00-03:00',
       end_iso: '2026-05-07T00:00:00-03:00',
+      limit: 50,
     }, context);
 
     expect(result.ok).toBe(true);
@@ -53,6 +60,56 @@ describe('calendar tools', () => {
       'linked-account-1',
       '2026-05-06T00:00:00-03:00',
       '2026-05-07T00:00:00-03:00',
+      context,
+    );
+  });
+
+  it('asks for a calendar nickname before creating when multiple Google accounts exist', async () => {
+    const { from } = makeSupabase([
+      { id: 'work-id', name: 'Work', type: 'work' },
+      { id: 'personal-id', name: 'Personal', type: 'personal' },
+    ]);
+    const context: any = {
+      supabase: { from },
+      user: { id: 'user-1', email: 'victor@example.com' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-06T22:10:00.000Z',
+    };
+
+    const result = await calendarCreateEventTool.call({
+      title: 'Meeting',
+      start_iso: '2026-05-07T09:00:00-03:00',
+      end_iso: '2026-05-07T10:00:00-03:00',
+    }, context);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Which calendar account');
+    expect(createCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('uses the requested account nickname when creating calendar events', async () => {
+    const { from } = makeSupabase([
+      { id: 'work-id', name: 'Work', type: 'work' },
+      { id: 'personal-id', name: 'Personal', type: 'personal' },
+    ]);
+    const context: any = {
+      supabase: { from },
+      user: { id: 'user-1', email: 'victor@example.com' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-06T22:10:00.000Z',
+    };
+
+    const result = await calendarCreateEventTool.call({
+      title: 'Meeting',
+      start_iso: '2026-05-07T09:00:00-03:00',
+      end_iso: '2026-05-07T10:00:00-03:00',
+      account_nickname: 'Personal',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(createCalendarEvent).toHaveBeenCalledWith(
+      'personal-id',
+      expect.objectContaining({ title: 'Meeting' }),
       context,
     );
   });

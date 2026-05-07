@@ -5,6 +5,7 @@ import {
   Box, TextField, IconButton, Typography, Paper, Stack,
   Chip, Divider, CircularProgress, Alert, Tooltip, Avatar,
   List, ListItemButton, ListItemText, Drawer,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -146,6 +147,10 @@ interface ThinkingStep {
   preliminary_text?: string;
 }
 interface Message { role: 'user' | 'assistant'; content: string; attachments?: Attachment[]; transcript?: string; thinking?: ThinkingStep[]; }
+type DestructiveDialog =
+  | { kind: 'deleteThread'; threadId: string; title: string; step: 1 | 2 }
+  | { kind: 'clearThread'; threadId: string; title: string; step: 1 | 2 }
+  | null;
 interface Thread {
   id: string;
   title: string;
@@ -211,6 +216,7 @@ export default function AIPage() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
   const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: 'council' | 'briefing' | 'note' } | null>(null);
+  const [destructiveDialog, setDestructiveDialog] = useState<DestructiveDialog>(null);
   const [uiLang, setUiLang] = useState<Lang>('en');
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('balysai_language') : null;
@@ -401,14 +407,49 @@ export default function AIPage() {
     setError(null);
   };
 
-  const deleteThread = (id: string, e: React.MouseEvent) => {
+  const requestDeleteThread = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const thread = threads.find(t => t.id === id);
+    setDestructiveDialog({
+      kind: 'deleteThread',
+      threadId: id,
+      title: thread?.title || 'chat',
+      step: 1,
+    });
+  };
+
+  const deleteThread = (id: string) => {
     const updated = threads.filter(t => t.id !== id);
     if (updated.length === 0) { const t = newThread(); saveThreads([t]); setActiveThreadId(t.id); }
     else { saveThreads(updated); if (activeThreadId === id) setActiveThreadId(updated[0].id); }
     if (UUID_RE.test(id)) {
       fetch(`/api/threads/${id}`, { method: 'DELETE' }).catch(() => { /* offline ok */ });
     }
+  };
+
+  const requestClearActiveThread = () => {
+    if (!activeThread || !activeThreadId) return;
+    setDestructiveDialog({
+      kind: 'clearThread',
+      threadId: activeThreadId,
+      title: activeThread.title || 'chat',
+      step: 1,
+    });
+  };
+
+  const clearThreadMessages = (id: string) => {
+    saveThreads(threads.map(t => t.id === id ? { ...t, messages: [], title: 'New chat' } : t));
+  };
+
+  const confirmDestructiveAction = () => {
+    if (!destructiveDialog) return;
+    if (destructiveDialog.step === 1) {
+      setDestructiveDialog({ ...destructiveDialog, step: 2 });
+      return;
+    }
+    if (destructiveDialog.kind === 'deleteThread') deleteThread(destructiveDialog.threadId);
+    if (destructiveDialog.kind === 'clearThread') clearThreadMessages(destructiveDialog.threadId);
+    setDestructiveDialog(null);
   };
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
@@ -790,6 +831,15 @@ Rules:
   };
 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const destructiveIsFinal = destructiveDialog?.step === 2;
+  const destructiveTitle = destructiveDialog?.kind === 'deleteThread' ? 'Delete chat' : 'Clear chat';
+  const destructiveBody = destructiveDialog?.kind === 'deleteThread'
+    ? destructiveIsFinal
+      ? `Final confirmation: permanently delete "${destructiveDialog.title}" from your chat history?`
+      : `This will delete "${destructiveDialog.title}" from your chat history. You will need to confirm once more.`
+    : destructiveIsFinal
+      ? `Final confirmation: permanently clear all messages in "${destructiveDialog?.title || 'this chat'}"?`
+      : `This will clear the messages in "${destructiveDialog?.title || 'this chat'}". You will need to confirm once more.`;
 
   const sidebarContent = (
     <Box sx={{ width: 220, display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'background.paper' }}>
@@ -802,7 +852,7 @@ Rules:
           <ListItemButton key={t.id} selected={t.id === activeThreadId} onClick={() => { setActiveThreadId(t.id); setSidebarOpen(false); }} sx={{ px: 1.5, py: 0.75 }}>
             <ChatIcon sx={{ fontSize: 14, mr: 1, color: 'text.disabled', flexShrink: 0 }} />
             <ListItemText primary={<Typography variant="body2" noWrap sx={{ maxWidth: 130 }}>{t.title}</Typography>} />
-            <IconButton size="small" onClick={e => deleteThread(t.id, e)} sx={{ opacity: 0, '.MuiListItemButton-root:hover &': { opacity: 1 }, p: 0.2 }}>
+            <IconButton size="small" onClick={e => requestDeleteThread(t.id, e)} sx={{ opacity: 0, '.MuiListItemButton-root:hover &': { opacity: 1 }, p: 0.2 }}>
               <CloseIcon sx={{ fontSize: 12 }} />
             </IconButton>
           </ListItemButton>
@@ -844,10 +894,7 @@ Rules:
           <Box sx={{ flex: 1 }} />
           <Tooltip title="Clear chat">
             <span>
-              <IconButton size="small" onClick={() => {
-                if (!activeThread) return;
-                saveThreads(threads.map(t => t.id === activeThreadId ? { ...t, messages: [], title: 'New chat' } : t));
-              }} disabled={!activeThread?.messages.length}>
+              <IconButton size="small" onClick={requestClearActiveThread} disabled={!activeThread?.messages.length}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </span>
@@ -877,14 +924,16 @@ Rules:
                     {isUser ? <PersonIcon sx={{ fontSize: 15 }} /> : <SmartToyIcon sx={{ fontSize: 15, color: '#818cf8' }} />}
                   </Avatar>
                   <Box sx={{ maxWidth: { xs: '85%', md: '75%' }, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                    {msg.attachments?.filter(att => att.dataUrl).map((att, ai) => (
+                    {msg.attachments?.map((att, ai) => (
                       <Box key={ai}>
-                        {att.type === 'image' && <Box component="img" src={att.dataUrl} alt={att.name} sx={{ maxWidth: 240, maxHeight: 180, borderRadius: 2 }} />}
-                        {att.type === 'audio' && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}
+                        {att.type === 'image' && att.dataUrl && <Box component="img" src={att.dataUrl} alt={att.name} sx={{ maxWidth: 240, maxHeight: 180, borderRadius: 2 }} />}
+                        {att.type === 'image' && !att.dataUrl && <Chip icon={<ImageIcon />} label={att.name || 'Image'} size="small" variant="outlined" />}
+                        {att.type === 'audio' && att.dataUrl && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}
+                        {att.type === 'audio' && !att.dataUrl && <Chip icon={<AudioFileIcon />} label={att.name || 'Voice note'} size="small" variant="outlined" />}
                         {att.type === 'file' && <Chip icon={<AttachFileIcon />} label={att.name} size="small" variant="outlined" />}
                       </Box>
                     ))}
-                    {isUser && msg.transcript && (
+                    {isUser && msg.transcript && msg.transcript.trim() !== displayText.trim() && (
                       <Typography
                         variant="caption"
                         sx={{
@@ -1038,6 +1087,21 @@ Rules:
           />
         )}
       </Box>
+
+      <Dialog open={Boolean(destructiveDialog)} onClose={() => setDestructiveDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{destructiveTitle}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {destructiveBody}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDestructiveDialog(null)} color="inherit">Cancel</Button>
+          <Button onClick={confirmDestructiveAction} color="error" variant={destructiveIsFinal ? 'contained' : 'outlined'}>
+            {destructiveIsFinal ? 'Delete permanently' : 'Continue'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

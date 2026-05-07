@@ -113,6 +113,7 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
 
   let userText = incoming.text || '';
   let mediaAttachment = buildMediaAttachment(incoming);
+  const originalMediaAttachment = mediaAttachment;
 
   if (incoming.messageType === 'videoMessage') {
     userText = userText || '[Video message — video processing is not supported yet. Describe what you need in text.]';
@@ -232,7 +233,13 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
       route_label: route.userFacingLabel,
       execution_plan: route.executionPlan,
     });
-    await persistMessage(supabase as any, user.id, { thread_id: threadId, role: 'user',      content: userText });
+    await persistMessage(supabase as any, user.id, {
+      thread_id: threadId,
+      role: 'user',
+      content: userText,
+      ...(originalMediaAttachment ? { attachments: [originalMediaAttachment] } : {}),
+      ...(originalMediaAttachment?.type === 'audio' ? { transcript: userText } : {}),
+    });
     await persistMessage(supabase as any, user.id, { thread_id: threadId, role: 'assistant', content: replyText });
   } catch (e) {
     console.error('[whatsapp-balys] persist failed (non-fatal):', e);

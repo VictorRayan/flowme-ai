@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 import { buildBalysSystemPrompt } from '@/lib/ai/balys-prompt';
 import { buildNowSystemPrompt } from '@/lib/ai/calendar-skill';
 import { buildNotesGraphMap } from '@/lib/ai/notes-skill';
@@ -74,7 +75,11 @@ function buildMediaAttachment(
 
 function threadIdForJid(userId: string, jid: string): string {
   const phone = jidToPhone(jid);
-  return `whatsapp-${userId}-${phone}`;
+  const hex = createHash('sha256')
+    .update(`whatsapp:${userId}:${phone}`)
+    .digest('hex')
+    .slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 /** Convert markdown to WhatsApp-safe text. */

@@ -474,34 +474,111 @@ RETURNS receipt: { title, content, word_count }`,
   },
 });
 
-export const connectorsSheetsAgentTool = defineTool({
-  name: 'connectors.sheets_agent',
-  description: `Invokes the Sheets Agent — a specialist sub-agent that reads, plans, and edits a Google Sheets connector with surgical precision.
+export const connectorsCreateDocTool = defineTool({
+  name: 'connectors.create_doc',
+  description: `Creates a new Google Docs document in the connected Google account and writes initial content into it.
 
 WHEN TO USE:
-- User asks to edit, update, add rows, change values, write formulas, or modify any part of a spreadsheet.
-- Any write operation on a Google Sheets connector.
-- User asks "update my financial sheet", "add a row to my budget", "fix the formula in column D", "clear the Q1 data".
+- User asks Balys to write, draft, create, generate, or montar a new Google Doc.
+- User asks for a document such as a proposal, memo, policy, plan, brief, letter, contract draft, meeting summary, or report.
+- User selected /docs and asked for new content instead of reading an existing file.
 
 HOW IT WORKS:
-The Sheets Agent runs 3 phases automatically:
-1. READ — reads the spreadsheet structure and current data
-2. PLAN — decides exactly which cells/ranges to change, using Sheets API best practices
-3. EXECUTE — applies changes via the Google Sheets API
+1. Use connectors.list to find an authorized Google Docs connector.
+2. Draft the content in the user's requested language using the Google Docs Editorial Agent standards.
+3. Call this tool with a clear title and polished initial content.
+
+CONTRACT:
+- connector_id: required. Get from connectors.list, match by name.
+- title: user-facing document title. Do not use a URL or ID.
+- content: plain text initial body. Use clear headings and paragraphs; Google Docs will receive it as editable text.
+- This creates a new document. For edits to an existing document, use connectors.docs_agent.
+- Never expose document_id to the user; it is only for internal follow-up.
+
+RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
+  isReadOnly: false,
+  inputSchema: z.object({
+    connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
+    title: z.string().min(1).max(200).describe('The Google Doc title to create.'),
+    content: z.string().min(1).max(30000).describe('Initial plain-text document content in the user requested language.'),
+  }),
+  call: async (args, context) => {
+    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+
+    const auth = await getAuthorizedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+
+    try {
+      const docs = google.docs({ version: 'v1', auth });
+      const title = args.title.trim();
+      const content = args.content.trimEnd();
+      const createRes = await docs.documents.create({ requestBody: { title } });
+      const documentId = createRes.data.documentId;
+      if (!documentId) return { ok: false, error: 'Google Docs did not return a document id.' };
+
+      await docs.documents.batchUpdate({
+        documentId,
+        requestBody: {
+          requests: [
+            {
+              insertText: {
+                location: { index: 1 },
+                text: content.endsWith('\n') ? content : `${content}\n`,
+              },
+            },
+          ],
+        },
+      });
+
+      return {
+        ok: true,
+        receipt: {
+          title,
+          document_id: documentId,
+          webViewLink: `https://docs.google.com/document/d/${documentId}/edit`,
+          character_count: content.length,
+          status: 'created',
+        },
+      };
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to create document';
+      return { ok: false, error: `Google Docs: ${msg}` };
+    }
+  },
+});
+
+export const connectorsSheetsAgentTool = defineTool({
+  name: 'connectors.sheets_agent',
+  description: `Invokes the Google Sheets Financial Economist Agent — a specialist sub-agent that reads spreadsheet context, generates financial insights, plans formulas, and edits Google Sheets with precision.
+
+WHEN TO USE:
+- User asks for financial insight, spending analysis, budget diagnosis, trend analysis, variance analysis, forecast help, or recommendations based on a spreadsheet.
+- User asks to edit, update, add rows, change values, write formulas, or modify any part of a spreadsheet.
+- Any write operation on a Google Sheets connector.
+- User asks "what insights do you see in my expenses?", "analyze my financial sheet", "update my financial sheet", "add a row to my budget", "fix the formula in column D", "clear the Q1 data".
+
+HOW IT WORKS:
+The Financial Economist Agent runs 3 phases automatically:
+1. READ — reads spreadsheet structure, rows, layout, and financial context
+2. PLAN — decides whether this is insight-only or requires cell operations
+3. EXECUTE — applies changes via the Google Sheets API only when write operations are needed
 
 CONTRACT:
 - connector_id: required. Get from connectors.list, match by name.
 - task: describe what to do in plain language. Include specific values, row numbers, column names if known.
-- The agent handles index-safety, header preservation, formula input mode, and appending vs overwriting.
-- Read-only operations (just reading data) should use connectors.read_sheet instead — this tool writes.
+- mode: use "analyze" for insights only, "edit" for requested writes, or omit for auto.
+- The agent handles layout, formatting intent, header preservation, formula input mode, and appending vs overwriting.
+- For financial insight requests, this tool should return insights without modifying the sheet.
 - CONFIRM with the user before calling if the task is ambiguous or could cause data loss.
 
-RETURNS receipt: { summary, changes[] }`,
+RETURNS receipt: { summary, changes[], insights[] }`,
   isReadOnly: false,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
     file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the spreadsheet. Be specific about values, columns, and rows if known.'),
+    mode: z.enum(['auto', 'analyze', 'edit']).optional().default('auto').describe('Use analyze for insights only, edit for sheet changes, auto when uncertain.'),
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
@@ -526,6 +603,7 @@ RETURNS receipt: { summary, changes[] }`,
       linkedAccountId,
       supabase: context.supabase,
       task: args.task,
+      mode: args.mode,
       onProgress: context.onProgress,
     });
 
@@ -536,6 +614,8 @@ RETURNS receipt: { summary, changes[] }`,
         summary: result.summary,
         changes: result.changes,
         changes_count: result.changes.length,
+        insights: result.insights || [],
+        insights_count: result.insights?.length || 0,
       },
     };
   },
@@ -543,15 +623,16 @@ RETURNS receipt: { summary, changes[] }`,
 
 export const connectorsDocsAgentTool = defineTool({
   name: 'connectors.docs_agent',
-  description: `Invokes the Docs Agent — a specialist sub-agent that reads, plans, and edits a Google Docs document with surgical precision.
+  description: `Invokes the Google Docs Editorial Agent — a senior editor and Google Docs API specialist that reads, plans, writes, rewrites, structures, formats, and edits an existing Google Doc with precision.
 
 WHEN TO USE:
+- User asks to write, draft, insert, expand, summarize into, restructure, format, or improve content inside an existing Google Doc.
 - User asks to edit, rewrite, insert, delete, or format any part of a Google Doc.
 - Any write operation on a Google Docs connector.
 - User asks "update the contract", "add a section about X", "replace all instances of Y with Z", "fix the formatting of the introduction".
 
 HOW IT WORKS:
-The Docs Agent runs 3 phases automatically:
+The Editorial Agent runs 3 phases automatically:
 1. READ — reads the full document structure with accurate character indices
 2. PLAN — decides which API operations to apply (preferring replaceAllText for targeted edits)
 3. EXECUTE — applies changes via Google Docs batchUpdate API
@@ -559,7 +640,8 @@ The Docs Agent runs 3 phases automatically:
 CONTRACT:
 - connector_id: required. Get from connectors.list, match by name.
 - task: describe what to do. For targeted replacements, mention the exact phrase to find.
-- The agent handles index-safety, operation ordering (highest-to-lowest to prevent shifts), and style preservation.
+- The agent handles editorial quality, document structure, index-safety, operation ordering (highest-to-lowest to prevent shifts), and style preservation.
+- For a brand-new document, use connectors.create_doc. For existing document edits, use this tool.
 - Read-only operations should use connectors.read_doc instead — this tool writes.
 - CONFIRM with the user before calling if the task could delete or overwrite significant content.
 

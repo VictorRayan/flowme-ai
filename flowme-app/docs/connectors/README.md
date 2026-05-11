@@ -25,6 +25,10 @@ Every connector interaction follows this order:
 
 For Docs, Sheets, and Drive, discovery lists the user's files. The connection form must not ask for a document URL, spreadsheet URL, folder URL, or file ID.
 
+Google Docs has a dedicated Google Docs Editorial Agent for writing, creation, structure, style, and precise Google Docs API edits.
+
+Google Sheets has a dedicated Google Sheets Financial Economist Agent for financial insight, layout-aware spreadsheet understanding, formulas, formatting intent, and precise Google Sheets API edits.
+
 For Gmail, search results are only discovery metadata. If the user asks what an email says, why someone replied, or asks for insights from a specific email, Balys must read the body of the selected message before answering.
 
 ## Implementation Plan
@@ -35,7 +39,9 @@ For Gmail, search results are only discovery metadata. If the user asks what an 
 - Store the intent on the user message, not only in `systemAddendum`.
 - In the API route, convert intent into routing constraints: preferred connector type, first required tool, and minimum step budget.
 - For `/docs`, `/documentos`: first tool should be Docs discovery or Docs read if a prior selected document is already known.
-- For `/planilhas`, `/sheets`: first tool should be Sheets discovery or sheet read/edit.
+- For `/docs` creation requests: use `connectors.create_doc` after drafting polished content in the user's language.
+- For `/planilhas`, `/sheets`: first tool should be Sheets discovery, sheet read, economist insight, or sheet edit depending on the request.
+- For Sheets financial insight requests: use `connectors.sheets_agent` in analyze mode so the economist agent reads real sheet context and returns evidence-backed observations without modifying the sheet.
 - For `/drive`: first tool should be Drive discovery/read.
 - For `/gmail`: first tool should be Gmail search, followed by Gmail body read when content is requested.
 - Add a resolver that can map follow-ups like "o que tem em Victor - Career Profile" to the last `connectors.search_docs` result.

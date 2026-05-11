@@ -1,6 +1,6 @@
 import { Tool } from './Tool';
 import { calendarCreateEventTool, calendarDeleteEventTool, calendarDeleteEventsBatchTool, calendarListEventsTool, calendarUpdateEventTool } from './calendar-tools';
-import { connectorsListTool, connectorsReadSheetTool, connectorsReadDocTool, connectorsReadDriveFileTool, connectorsSearchDocsTool, connectorsSheetsAgentTool, connectorsDocsAgentTool, gmailCreateDraftTool, gmailSearchMessagesTool } from './connectors-tools';
+import { connectorsListTool, connectorsReadSheetTool, connectorsReadDocTool, connectorsReadDriveFileTool, connectorsSearchDocsTool, connectorsCreateDocTool, connectorsSheetsAgentTool, connectorsDocsAgentTool, gmailCreateDraftTool, gmailSearchMessagesTool } from './connectors-tools';
 import { notesCreateTool, notesListTool, notesEditTool } from './notes-tools';
 import { councilConveneTool } from './council-tools';
 import { peopleSearchTool } from './people-tools';
@@ -23,6 +23,7 @@ export const ALL_TOOLS: Tool[] = [
   connectorsReadDocTool,
   connectorsSearchDocsTool,
   connectorsReadDriveFileTool,
+  connectorsCreateDocTool,
   connectorsSheetsAgentTool,
   connectorsDocsAgentTool,
   gmailSearchMessagesTool,

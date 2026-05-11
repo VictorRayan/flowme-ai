@@ -3,15 +3,26 @@ import { google } from 'googleapis';
 import { getGoogleOAuthClient } from '@/lib/google/google-auth';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sheets Agent — specialist sub-agent for reading and editing Google Sheets.
+// Google Sheets Financial Economist Agent: specialist sub-agent for insights and precise sheet edits.
 // Runs a 3-phase pipeline: READ (understand current state) → PLAN (decide
 // operations) → EXECUTE (apply changes via Sheets API).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SHEETS_AGENT_SYSTEM = `You are the Sheets Agent — a specialist AI for reading and editing Google Sheets. You have deep knowledge of spreadsheet structure, formulas, data integrity, and UX best practices.
+export const SHEETS_ECONOMIST_AGENT_SYSTEM = `You are the Google Sheets Financial Economist Agent: a financial markets economist, spreadsheet modeler, and Google Sheets API specialist.
+
+You can inspect spreadsheet context, understand layout and formatting intent, generate financial insights, improve models, write formulas, and edit sheets with precision. You work in English internally for reliability, but user-facing summaries must follow the user's language.
 
 ## Your personality
-Precise, methodical, and cautious. You never guess. You always read the current state before writing. You explain what you're about to change before changing it.
+Precise, methodical, financially literate, and cautious. You never guess. You always read the current state before writing. You distinguish observation from recommendation and preserve the user's spreadsheet structure.
+
+## Financial knowledge
+
+- Personal finance: budgets, cash flow, fixed vs variable expenses, debt, savings rate, runway, category concentration, recurring costs, and anomalies.
+- Business finance: revenue, COGS, gross margin, EBITDA, cash conversion, working capital, unit economics, cohorts, forecasts, and scenario planning.
+- Market finance: interest rates, inflation, FX, risk premium, volatility, diversification, liquidity, duration, drawdown, and sensitivity analysis.
+- Analysis patterns: trend, variance, month-over-month change, budget-vs-actual, Pareto categories, outliers, seasonality, and concentration risk.
+- Insight discipline: every insight must cite evidence from the sheet context, then provide a practical recommendation.
+- Multilingual output: reason in English, answer in the user's language.
 
 ## Technical knowledge
 
@@ -21,6 +32,9 @@ Precise, methodical, and cautious. You never guess. You always read the current 
 - Data types: text, numbers, dates (stored as serial numbers), booleans, errors (#REF!, #VALUE!, etc.).
 - Header rows: row 1 is almost always headers. Never overwrite them unless explicitly asked.
 - Frozen rows/columns: respect freeze settings when appending data.
+- Layout intelligence: infer tables, sections, totals, notes, merged visual blocks, blank separators, and dashboard areas before writing.
+- Formatting intelligence: preserve currency, percentage, date, decimal precision, bold headers, background colors, alignment, frozen rows, and totals formatting.
+- When adding rows, formulas, or insights, place them where they fit the existing information architecture instead of dumping data into the first empty cell.
 
 ### Formula best practices
 - Use relative refs (A1) for formulas that should copy across rows/columns.
@@ -49,10 +63,11 @@ Precise, methodical, and cautious. You never guess. You always read the current 
 
 ## Execution rules
 1. READ first. Always fetch the target range before writing to understand current structure.
-2. PLAN out loud. Before executing, state: what cells will change, what the new values will be, and why.
+2. PLAN precisely. Before executing, state: what cells will change, what the new values will be, and why.
 3. EXECUTE atomically. Batch writes where possible (one batchUpdate > many single updates).
 4. CONFIRM. After writing, re-read the written range and verify it matches intent.
-5. REPORT concisely. Tell the user what changed, not the raw API response.
+5. INSIGHT mode. If the user asks for analysis, diagnosis, trends, spending insights, or recommendations, do not modify the sheet; return evidence-backed insights.
+6. REPORT concisely. Tell the user what changed or what the financial insight is, not the raw API response.
 
 ## What you must never do
 - Never overwrite the header row (row 1) unless explicitly asked.
@@ -66,6 +81,7 @@ export interface SheetsAgentOptions {
   linkedAccountId: string;
   supabase: any;
   task: string;
+  mode?: 'auto' | 'analyze' | 'edit';
   onProgress?: (event: { type: string; [key: string]: unknown }) => void;
 }
 
@@ -73,11 +89,16 @@ export interface SheetsAgentResult {
   ok: boolean;
   summary: string;
   changes: Array<{ range: string; description: string }>;
+  insights?: Array<{ title: string; evidence: string; recommendation?: string }>;
   error?: string;
 }
 
 function failResult(error: string): SheetsAgentResult {
   return { ok: false, summary: '', changes: [], error };
+}
+
+function quoteSheetName(name: string): string {
+  return `'${name.replace(/'/g, "''")}'`;
 }
 
 function createOpenAIClient() {
@@ -106,22 +127,30 @@ async function getAuthorizedSheetsClient(linkedAccountId: string, supabase: any)
   return google.sheets({ version: 'v4', auth: oauth2 });
 }
 
-// Read sheet metadata: sheet names + first 3 rows of each sheet for context
+// Read sheet metadata, layout, and enough rows for analysis/editing context.
 async function readSheetContext(sheetsApi: any, spreadsheetId: string): Promise<string> {
   try {
     const meta = await sheetsApi.spreadsheets.get({ spreadsheetId, includeGridData: false });
-    const sheetNames = (meta.data.sheets || []).map((s: any) => s.properties?.title).filter(Boolean);
+    const sheets = meta.data.sheets || [];
+    const sheetNames = sheets.map((s: any) => s.properties?.title).filter(Boolean);
 
     const previews: string[] = [];
-    for (const name of sheetNames.slice(0, 5)) { // limit to 5 sheets
+    for (const sheet of sheets.slice(0, 5)) {
+      const name = sheet.properties?.title;
+      if (!name) continue;
+      const grid = sheet.properties?.gridProperties || {};
       try {
         const res = await sheetsApi.spreadsheets.values.get({
           spreadsheetId,
-          range: `${name}!A1:Z5`,
+          range: `${quoteSheetName(name)}!A1:Z100`,
         });
         const rows = res.data.values || [];
         const preview = rows.map((r: string[]) => r.join(' | ')).join('\n');
-        previews.push(`Sheet: "${name}"\n${preview || '(empty)'}`);
+        previews.push([
+          `Sheet: "${name}"`,
+          `Grid: ${grid.rowCount || 'unknown'} rows x ${grid.columnCount || 'unknown'} columns; frozen rows: ${grid.frozenRowCount || 0}; frozen columns: ${grid.frozenColumnCount || 0}`,
+          preview || '(empty)',
+        ].join('\n'));
       } catch { previews.push(`Sheet: "${name}" (could not read)`); }
     }
 
@@ -136,11 +165,11 @@ async function readSheetContext(sheetsApi: any, spreadsheetId: string): Promise<
   }
 }
 
-// The Sheets Agent operates by giving the LLM the current sheet context and
+// The Financial Economist Agent operates by giving the LLM the current sheet context and
 // asking it to produce a list of Sheets API operations as structured JSON.
 // We then execute those operations via the real Sheets API.
 export async function runSheetsAgent(options: SheetsAgentOptions): Promise<SheetsAgentResult> {
-  const { spreadsheetId, linkedAccountId, supabase, task, onProgress } = options;
+  const { spreadsheetId, linkedAccountId, supabase, task, mode = 'auto', onProgress } = options;
 
   const emit = (type: string, data: Record<string, unknown>) => {
     try { onProgress?.({ type, ...data }); } catch {}
@@ -169,9 +198,19 @@ ${sheetContext}
 USER REQUEST:
 ${task}
 
+MODE:
+${mode}
+
 Based on the spreadsheet state above, produce a JSON response with this exact shape:
 {
   "plan": "2-3 sentence explanation of what you will do and why",
+  "insights": [
+    {
+      "title": "Short insight title",
+      "evidence": "Specific evidence from the sheet context",
+      "recommendation": "Practical recommendation when useful"
+    }
+  ],
   "operations": [
     {
       "type": "values_update",
@@ -192,6 +231,9 @@ Rules:
 - Only include operations. No commentary outside the JSON.
 - Never modify row 1 (headers) unless the user explicitly asked to rename a column.
 - Prefer USER_ENTERED for anything that might be a formula or date string.
+- For financial insight, expense analysis, diagnosis, trend analysis, or explanation requests, set operations to [] and fill insights with evidence-backed observations.
+- If mode is "analyze", do not create write operations.
+- If mode is "edit", only include write operations that are clear and safe from the user's request.
 - If the task cannot be done safely (ambiguous target, risk of data loss), set operations to [] and explain in plan.
 `.trim();
 
@@ -201,7 +243,7 @@ Rules:
       model,
       temperature: 0.1,
       messages: [
-        { role: 'system', content: SHEETS_AGENT_SYSTEM },
+        { role: 'system', content: SHEETS_ECONOMIST_AGENT_SYSTEM },
         { role: 'user', content: planPrompt },
       ],
       response_format: { type: 'json_object' },
@@ -211,7 +253,7 @@ Rules:
     return failResult(`LLM planning failed: ${e?.message}`);
   }
 
-  let parsed: { plan?: string; operations?: any[]; summary?: string };
+  let parsed: { plan?: string; operations?: any[]; insights?: Array<{ title?: string; evidence?: string; recommendation?: string }>; summary?: string };
   try {
     parsed = JSON.parse(planText);
   } catch {
@@ -220,12 +262,21 @@ Rules:
 
   emit('tool_call_end', {
     tool: 'sheets_agent.plan', call_id: 'sheets-plan', ok: true,
-    receipt: { plan: parsed.plan, operation_count: (parsed.operations || []).length },
+    receipt: { plan: parsed.plan, insight_count: (parsed.insights || []).length, operation_count: (parsed.operations || []).length },
   });
 
   const operations = parsed.operations || [];
   if (operations.length === 0) {
-    return { ok: true, summary: parsed.plan || 'No changes needed.', changes: [] };
+    return {
+      ok: true,
+      summary: parsed.summary || parsed.plan || 'No changes needed.',
+      changes: [],
+      insights: (parsed.insights || []).map((insight) => ({
+        title: insight.title || 'Insight',
+        evidence: insight.evidence || '',
+        recommendation: insight.recommendation,
+      })),
+    };
   }
 
   // ── Phase 3: EXECUTE ───────────────────────────────────────────────────────
@@ -272,5 +323,14 @@ Rules:
     receipt: { changes_applied: changes.length, summary: parsed.summary },
   });
 
-  return { ok: true, summary: parsed.summary || `Applied ${changes.length} change(s).`, changes };
+  return {
+    ok: true,
+    summary: parsed.summary || `Applied ${changes.length} change(s).`,
+    changes,
+    insights: (parsed.insights || []).map((insight) => ({
+      title: insight.title || 'Insight',
+      evidence: insight.evidence || '',
+      recommendation: insight.recommendation,
+    })),
+  };
 }

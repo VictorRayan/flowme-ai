@@ -3,6 +3,8 @@ const mockDriveFilesGet = jest.fn();
 const mockDriveFilesExport = jest.fn();
 const mockSheetsValuesGet = jest.fn();
 const mockDocsDocumentsGet = jest.fn();
+const mockDocsDocumentsCreate = jest.fn();
+const mockDocsDocumentsBatchUpdate = jest.fn();
 const mockGetValidGoogleToken = jest.fn();
 const mockRunSheetsAgent = jest.fn();
 const mockRunDocsAgent = jest.fn();
@@ -26,6 +28,8 @@ jest.mock('googleapis', () => ({
     docs: jest.fn(() => ({
       documents: {
         get: mockDocsDocumentsGet,
+        create: mockDocsDocumentsCreate,
+        batchUpdate: mockDocsDocumentsBatchUpdate,
       },
     })),
   },
@@ -49,6 +53,7 @@ jest.mock('@/lib/ai/agents/docs-agent', () => ({
 }));
 
 import {
+  connectorsCreateDocTool,
   connectorsDocsAgentTool,
   connectorsReadDocTool,
   connectorsReadDriveFileTool,
@@ -213,6 +218,45 @@ describe('Drive connector tools', () => {
     expect(result.receipt).toMatchObject({ title: 'Selected doc', content: 'Selected doc body' });
   });
 
+  it('creates a new Google Doc with initial content', async () => {
+    mockDocsDocumentsCreate.mockResolvedValueOnce({ data: { documentId: 'doc-new' } });
+    mockDocsDocumentsBatchUpdate.mockResolvedValueOnce({ data: {} });
+
+    const context = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsCreateDocTool.call({
+      connector_id: 'conn-docs',
+      title: 'Plano financeiro',
+      content: 'Resumo\n\nEste documento foi criado pelo Balys.',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockDocsDocumentsCreate).toHaveBeenCalledWith({ requestBody: { title: 'Plano financeiro' } });
+    expect(mockDocsDocumentsBatchUpdate).toHaveBeenCalledWith({
+      documentId: 'doc-new',
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              location: { index: 1 },
+              text: 'Resumo\n\nEste documento foi criado pelo Balys.\n',
+            },
+          },
+        ],
+      },
+    });
+    expect(result.receipt).toMatchObject({
+      title: 'Plano financeiro',
+      document_id: 'doc-new',
+      status: 'created',
+    });
+  });
+
   it('reads a selected Google Sheet by file id', async () => {
     mockSheetsValuesGet.mockResolvedValueOnce({
       data: { range: 'Sheet1!A1:B2', values: [['Month', 'Spend'], ['May', '100']] },
@@ -253,9 +297,9 @@ describe('Drive connector tools', () => {
     });
 
     await connectorsDocsAgentTool.call({ connector_id: 'conn-docs', file_id: 'doc-1', task: 'Update the intro' }, docsContext);
-    await connectorsSheetsAgentTool.call({ connector_id: 'conn-sheets', file_id: 'sheet-1', task: 'Add a total row' }, sheetsContext);
+    await connectorsSheetsAgentTool.call({ connector_id: 'conn-sheets', file_id: 'sheet-1', task: 'Add a total row', mode: 'edit' }, sheetsContext);
 
     expect(mockRunDocsAgent).toHaveBeenCalledWith(expect.objectContaining({ documentId: 'doc-1' }));
-    expect(mockRunSheetsAgent).toHaveBeenCalledWith(expect.objectContaining({ spreadsheetId: 'sheet-1' }));
+    expect(mockRunSheetsAgent).toHaveBeenCalledWith(expect.objectContaining({ spreadsheetId: 'sheet-1', mode: 'edit' }));
   });
 });

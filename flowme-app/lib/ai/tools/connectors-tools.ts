@@ -88,6 +88,22 @@ function responseDataToText(data: unknown): string {
   return String(data);
 }
 
+function extractGoogleFileId(value: string | null | undefined, allowRawId = false): string | undefined {
+  const text = (value || '').trim();
+  if (!text) return undefined;
+
+  const urlMatch = text.match(/https?:\/\/[^\s<>"')]+/i);
+  const candidate = urlMatch?.[0] || text;
+  const pathMatch = candidate.match(/\/(?:document|spreadsheets|presentation|file)\/d\/([a-zA-Z0-9_-]+)/);
+  if (pathMatch?.[1]) return pathMatch[1];
+
+  const queryMatch = candidate.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (queryMatch?.[1]) return queryMatch[1];
+
+  if (allowRawId && /^[a-zA-Z0-9_-]{3,}$/.test(candidate) && !/[\s/]/.test(candidate)) return candidate;
+  return undefined;
+}
+
 async function getConnectorRow(
   context: ToolContext,
   connectorId: string,
@@ -181,6 +197,26 @@ async function readDriveFileText(
   };
 }
 
+function extractGoogleDocPlainText(elements: any[]): string {
+  return (elements || []).map((el: any) => {
+    if (el.paragraph) {
+      return (el.paragraph.elements || [])
+        .map((e: any) => e.textRun?.content || '')
+        .join('');
+    }
+    if (el.table) {
+      return (el.table.tableRows || [])
+        .map((row: any) =>
+          (row.tableCells || [])
+            .map((cell: any) => extractGoogleDocPlainText(cell.content || []))
+            .join('\t')
+        )
+        .join('\n');
+    }
+    return '';
+  }).join('');
+}
+
 /* ── tools ── */
 
 export const connectorsListTool = defineTool({
@@ -226,6 +262,7 @@ WHEN TO USE: user says "check my financial sheet", "what's in my spreadsheet", "
 
 CONTRACT:
 - connector_id: required. Get it from connectors.list — match by name, use the id.
+- file_id can be a spreadsheet id from discovery or a full Google Sheets URL pasted by the user.
 - range: A1 notation, e.g. "Sheet1!A1:D20". Defaults to first 100 rows if omitted.
 - Returns rows as arrays of cell values. Empty cells are empty strings.
 - Read-only. Never modifies the sheet.
@@ -235,7 +272,8 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
-    file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
+    file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs, or the full Google Sheets URL pasted by the user. Resolve internally; never ask the user for it.'),
+    spreadsheet_url: z.string().optional().describe('Full Google Sheets URL pasted by the user.'),
     range: z.string().optional().describe('A1 notation range, e.g. "Sheet1!A1:D50". Omit for first 100 rows of default sheet.'),
   }),
   call: async (args, context) => {
@@ -250,7 +288,7 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
     try {
       const sheets = google.sheets({ version: 'v4', auth });
 
-      const spreadsheetId = args.file_id || config.spreadsheet_id;
+      const spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.spreadsheet_url) || extractGoogleFileId(config.spreadsheet_id, true);
       if (!spreadsheetId) {
         return { ok: false, error: 'No spreadsheet selected. Search spreadsheets first with connectors.search_docs, then read the selected file.' };
       }
@@ -278,7 +316,7 @@ export const connectorsSearchDocsTool = defineTool({
   name: 'connectors.search_docs',
   description: `Discovers files through a Google Drive, Docs, or Sheets connector.
 
-WHEN TO USE: user says "find the contract document", "search my drive for X", "what documents do I have about Y", or wants to choose a file before reading or editing.
+WHEN TO USE: user says "find the contract document", "search my drive for X", "what documents do I have about Y", "list my docs", "quais documentos tenho", or wants to choose a file before reading or editing.
 
 CONTRACT:
 - connector_id: required. Get from connectors.list — match by name.
@@ -286,6 +324,7 @@ CONTRACT:
 - max_results: defaults to 10.
 - Google Docs connectors list Google Docs files; Google Sheets connectors list spreadsheets; Google Drive connectors list Drive files.
 - Returns file names and types only. Use this for discovery, then call a read/edit tool on the selected file.
+- If the user provided a Google Docs URL or a clear document title to read, prefer connectors.find_and_read_doc instead of only listing.
 - If connector is not authorized, tell the user to go to /app/connectors.
 
 RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTime, webViewLink }.`,
@@ -338,7 +377,7 @@ WHEN TO USE: after connectors.search_docs returns candidate files and the user a
 
 CONTRACT:
 - connector_id: required. Use the same connector used for discovery.
-- file_id: required. Get it from connectors.search_docs results; never ask the user for the ID.
+- file_id or file_url: required. Get it from connectors.search_docs results or from a Google Docs/Sheets/Drive URL the user pasted; never ask the user for the ID.
 - Supports Google Docs, Google Sheets previews, Google Slides text export, CSV, JSON, Markdown, HTML, XML, and plain text files.
 - For Google Sheets, this returns a CSV preview from Drive export. For precise ranges or edits, use connectors.read_sheet or connectors.sheets_agent with a Sheets connector.
 - Read-only. Never modifies the file.
@@ -348,7 +387,8 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list or the discovery tool.'),
-    file_id: z.string().describe('The file id returned by connectors.search_docs. Resolve internally; never ask the user for this.'),
+    file_id: z.string().optional().describe('The file id returned by connectors.search_docs, or the full Google file URL pasted by the user. Resolve internally; never ask the user for this.'),
+    file_url: z.string().optional().describe('Full Google Docs, Sheets, Slides, or Drive file URL pasted by the user.'),
     max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
   }),
   call: async (args, context) => {
@@ -359,14 +399,17 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
     if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
 
     try {
+      const fileId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.file_url);
+      if (!fileId) return { ok: false, error: 'No file selected. Pass a Google file URL or select a file from connectors.search_docs first.' };
+
       const drive = google.drive({ version: 'v3', auth });
       const metaRes = await drive.files.get({
-        fileId: args.file_id,
+        fileId,
         fields: 'id, name, mimeType, modifiedTime, webViewLink, size, parents',
       });
       const file = metaRes.data;
 
-      const read = await readDriveFileText(drive, args.file_id, file.mimeType);
+      const read = await readDriveFileText(drive, fileId, file.mimeType);
       if (!read.readable) return { ok: false, error: read.error };
 
       const maxChars = Math.max(1, Math.min(args.max_chars ?? 12000, 30000));
@@ -395,10 +438,11 @@ export const connectorsReadDocTool = defineTool({
   name: 'connectors.read_doc',
   description: `Reads the full plain-text content of a Google Docs document connected via a Docs connector.
 
-WHEN TO USE: user says "read my contract", "what does the document say", "summarize the doc", "check what's in [connector name]".
+WHEN TO USE: user says "read my contract", "what does the document say", "summarize the doc", "check what's in [connector name]", or pastes a Google Docs URL and asks you to read it.
 
 CONTRACT:
 - connector_id: required. Get from connectors.list — match by name, pass the id.
+- file_id or document_url can be a document id from discovery or a full Google Docs URL pasted by the user.
 - The connector must be a google_docs type with an authorized Google account.
 - Returns the full document text. If the document is very long, summarise the key sections in your reply rather than dumping everything.
 - Read-only. Never modifies the document.
@@ -408,7 +452,8 @@ RETURNS receipt: { title, content, word_count }`,
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
-    file_id: z.string().optional().describe('Document file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
+    file_id: z.string().optional().describe('Document file id returned by connectors.search_docs, or the full Google Docs URL pasted by the user. Resolve internally; never ask the user for it.'),
+    document_url: z.string().optional().describe('Full Google Docs URL pasted by the user.'),
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
@@ -424,9 +469,9 @@ RETURNS receipt: { title, content, word_count }`,
       .eq('user_id', context.user.id)
       .maybeSingle();
 
-    const documentId = (args.file_id || connectorRow?.config?.document_id) as string | undefined;
+    const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(connectorRow?.config?.document_id, true);
     if (!documentId) {
-      return { ok: false, error: 'No document selected. Search documents first with connectors.search_docs, then read the selected file.' };
+      return { ok: false, error: 'No document selected. Pass a Google Docs URL or search documents first with connectors.search_docs, then read the selected file.' };
     }
 
     try {
@@ -434,28 +479,7 @@ RETURNS receipt: { title, content, word_count }`,
       const res = await docs.documents.get({ documentId });
       const doc = res.data;
 
-      // Extract plain text from the document body
-      const extractText = (elements: any[]): string => {
-        return (elements || []).map((el: any) => {
-          if (el.paragraph) {
-            return (el.paragraph.elements || [])
-              .map((e: any) => e.textRun?.content || '')
-              .join('');
-          }
-          if (el.table) {
-            return (el.table.tableRows || [])
-              .map((row: any) =>
-                (row.tableCells || [])
-                  .map((cell: any) => extractText(cell.content || []))
-                  .join('\t')
-              )
-              .join('\n');
-          }
-          return '';
-        }).join('');
-      };
-
-      const content = extractText(doc.body?.content || []).trim();
+      const content = extractGoogleDocPlainText(doc.body?.content || []).trim();
       const wordCount = content.split(/\s+/).filter(Boolean).length;
 
       return {
@@ -469,6 +493,94 @@ RETURNS receipt: { title, content, word_count }`,
       };
     } catch (e: any) {
       const msg = e?.response?.data?.error?.message || e?.message || 'Failed to read document';
+      return { ok: false, error: `Google Docs: ${msg}` };
+    }
+  },
+});
+
+export const connectorsFindAndReadDocTool = defineTool({
+  name: 'connectors.find_and_read_doc',
+  description: `Finds a Google Docs document by natural name or reads it directly from a pasted Google Docs URL, then returns its plain-text content.
+
+WHEN TO USE:
+- User says "read the document called X", "open X", "what is in X", "leia o documento X", or "o que tem em X".
+- User pasted a Google Docs URL and asks to read, summarize, understand, or decide where to edit.
+- User expects the connector to be intuitive and does not know file IDs.
+
+CONTRACT:
+- connector_id: required. Get from connectors.list, match by name.
+- name_or_url: user-facing document name/title or full Google Docs URL.
+- If name_or_url is a URL, extract the document ID and read directly.
+- If name_or_url is a name, search Google Drive for Google Docs files, choose the exact title match first, otherwise the top relevant result.
+- Never ask the user for a document ID.
+- Read-only. For edits after reading, use connectors.docs_agent with the same URL/name resolved to file_id.
+
+RETURNS receipt: { title, document_id, content, word_count, matched_by, candidates[] }. document_id is internal; never show it to the user.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
+    name_or_url: z.string().min(1).describe('Natural document title/name or full Google Docs URL pasted by the user.'),
+    max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
+  }),
+  call: async (args, context) => {
+    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+
+    const auth = await getAuthorizedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+
+    try {
+      const docs = google.docs({ version: 'v1', auth });
+      const drive = google.drive({ version: 'v3', auth });
+      const directDocumentId = extractGoogleFileId(args.name_or_url);
+      let documentId = directDocumentId;
+      let matchedBy: 'url' | 'exact_name' | 'search_top_result' = directDocumentId ? 'url' : 'search_top_result';
+      let candidates: Array<{ id?: string | null; name?: string | null; modifiedTime?: string | null; webViewLink?: string | null }> = [];
+
+      if (!documentId) {
+        const searchText = args.name_or_url.trim();
+        const res = await drive.files.list({
+          q: buildDriveSearchQuery(searchText, GOOGLE_DOC_MIME),
+          pageSize: 10,
+          fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
+          orderBy: 'modifiedTime desc',
+        });
+        candidates = res.data.files || [];
+        const exact = candidates.find((file) => (file.name || '').trim().toLowerCase() === searchText.toLowerCase());
+        const selected = exact || candidates[0];
+        if (!selected?.id) {
+          return { ok: false, error: `No Google Doc found matching "${searchText}".` };
+        }
+        documentId = selected.id;
+        matchedBy = exact ? 'exact_name' : 'search_top_result';
+      }
+
+      const docRes = await docs.documents.get({ documentId });
+      const doc = docRes.data;
+      const fullContent = extractGoogleDocPlainText(doc.body?.content || []).trim();
+      const maxChars = Math.max(1, Math.min(args.max_chars ?? 12000, 30000));
+      const content = fullContent.slice(0, maxChars);
+      const wordCount = fullContent.split(/\s+/).filter(Boolean).length;
+
+      return {
+        ok: true,
+        receipt: {
+          title: doc.title || 'Untitled',
+          document_id: documentId,
+          content,
+          word_count: wordCount,
+          truncated: fullContent.length > maxChars,
+          matched_by: matchedBy,
+          candidates: candidates.slice(0, 5).map((file) => ({
+            id: file.id,
+            name: file.name,
+            modifiedTime: file.modifiedTime,
+            webViewLink: file.webViewLink,
+          })),
+        },
+      };
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to find and read document';
       return { ok: false, error: `Google Docs: ${msg}` };
     }
   },
@@ -593,9 +705,9 @@ RETURNS receipt: { summary, changes[], insights[] }`,
       .eq('user_id', context.user.id)
       .maybeSingle();
 
-    const spreadsheetId = (args.file_id || connectorRow?.config?.spreadsheet_id) as string | undefined;
+    const spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.task) || extractGoogleFileId(connectorRow?.config?.spreadsheet_id, true);
     if (!spreadsheetId) {
-      return { ok: false, error: 'No spreadsheet selected. Search spreadsheets first with connectors.search_docs, then edit the selected file.' };
+      return { ok: false, error: 'No spreadsheet selected. Pass a Google Sheets URL or search spreadsheets first with connectors.search_docs, then edit the selected file.' };
     }
 
     const result = await runSheetsAgent({
@@ -649,7 +761,8 @@ RETURNS receipt: { summary, changes[] }`,
   isReadOnly: false,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
-    file_id: z.string().optional().describe('Document file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
+    file_id: z.string().optional().describe('Document file id returned by connectors.search_docs, or the full Google Docs URL pasted by the user. Resolve internally; never ask the user for it.'),
+    document_url: z.string().optional().describe('Full Google Docs URL pasted by the user.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the document. For replacements, include the exact phrase to find.'),
   }),
   call: async (args, context) => {
@@ -665,9 +778,9 @@ RETURNS receipt: { summary, changes[] }`,
       .eq('user_id', context.user.id)
       .maybeSingle();
 
-    const documentId = (args.file_id || connectorRow?.config?.document_id) as string | undefined;
+    const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(args.task) || extractGoogleFileId(connectorRow?.config?.document_id, true);
     if (!documentId) {
-      return { ok: false, error: 'No document selected. Search documents first with connectors.search_docs, then edit the selected file.' };
+      return { ok: false, error: 'No document selected. Pass a Google Docs URL or search documents first with connectors.search_docs, then edit the selected file.' };
     }
 
     const result = await runDocsAgent({

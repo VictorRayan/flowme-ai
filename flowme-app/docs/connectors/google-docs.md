@@ -12,8 +12,9 @@ Google Docs work is handled by the Google Docs Editorial Agent. The agent prompt
 2. Use `connectors.search_docs` to list or search Docs files.
 3. Resolve the target document by title and prior result context.
 4. Use `connectors.create_doc` when the user wants a new Google Doc written from scratch.
-5. Use `connectors.read_doc` before summarizing or extracting insights from an existing document.
-6. Use `connectors.docs_agent` for edits after the target document is clear.
+5. Use `connectors.find_and_read_doc` when the user gives a Google Docs URL or asks to read a document by name.
+6. Use `connectors.read_doc` before summarizing or extracting insights from an existing document when you already have the file id or URL.
+7. Use `connectors.docs_agent` for edits after the target document is clear.
 
 ## Editorial Agent Contract
 
@@ -28,6 +29,8 @@ Google Docs work is handled by the Google Docs Editorial Agent. The agent prompt
 - "/docs quais arquivos tem ai?"
 - "lista meus documentos"
 - "o que tem em Victor - Career Profile?"
+- "leia este link: https://docs.google.com/document/d/..."
+- "abre o documento Victor - Career Profile"
 - "resume o documento de isencao de IR"
 - "cria um documento com um plano de aumento salarial"
 - "escreve um briefing em Google Docs sobre a reuniao"
@@ -38,13 +41,15 @@ Google Docs work is handled by the Google Docs Editorial Agent. The agent prompt
 - Connection form asks for type and display name only.
 - Chat bubble shows the selected Docs shortcut/action after send.
 - Balys must not ask "which connector?" when `/docs` was selected and one Docs connector is authorized.
-- Balys must not ask for document URL or file ID.
+- Balys must not ask for file ID. If the user gives a Google Docs URL, use it directly.
 - Lists should show user-facing names and useful dates, capped to a readable count.
 
 ## Tests
 
 - Empty search query lists recent Docs files.
 - Named follow-up resolves against the latest Docs search result.
+- Pasted Google Docs URL reads the document directly.
+- Natural document title reads the exact title match first, then the top search result.
 - Read requires a resolved file ID internally, never from the user.
 - Creation writes a new Google Doc through `connectors.create_doc`.
 - Edit agent receives the resolved document file ID.

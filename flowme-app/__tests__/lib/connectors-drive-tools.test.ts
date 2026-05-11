@@ -55,6 +55,7 @@ jest.mock('@/lib/ai/agents/docs-agent', () => ({
 import {
   connectorsCreateDocTool,
   connectorsDocsAgentTool,
+  connectorsFindAndReadDocTool,
   connectorsReadDocTool,
   connectorsReadDriveFileTool,
   connectorsReadSheetTool,
@@ -218,6 +219,100 @@ describe('Drive connector tools', () => {
     expect(result.receipt).toMatchObject({ title: 'Selected doc', content: 'Selected doc body' });
   });
 
+  it('reads a selected Google Doc by pasted URL', async () => {
+    mockDocsDocumentsGet.mockResolvedValueOnce({
+      data: {
+        title: 'Linked doc',
+        body: {
+          content: [
+            { paragraph: { elements: [{ textRun: { content: 'Linked doc body\n' } }] } },
+          ],
+        },
+      },
+    });
+    const context = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsReadDocTool.call({
+      connector_id: 'conn-docs',
+      file_id: 'https://docs.google.com/document/d/doc-from-url/edit?tab=t.0#heading=h.123',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockDocsDocumentsGet).toHaveBeenCalledWith({ documentId: 'doc-from-url' });
+    expect(result.receipt).toMatchObject({ title: 'Linked doc', content: 'Linked doc body' });
+  });
+
+  it('finds and reads a Google Doc by exact natural title', async () => {
+    mockDriveFilesList.mockResolvedValueOnce({
+      data: {
+        files: [
+          { id: 'doc-2', name: 'Other doc', modifiedTime: '2026-05-09T10:00:00.000Z' },
+          { id: 'doc-1', name: 'Victor - Career Profile', modifiedTime: '2026-05-10T10:00:00.000Z' },
+        ],
+      },
+    });
+    mockDocsDocumentsGet.mockResolvedValueOnce({
+      data: {
+        title: 'Victor - Career Profile',
+        body: {
+          content: [
+            { paragraph: { elements: [{ textRun: { content: 'Career profile body\n' } }] } },
+          ],
+        },
+      },
+    });
+    const context = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsFindAndReadDocTool.call({
+      connector_id: 'conn-docs',
+      name_or_url: 'Victor - Career Profile',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockDriveFilesList.mock.calls[0][0].q).toContain("mimeType = 'application/vnd.google-apps.document'");
+    expect(mockDocsDocumentsGet).toHaveBeenCalledWith({ documentId: 'doc-1' });
+    expect(result.receipt).toMatchObject({ title: 'Victor - Career Profile', matched_by: 'exact_name' });
+  });
+
+  it('finds and reads a Google Doc directly by URL', async () => {
+    mockDocsDocumentsGet.mockResolvedValueOnce({
+      data: {
+        title: 'URL doc',
+        body: {
+          content: [
+            { paragraph: { elements: [{ textRun: { content: 'URL doc body\n' } }] } },
+          ],
+        },
+      },
+    });
+    const context = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsFindAndReadDocTool.call({
+      connector_id: 'conn-docs',
+      name_or_url: 'https://docs.google.com/document/d/doc-url-1/edit',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockDriveFilesList).not.toHaveBeenCalled();
+    expect(mockDocsDocumentsGet).toHaveBeenCalledWith({ documentId: 'doc-url-1' });
+    expect(result.receipt).toMatchObject({ title: 'URL doc', matched_by: 'url' });
+  });
+
   it('creates a new Google Doc with initial content', async () => {
     mockDocsDocumentsCreate.mockResolvedValueOnce({ data: { documentId: 'doc-new' } });
     mockDocsDocumentsBatchUpdate.mockResolvedValueOnce({ data: {} });
@@ -296,7 +391,7 @@ describe('Drive connector tools', () => {
       config: { linked_account_id: 'linked-1' },
     });
 
-    await connectorsDocsAgentTool.call({ connector_id: 'conn-docs', file_id: 'doc-1', task: 'Update the intro' }, docsContext);
+    await connectorsDocsAgentTool.call({ connector_id: 'conn-docs', task: 'Update the intro in https://docs.google.com/document/d/doc-1/edit' }, docsContext);
     await connectorsSheetsAgentTool.call({ connector_id: 'conn-sheets', file_id: 'sheet-1', task: 'Add a total row', mode: 'edit' }, sheetsContext);
 
     expect(mockRunDocsAgent).toHaveBeenCalledWith(expect.objectContaining({ documentId: 'doc-1' }));

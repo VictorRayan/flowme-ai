@@ -127,7 +127,7 @@ function getActions(uiLang: UiLang): ActionDef[] {
       command: '/docs',
       label: '/docs',
       subtitle: pt ? 'Criar, buscar, ler, editar e resumir documentos' : 'Create, find, read, edit, and summarize documents',
-      directive: 'Use connectors.list to find an authorized Google Docs connector. If the user wants a new document, draft the content and call connectors.create_doc. Otherwise use connectors.search_docs to list or search documents, pass the selected file_id to connectors.read_doc for reading, or connectors.docs_agent for requested edits. Extract insights only after reading tool results.',
+      directive: 'Use connectors.list to find an authorized Google Docs connector. If the user wants a new document, draft the content and call connectors.create_doc. If the user pasted a Google Docs URL or named a document, use connectors.find_and_read_doc to read it intuitively before summarizing or deciding where to edit. Use connectors.search_docs to list documents. Use connectors.docs_agent for requested edits, passing the URL/file_id or keeping the URL in the task.',
       action: 'docs',
       aliases: ['/docs', '/documentos', 'doc', 'docs', 'documento', 'documentos'],
     },

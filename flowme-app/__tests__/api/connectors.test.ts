@@ -11,6 +11,8 @@ const MOCK_CONNECTOR = {
   created_at: '2026-05-01T00:00:00Z',
 };
 
+let lastChain: any;
+
 function makeChain(listData: any[] = [MOCK_CONNECTOR], singleData: any = MOCK_CONNECTOR) {
   const chain: any = {
     then(resolve: Function, reject: Function) {
@@ -23,6 +25,7 @@ function makeChain(listData: any[] = [MOCK_CONNECTOR], singleData: any = MOCK_CO
   const methods = ['from', 'select', 'eq', 'order', 'insert', 'update', 'delete', 'upsert', 'or', 'ilike'];
   methods.forEach(m => { chain[m] = jest.fn().mockReturnValue(chain); });
   chain.single = jest.fn().mockResolvedValue({ data: singleData, error: null });
+  lastChain = chain;
   return chain;
 }
 
@@ -88,6 +91,26 @@ describe('POST /api/connectors', () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
     }
+  });
+
+  it('does not store file-specific Google URLs or IDs for account-wide connectors', async () => {
+    const req = new NextRequest('http://localhost/api/connectors', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Google Docs',
+        type: 'google_docs',
+        config: { document_id: 'doc-1', folder_id: 'folder-1' },
+      }),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(lastChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Google Docs',
+      type: 'google_docs',
+      config: {},
+    }));
   });
 });
 

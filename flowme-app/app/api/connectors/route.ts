@@ -4,6 +4,11 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
 const VALID_TYPES = ['gmail', 'google_docs', 'google_sheets', 'google_drive'];
 
+function initialConnectorConfig(type: string, input: unknown): Record<string, unknown> {
+  if (['gmail', 'google_docs', 'google_sheets', 'google_drive'].includes(type)) return {};
+  return input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {};
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
@@ -43,7 +48,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         name: name.trim(),
         type,
-        config: config || {},
+        config: initialConnectorConfig(type, config),
       })
       .select('id, name, type, is_active, config, created_at')
       .single();

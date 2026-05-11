@@ -180,6 +180,7 @@ export const UI = {
       nameLabel: 'Name',
       nameHelper: 'Give this connector a descriptive name so Balys knows what it is',
       urlHelper: 'Paste the URL from your browser. Balys uses this to know exactly which file to read.',
+      accountWideAccess: 'No URL needed. Authorize Google once and Balys will discover the right data when you ask.',
       permissionsNeeded: 'Permissions needed',
       addAndAuthorize: 'Add & authorize',
       cancel: 'Cancel',
@@ -205,9 +206,9 @@ export const UI = {
       urlInvalid: "Couldn't find a valid Google ID in that URL. Copy the URL directly from your browser address bar.",
       connectorMeta: {
         gmail: { description: 'Read emails and use them as context for Balys', scopes: 'Read & draft emails' },
-        google_docs: { description: 'Connect documents so Balys can reference them', scopes: 'Read documents' },
-        google_sheets: { description: 'Connect spreadsheets for financial or data context', scopes: 'Read spreadsheets' },
-        google_drive: { description: 'Connect a Drive folder so Balys can discover and read files', scopes: 'Read Drive files' },
+        google_docs: { description: 'Connect Google Docs so Balys can find, read, and edit documents', scopes: 'Find, read & edit documents' },
+        google_sheets: { description: 'Connect Google Sheets so Balys can find, read, edit, and analyze spreadsheets', scopes: 'Find, read & edit spreadsheets' },
+        google_drive: { description: 'Connect Google Drive so Balys can discover and read files', scopes: 'Discover and read Drive files' },
       },
     },
 
@@ -420,6 +421,7 @@ export const UI = {
       nameLabel: 'Nome',
       nameHelper: 'Dê um nome descritivo para que o Balys saiba o que é',
       urlHelper: 'Cole a URL do navegador. O Balys usa isso para saber exatamente qual arquivo ler.',
+      accountWideAccess: 'Nenhuma URL e necessaria. Autorize o Google uma vez e o Balys descobre os dados certos quando voce pedir.',
       permissionsNeeded: 'Permissões necessárias',
       addAndAuthorize: 'Adicionar & autorizar',
       cancel: 'Cancelar',
@@ -445,9 +447,9 @@ export const UI = {
       urlInvalid: 'Não foi possível encontrar um ID válido do Google nessa URL. Copie a URL diretamente da barra de endereço do navegador.',
       connectorMeta: {
         gmail: { description: 'Leia e-mails e use-os como contexto para o Balys', scopes: 'Ler e rascunhar e-mails' },
-        google_docs: { description: 'Conecte documentos para que o Balys possa referenciá-los', scopes: 'Ler documentos' },
-        google_sheets: { description: 'Conecte planilhas para contexto financeiro ou de dados', scopes: 'Ler planilhas' },
-        google_drive: { description: 'Conecte uma pasta do Drive para o Balys descobrir e ler arquivos', scopes: 'Ler arquivos do Drive' },
+        google_docs: { description: 'Conecte o Google Docs para o Balys encontrar, ler e editar documentos', scopes: 'Encontrar, ler e editar documentos' },
+        google_sheets: { description: 'Conecte o Google Sheets para o Balys encontrar, ler, editar e analisar planilhas', scopes: 'Encontrar, ler e editar planilhas' },
+        google_drive: { description: 'Conecte o Google Drive para o Balys descobrir e ler arquivos', scopes: 'Descobrir e ler arquivos do Drive' },
       },
     },
 

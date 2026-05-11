@@ -1,7 +1,11 @@
 const mockDriveFilesList = jest.fn();
 const mockDriveFilesGet = jest.fn();
 const mockDriveFilesExport = jest.fn();
+const mockSheetsValuesGet = jest.fn();
+const mockDocsDocumentsGet = jest.fn();
 const mockGetValidGoogleToken = jest.fn();
+const mockRunSheetsAgent = jest.fn();
+const mockRunDocsAgent = jest.fn();
 
 jest.mock('googleapis', () => ({
   google: {
@@ -10,6 +14,18 @@ jest.mock('googleapis', () => ({
         list: mockDriveFilesList,
         get: mockDriveFilesGet,
         export: mockDriveFilesExport,
+      },
+    })),
+    sheets: jest.fn(() => ({
+      spreadsheets: {
+        values: {
+          get: mockSheetsValuesGet,
+        },
+      },
+    })),
+    docs: jest.fn(() => ({
+      documents: {
+        get: mockDocsDocumentsGet,
       },
     })),
   },
@@ -25,14 +41,21 @@ jest.mock('@/lib/google/google-gmail', () => ({
 }));
 
 jest.mock('@/lib/ai/agents/sheets-agent', () => ({
-  runSheetsAgent: jest.fn(),
+  runSheetsAgent: (...args: unknown[]) => mockRunSheetsAgent(...args),
 }));
 
 jest.mock('@/lib/ai/agents/docs-agent', () => ({
-  runDocsAgent: jest.fn(),
+  runDocsAgent: (...args: unknown[]) => mockRunDocsAgent(...args),
 }));
 
-import { connectorsReadDriveFileTool, connectorsSearchDocsTool } from '@/lib/ai/tools/connectors-tools';
+import {
+  connectorsDocsAgentTool,
+  connectorsReadDocTool,
+  connectorsReadDriveFileTool,
+  connectorsReadSheetTool,
+  connectorsSearchDocsTool,
+  connectorsSheetsAgentTool,
+} from '@/lib/ai/tools/connectors-tools';
 
 function makeContext(connector: Record<string, unknown>) {
   const chain: any = {
@@ -57,7 +80,7 @@ describe('Drive connector tools', () => {
     mockGetValidGoogleToken.mockResolvedValue({ kind: 'oauth-client' });
   });
 
-  it('discovers files inside the configured Drive folder and refreshes credentials', async () => {
+  it('discovers files account-wide and refreshes credentials', async () => {
     mockDriveFilesList.mockResolvedValue({
       data: {
         files: [
@@ -76,7 +99,7 @@ describe('Drive connector tools', () => {
       id: 'conn-1',
       type: 'google_drive',
       is_active: true,
-      config: { linked_account_id: 'linked-1', folder_id: 'folder-1' },
+      config: { linked_account_id: 'linked-1' },
     });
 
     const result = await connectorsSearchDocsTool.call({
@@ -92,11 +115,39 @@ describe('Drive connector tools', () => {
     });
     expect(mockDriveFilesList).toHaveBeenCalledWith(expect.objectContaining({
       pageSize: 5,
-      q: expect.stringContaining("'folder-1' in parents"),
+      q: expect.not.stringContaining('in parents'),
     }));
     expect(mockDriveFilesList.mock.calls[0][0].q).toContain("name contains 'budget'");
     expect(mockDriveFilesList.mock.calls[0][0].q).toContain("fullText contains 'budget'");
     expect(result.receipt).toMatchObject({ count: 1 });
+  });
+
+  it('filters discovery to Google Docs for Docs connectors', async () => {
+    mockDriveFilesList.mockResolvedValue({ data: { files: [] } });
+    const context = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    await connectorsSearchDocsTool.call({ connector_id: 'conn-docs', query: '', max_results: 10 }, context);
+
+    expect(mockDriveFilesList.mock.calls[0][0].q).toContain("mimeType = 'application/vnd.google-apps.document'");
+  });
+
+  it('filters discovery to Google Sheets for Sheets connectors', async () => {
+    mockDriveFilesList.mockResolvedValue({ data: { files: [] } });
+    const context = makeContext({
+      id: 'conn-sheets',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    await connectorsSearchDocsTool.call({ connector_id: 'conn-sheets', query: '', max_results: 10 }, context);
+
+    expect(mockDriveFilesList.mock.calls[0][0].q).toContain("mimeType = 'application/vnd.google-apps.spreadsheet'");
   });
 
   it('reads the selected Google Doc file text from Drive discovery', async () => {
@@ -116,7 +167,7 @@ describe('Drive connector tools', () => {
       id: 'conn-1',
       type: 'google_drive',
       is_active: true,
-      config: { linked_account_id: 'linked-1', folder_id: 'folder-1' },
+      config: { linked_account_id: 'linked-1' },
     });
 
     const result = await connectorsReadDriveFileTool.call({
@@ -135,5 +186,76 @@ describe('Drive connector tools', () => {
       content: 'Drive file',
       truncated: true,
     });
+  });
+
+  it('reads a selected Google Doc by file id', async () => {
+    mockDocsDocumentsGet.mockResolvedValueOnce({
+      data: {
+        title: 'Selected doc',
+        body: {
+          content: [
+            { paragraph: { elements: [{ textRun: { content: 'Selected doc body\n' } }] } },
+          ],
+        },
+      },
+    });
+    const context = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsReadDocTool.call({ connector_id: 'conn-docs', file_id: 'doc-1' }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockDocsDocumentsGet).toHaveBeenCalledWith({ documentId: 'doc-1' });
+    expect(result.receipt).toMatchObject({ title: 'Selected doc', content: 'Selected doc body' });
+  });
+
+  it('reads a selected Google Sheet by file id', async () => {
+    mockSheetsValuesGet.mockResolvedValueOnce({
+      data: { range: 'Sheet1!A1:B2', values: [['Month', 'Spend'], ['May', '100']] },
+    });
+    const context = makeContext({
+      id: 'conn-sheets',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsReadSheetTool.call({
+      connector_id: 'conn-sheets',
+      file_id: 'sheet-1',
+      range: 'Sheet1!A1:B2',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockSheetsValuesGet).toHaveBeenCalledWith({ spreadsheetId: 'sheet-1', range: 'Sheet1!A1:B2' });
+    expect(result.receipt).toMatchObject({ row_count: 2 });
+  });
+
+  it('passes selected file ids to Docs and Sheets editing agents', async () => {
+    mockRunDocsAgent.mockResolvedValueOnce({ ok: true, summary: 'doc edited', changes: [{ description: 'changed' }] });
+    mockRunSheetsAgent.mockResolvedValueOnce({ ok: true, summary: 'sheet edited', changes: [{ range: 'A1', description: 'changed' }] });
+
+    const docsContext = makeContext({
+      id: 'conn-docs',
+      type: 'google_docs',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+    const sheetsContext = makeContext({
+      id: 'conn-sheets',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    await connectorsDocsAgentTool.call({ connector_id: 'conn-docs', file_id: 'doc-1', task: 'Update the intro' }, docsContext);
+    await connectorsSheetsAgentTool.call({ connector_id: 'conn-sheets', file_id: 'sheet-1', task: 'Add a total row' }, sheetsContext);
+
+    expect(mockRunDocsAgent).toHaveBeenCalledWith(expect.objectContaining({ documentId: 'doc-1' }));
+    expect(mockRunSheetsAgent).toHaveBeenCalledWith(expect.objectContaining({ spreadsheetId: 'sheet-1' }));
   });
 });

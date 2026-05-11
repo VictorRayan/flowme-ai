@@ -49,10 +49,16 @@ function escapeDriveQueryValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
-function buildDriveSearchQuery(query: string, folderId?: string): string {
+function mimeTypeForConnector(type: ConnectorType | undefined): string | null {
+  if (type === 'google_docs') return GOOGLE_DOC_MIME;
+  if (type === 'google_sheets') return GOOGLE_SHEET_MIME;
+  return null;
+}
+
+function buildDriveSearchQuery(query: string, mimeType?: string | null): string {
   const clauses = ['trashed = false'];
-  if (folderId?.trim()) {
-    clauses.push(`'${escapeDriveQueryValue(folderId.trim())}' in parents`);
+  if (mimeType) {
+    clauses.push(`mimeType = '${escapeDriveQueryValue(mimeType)}'`);
   }
   if (query.trim()) {
     const q = escapeDriveQueryValue(query.trim());
@@ -229,6 +235,7 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
+    file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
     range: z.string().optional().describe('A1 notation range, e.g. "Sheet1!A1:D50". Omit for first 100 rows of default sheet.'),
   }),
   call: async (args, context) => {
@@ -243,9 +250,9 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
     try {
       const sheets = google.sheets({ version: 'v4', auth });
 
-      const spreadsheetId = config.spreadsheet_id;
+      const spreadsheetId = args.file_id || config.spreadsheet_id;
       if (!spreadsheetId) {
-        return { ok: false, error: 'No spreadsheet URL was provided for this connector. Ask the user to remove and re-add the connector, pasting the Google Sheets URL this time.' };
+        return { ok: false, error: 'No spreadsheet selected. Search spreadsheets first with connectors.search_docs, then read the selected file.' };
       }
 
       const range = args.range || 'A1:Z100';
@@ -277,6 +284,7 @@ CONTRACT:
 - connector_id: required. Get from connectors.list — match by name.
 - query: optional plain text search. Searches file names and content where Drive supports it. Empty query lists recent files.
 - max_results: defaults to 10.
+- Google Docs connectors list Google Docs files; Google Sheets connectors list spreadsheets; Google Drive connectors list Drive files.
 - Returns file names and types only. Use this for discovery, then call a read/edit tool on the selected file.
 - If connector is not authorized, tell the user to go to /app/connectors.
 
@@ -289,7 +297,6 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
   }),
   call: async (args, context) => {
     const connector = await getConnectorRow(context, args.connector_id);
-    const config = configOf(connector);
     const searchQuery = args.query ?? '';
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
     if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
@@ -299,31 +306,8 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
 
     try {
       const drive = google.drive({ version: 'v3', auth });
-      const configuredFileId = connector?.type === 'google_docs'
-        ? config.document_id
-        : connector?.type === 'google_sheets'
-          ? config.spreadsheet_id
-          : undefined;
-
-      if (configuredFileId) {
-        const res = await drive.files.get({
-          fileId: configuredFileId,
-          fields: 'id, name, mimeType, modifiedTime, webViewLink',
-        });
-        const file = {
-          id: res.data.id,
-          name: res.data.name,
-          mimeType: res.data.mimeType,
-          modifiedTime: res.data.modifiedTime,
-          webViewLink: res.data.webViewLink,
-        };
-        const q = searchQuery.trim().toLowerCase();
-        const files = !q || file.name?.toLowerCase().includes(q) ? [file] : [];
-        return { ok: true, receipt: { files, count: files.length } };
-      }
-
       const res = await drive.files.list({
-        q: buildDriveSearchQuery(searchQuery, config.folder_id),
+        q: buildDriveSearchQuery(searchQuery, mimeTypeForConnector(connector?.type)),
         pageSize: Math.min(args.max_results ?? 10, 20),
         fields: 'files(id, name, mimeType, modifiedTime, webViewLink, size)',
         orderBy: 'modifiedTime desc',
@@ -368,8 +352,6 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
     max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
   }),
   call: async (args, context) => {
-    const connector = await getConnectorRow(context, args.connector_id);
-    const config = configOf(connector);
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
     if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
 
@@ -383,10 +365,6 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
         fields: 'id, name, mimeType, modifiedTime, webViewLink, size, parents',
       });
       const file = metaRes.data;
-
-      if (connector?.type === 'google_drive' && config.folder_id && Array.isArray(file.parents) && !file.parents.includes(config.folder_id)) {
-        return { ok: false, error: 'That file is outside the configured Drive folder for this connector.' };
-      }
 
       const read = await readDriveFileText(drive, args.file_id, file.mimeType);
       if (!read.readable) return { ok: false, error: read.error };
@@ -430,6 +408,7 @@ RETURNS receipt: { title, content, word_count }`,
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
+    file_id: z.string().optional().describe('Document file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
@@ -445,9 +424,9 @@ RETURNS receipt: { title, content, word_count }`,
       .eq('user_id', context.user.id)
       .maybeSingle();
 
-    const documentId = connectorRow?.config?.document_id as string | undefined;
+    const documentId = (args.file_id || connectorRow?.config?.document_id) as string | undefined;
     if (!documentId) {
-      return { ok: false, error: 'No document URL was provided for this connector. Ask the user to remove and re-add the connector, pasting the Google Docs URL this time.' };
+      return { ok: false, error: 'No document selected. Search documents first with connectors.search_docs, then read the selected file.' };
     }
 
     try {
@@ -521,11 +500,14 @@ RETURNS receipt: { summary, changes[] }`,
   isReadOnly: false,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
+    file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the spreadsheet. Be specific about values, columns, and rows if known.'),
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
     if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    const auth = await getAuthorizedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
 
     const { data: connectorRow } = await context.supabase
       .from('connectors')
@@ -534,9 +516,9 @@ RETURNS receipt: { summary, changes[] }`,
       .eq('user_id', context.user.id)
       .maybeSingle();
 
-    const spreadsheetId = connectorRow?.config?.spreadsheet_id as string | undefined;
+    const spreadsheetId = (args.file_id || connectorRow?.config?.spreadsheet_id) as string | undefined;
     if (!spreadsheetId) {
-      return { ok: false, error: 'No spreadsheet URL configured for this connector. Ask the user to remove and re-add the connector with the Google Sheets URL.' };
+      return { ok: false, error: 'No spreadsheet selected. Search spreadsheets first with connectors.search_docs, then edit the selected file.' };
     }
 
     const result = await runSheetsAgent({
@@ -585,11 +567,14 @@ RETURNS receipt: { summary, changes[] }`,
   isReadOnly: false,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
+    file_id: z.string().optional().describe('Document file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the document. For replacements, include the exact phrase to find.'),
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
     if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    const auth = await getAuthorizedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
 
     const { data: connectorRow } = await context.supabase
       .from('connectors')
@@ -598,9 +583,9 @@ RETURNS receipt: { summary, changes[] }`,
       .eq('user_id', context.user.id)
       .maybeSingle();
 
-    const documentId = connectorRow?.config?.document_id as string | undefined;
+    const documentId = (args.file_id || connectorRow?.config?.document_id) as string | undefined;
     if (!documentId) {
-      return { ok: false, error: 'No document URL configured for this connector. Ask the user to remove and re-add the connector with the Google Docs URL.' };
+      return { ok: false, error: 'No document selected. Search documents first with connectors.search_docs, then edit the selected file.' };
     }
 
     const result = await runDocsAgent({

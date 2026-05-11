@@ -72,85 +72,36 @@ function isPending(connector: Connector): boolean {
   return Boolean(connector.config?.linked_account_id) && !connector.is_active;
 }
 
-/* ── URL parsing helpers ── */
-function extractGoogleId(url: string, type: ConnectorType): string | null {
-  try {
-    // spreadsheets/d/{id}, document/d/{id}, drive/folders/{id}
-    const patterns: Record<string, RegExp> = {
-      google_sheets: /spreadsheets\/d\/([a-zA-Z0-9_-]+)/,
-      google_docs:   /document\/d\/([a-zA-Z0-9_-]+)/,
-      google_drive:  /drive\/folders\/([a-zA-Z0-9_-]+)/,
-    };
-    const re = patterns[type];
-    if (!re) return null;
-    const m = url.match(re);
-    return m ? m[1] : null;
-  } catch { return null; }
-}
-
-function resourceUrlLabel(type: ConnectorType): string {
-  if (type === 'google_sheets') return 'Spreadsheet URL';
-  if (type === 'google_docs')   return 'Document URL';
-  if (type === 'google_drive')  return 'Drive folder URL';
-  return '';
-}
-
-function resourceUrlPlaceholder(type: ConnectorType): string {
-  if (type === 'google_sheets') return 'https://docs.google.com/spreadsheets/d/…';
-  if (type === 'google_docs')   return 'https://docs.google.com/document/d/…';
-  if (type === 'google_drive')  return 'https://drive.google.com/drive/folders/…';
-  return '';
-}
-
-function configKey(type: ConnectorType): string {
-  if (type === 'google_sheets') return 'spreadsheet_id';
-  if (type === 'google_docs')   return 'document_id';
-  if (type === 'google_drive')  return 'folder_id';
-  return '';
-}
-
-const NEEDS_URL: ConnectorType[] = ['google_sheets', 'google_docs', 'google_drive'];
-
 /* ── Add connector dialog ── */
 function AddConnectorDialog({ open, onClose, onCreated, uiLang }: {
   open: boolean; onClose: () => void; onCreated: (c: Connector) => void; uiLang: UiLang;
 }) {
-  const [name, setName]           = useState('');
+  const [name, setName]           = useState(CONNECTOR_LABELS.gmail);
   const [type, setType]           = useState<ConnectorType>('gmail');
-  const [resourceUrl, setResourceUrl] = useState('');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const t = UI[uiLang].connectors;
 
-  const needsUrl = NEEDS_URL.includes(type);
-
-  const reset = () => { setName(''); setType('gmail'); setResourceUrl(''); setError(null); };
+  const reset = () => { setName(CONNECTOR_LABELS.gmail); setType('gmail'); setError(null); };
   const handleClose = () => { reset(); onClose(); };
+  const handleTypeChange = (nextType: ConnectorType) => {
+    setName((prev) => {
+      const wasDefault = prev.trim() === '' || prev === CONNECTOR_LABELS[type];
+      return wasDefault ? CONNECTOR_LABELS[nextType] : prev;
+    });
+    setType(nextType);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const config: Record<string, string> = {};
-    if (needsUrl) {
-      if (!resourceUrl.trim()) {
-        setError(t.urlMissing(resourceUrlLabel(type)));
-        return;
-      }
-      const extracted = extractGoogleId(resourceUrl.trim(), type);
-      if (!extracted) {
-        setError(t.urlInvalid);
-        return;
-      }
-      config[configKey(type)] = extracted;
-    }
 
     setLoading(true);
     try {
       const res = await fetch('/api/connectors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, config }),
+        body: JSON.stringify({ name, type, config: {} }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to create connector');
@@ -173,7 +124,7 @@ function AddConnectorDialog({ open, onClose, onCreated, uiLang }: {
           {error && <Alert severity="error">{error}</Alert>}
           <FormControl fullWidth>
             <InputLabel>{t.sourceType}</InputLabel>
-            <Select value={type} label={t.sourceType} onChange={e => { setType(e.target.value as ConnectorType); setResourceUrl(''); }}>
+            <Select value={type} label={t.sourceType} onChange={e => handleTypeChange(e.target.value as ConnectorType)}>
               {(Object.keys(CONNECTOR_ICONS) as ConnectorType[]).map(ct => {
                 const m = getConnectorMeta(ct, uiLang);
                 return (
@@ -197,23 +148,15 @@ function AddConnectorDialog({ open, onClose, onCreated, uiLang }: {
             autoFocus
             helperText={t.nameHelper}
           />
-          {needsUrl && (
-            <TextField
-              label={resourceUrlLabel(type)}
-              placeholder={resourceUrlPlaceholder(type)}
-              value={resourceUrl}
-              onChange={e => setResourceUrl(e.target.value)}
-              fullWidth
-              required
-              helperText={t.urlHelper}
-            />
-          )}
           <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
             <Typography variant="body2" color="text.secondary">
               {meta.description}
             </Typography>
             <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
               {t.permissionsNeeded}: {meta.scopes}
+            </Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.75, display: 'block' }}>
+              {t.accountWideAccess}
             </Typography>
           </Box>
         </DialogContent>

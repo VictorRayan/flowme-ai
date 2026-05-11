@@ -5,7 +5,7 @@ import { buildNowSystemPrompt } from '@/lib/ai/calendar-skill';
 import { buildNotesGraphMap } from '@/lib/ai/notes-skill';
 import { routeBalysRequest } from '@/lib/ai/shadow-router';
 import { ALL_TOOLS, getActiveToolDomains } from '@/lib/ai/tools/registry';
-import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
+import { runBalysAgentLoopWithFallbacks } from '@/lib/ai/agent-fallback';
 import { buildBalysSystemPrompt } from '@/lib/ai/balys-prompt';
 import { scoreThreadContext } from '@/lib/ai/context-scorer';
 import { prepareMessagesWithAttachments, extractLatestUserText } from '@/lib/ai/prepare-messages';
@@ -163,44 +163,55 @@ export async function POST(request: NextRequest) {
         };
 
         let assistantFinalText = '';
+        let finalTarget: { provider: string; model: string } = skillTarget;
         const rawThreadIdHeader = request.headers.get('x-thread-id');
         const threadIdForTools = rawThreadIdHeader || 'default-thread';
         // Only persist when we have a real thread id (UUID-shaped) and the user is authenticated.
         const isRealThreadId = Boolean(rawThreadIdHeader && /^[0-9a-fA-F-]{16,}$/.test(rawThreadIdHeader));
-        const threadMeta = {
-          id: isRealThreadId ? rawThreadIdHeader! : undefined,
-          title: typeof (messages?.[0]?.content) === 'string'
-            ? (messages[0].content as string).trim().slice(0, 80) || 'New chat'
-            : 'New chat',
-          provider: skillTarget.provider,
-          model: skillTarget.model,
-          tier: route.tier,
-          route_label: route.userFacingLabel,
-          execution_plan: route.executionPlan,
-        };
 
         try {
-          const loopResult = await runBalysAgentLoop({
-            messages: [{ role: 'system', content: systemPromptFull }, ...loopMessages],
-            tools: ALL_TOOLS,
-            maxSteps: route.gates?.maxAutoToolCalls || 5,
-            provider: skillTarget.provider,
-            model: skillTarget.model,
-            context: {
-              supabase: auth.supabase,
-              user: auth.user,
-              nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
-              timezone: typeof timezone === 'string' ? timezone : 'UTC',
+          let toolCallObserved = false;
+          const fallbackResult = await runBalysAgentLoopWithFallbacks(
+            {
+              messages: [{ role: 'system', content: systemPromptFull }, ...loopMessages],
+              tools: ALL_TOOLS,
+              maxSteps: route.gates?.maxAutoToolCalls || 5,
+              provider: skillTarget.provider,
+              model: skillTarget.model,
+              context: {
+                supabase: auth.supabase,
+                user: auth.user,
+                nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
+                timezone: typeof timezone === 'string' ? timezone : 'UTC',
+                threadId: threadIdForTools,
+                userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
+                  ? { lat: userLocation.lat, lon: userLocation.lon, name: userLocation.name }
+                  : undefined,
+              },
               threadId: threadIdForTools,
-              userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
-                ? { lat: userLocation.lat, lon: userLocation.lon, name: userLocation.name }
-                : undefined,
+              onProgress: (event) => {
+                if (event.type === 'tool_call_start' || event.type === 'tool_call_end') {
+                  toolCallObserved = true;
+                }
+                send(event);
+              },
             },
-            threadId: threadIdForTools,
-            onProgress: (event) => send(event),
-          });
+            route.fallbacks,
+            (attempt) => {
+              const errMsg = attempt.error instanceof Error ? attempt.error.message : String(attempt.error);
+              const next = attempt.nextTarget
+                ? toolCallObserved
+                  ? '; not retrying because a tool call already started'
+                  : `; retrying ${attempt.nextTarget.provider}:${attempt.nextTarget.model}`
+                : '; no fallback remains';
+              console.warn(`[balys-debug] Agent loop attempt failed for ${attempt.target.provider}:${attempt.target.model}: ${errMsg}${next}`);
+            },
+            () => !toolCallObserved,
+          );
+          const loopResult = fallbackResult.result;
+          finalTarget = fallbackResult.target;
 
-          console.log('[balys-debug] Agent loop completed. Steps:', loopResult.steps, '| Has content:', !!loopResult.content);
+          console.log('[balys-debug] Agent loop completed. Steps:', loopResult.steps, '| Has content:', !!loopResult.content, '| model:', `${finalTarget.provider}:${finalTarget.model}`);
 
           const finalText = loopResult.content && loopResult.content.trim()
             ? loopResult.content
@@ -240,6 +251,18 @@ export async function POST(request: NextRequest) {
         // Persist user + assistant message server-side. Best-effort; localStorage stays as a cache.
         try {
           if (isRealThreadId && assistantFinalText) {
+            const threadMeta = {
+              id: rawThreadIdHeader!,
+              title: typeof (messages?.[0]?.content) === 'string'
+                ? (messages[0].content as string).trim().slice(0, 80) || 'New chat'
+                : 'New chat',
+              provider: finalTarget.provider,
+              model: finalTarget.model,
+              tier: route.tier,
+              route_label: route.userFacingLabel,
+              execution_plan: route.executionPlan,
+            };
+
             await ensureThread(auth.supabase, auth.user.id, threadMeta);
 
             const lastIncoming = messages[messages.length - 1];

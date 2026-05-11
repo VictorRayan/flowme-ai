@@ -194,6 +194,9 @@ Council (`taskType === 'council'`) gets a +0.30 reasoning boost because multi-pe
 
 Balys is the user-facing AI assistant. Its output must feel like talking to a smart, concise human — not reading a database log.
 
+- **Connector standard lives in docs** — before changing connector behavior, read `docs/connectors/README.md`. Then read the specific connector doc: `docs/connectors/gmail.md`, `docs/connectors/google-docs.md`, `docs/connectors/google-sheets.md`, or `docs/connectors/google-drive.md`.
+- **Connector commands are structured intent** — `/gmail`, `/docs`, `/planilhas`, `/sheets`, `/drive`, and localized aliases are not decoration in the prompt. The UI and API must preserve them as explicit metadata, render them back to the user, and force the matching connector workflow.
+- **Connectors are account-wide** — Google Docs, Sheets, and Drive connectors represent the authorized account/source, not one pasted file URL. Balys discovers files, lets the user refer to them by name, and resolves technical IDs internally.
 - **Never expose IDs** — UUIDs, database row IDs, internal references must never appear in Balys responses. The user is a regular person.
 - **Never ask the user for an ID** — when editing or referencing a note/event/email, resolve it internally using title + date hierarchy. If ambiguous, ask by name, never by ID.
 - **Keep responses short** — confirm actions in one or two sentences. No bullet lists of "what I did". Just say "Done, I updated your note 'Meeting Notes'." and move on.

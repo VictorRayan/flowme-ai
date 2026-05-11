@@ -10,7 +10,22 @@ import EventIcon from '@mui/icons-material/Event';
 import GroupsIcon from '@mui/icons-material/Groups';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import EmailIcon from '@mui/icons-material/Email';
+import DescriptionIcon from '@mui/icons-material/Description';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import FolderIcon from '@mui/icons-material/Folder';
+import { type UiLang } from '@/lib/i18n';
 import dayjs from 'dayjs';
+
+export type CommandAction =
+  | 'council'
+  | 'briefing'
+  | 'note'
+  | 'weather'
+  | 'gmail'
+  | 'drive'
+  | 'docs'
+  | 'sheets';
 
 export interface ContextItem {
   kind: 'note' | 'event' | 'action';
@@ -18,7 +33,7 @@ export interface ContextItem {
   label: string;       // display label
   subtitle?: string;   // date / time
   content: string;     // for 'note'/'event': context block to inject; for 'action': directive prefix
-  action?: 'council' | 'briefing' | 'note' | 'weather';
+  action?: CommandAction;
 }
 
 interface ActionDef {
@@ -27,43 +42,106 @@ interface ActionDef {
   label: string;
   subtitle: string;
   directive: string;
-  action: 'council' | 'briefing' | 'note' | 'weather';
+  action: CommandAction;
+  aliases: string[];
 }
 
-const ACTIONS: ActionDef[] = [
-  {
-    id: 'council',
-    command: '/council',
-    label: '/council',
-    subtitle: 'Convene the 11-expert mastermind',
-    directive: 'Use the council.convene tool to deliberate on the following situation. Brief the council with the full context the user just provided.',
-    action: 'council',
+type Tab = 'actions' | 'notes' | 'events';
+
+const PALETTE_TEXT: Record<UiLang, {
+  tabs: Record<Tab, string>;
+  help: string;
+  empty: (tab: string, query: string) => string;
+}> = {
+  en: {
+    tabs: { actions: 'Actions', notes: 'Notes', events: 'Events' },
+    help: 'Tab switch - arrows navigate - Enter select - Esc close',
+    empty: (tab, query) => query ? `No ${tab} matching "${query}"` : `No ${tab} found`,
   },
-  {
-    id: 'briefing',
-    command: '/briefing',
-    label: '/briefing',
-    subtitle: 'Generate today\'s daily briefing',
-    directive: 'Generate the user\'s daily briefing for today: top calendar events, recent notes, important emails, and 1-3 priorities. Be concise.',
-    action: 'briefing',
+  pt: {
+    tabs: { actions: 'Acoes', notes: 'Notas', events: 'Eventos' },
+    help: 'Tab alterna - setas navegam - Enter seleciona - Esc fecha',
+    empty: (tab, query) => query ? `Nenhum resultado em ${tab} para "${query}"` : `Nada em ${tab}`,
   },
-  {
-    id: 'note',
-    command: '/note',
-    label: '/note',
-    subtitle: 'Save the next message as a note',
-    directive: 'Treat the user\'s message as content to save as a new note. Pick a short title from the content (4-8 words) and call notes.create_note. Confirm naturally.',
-    action: 'note',
-  },
-  {
-    id: 'weather',
-    command: '/weather',
-    label: '/weather',
-    subtitle: 'Current weather & 5-day forecast',
-    directive: 'Call weather.get to fetch the current weather. If the user typed a city after /weather use that as the city argument. If userLocation coordinates are in context use those. Otherwise ask the user which city they want.',
-    action: 'weather',
-  },
-];
+};
+
+function getActions(uiLang: UiLang): ActionDef[] {
+  const pt = uiLang === 'pt';
+  return [
+    {
+      id: 'council',
+      command: pt ? '/conselho' : '/council',
+      label: pt ? '/conselho' : '/council',
+      subtitle: pt ? 'Convocar o conselho de especialistas' : 'Convene the expert council',
+      directive: 'Use council.convene to deliberate on the situation. Brief the council with the full context the user provided.',
+      action: 'council',
+      aliases: ['/council', '/conselho', 'conselho', 'council'],
+    },
+    {
+      id: 'briefing',
+      command: '/briefing',
+      label: '/briefing',
+      subtitle: pt ? 'Gerar o briefing de hoje' : 'Generate today\'s daily briefing',
+      directive: 'Generate the daily briefing: top calendar events, recent notes, important emails, and 1-3 priorities. Use tools before making claims.',
+      action: 'briefing',
+      aliases: ['/briefing', 'resumo', 'rotina', 'daily'],
+    },
+    {
+      id: 'note',
+      command: pt ? '/nota' : '/note',
+      label: pt ? '/nota' : '/note',
+      subtitle: pt ? 'Salvar a proxima mensagem como nota' : 'Save the next message as a note',
+      directive: 'Treat the user message as content to save as a new note. Pick a short title and call notes.create_note. Confirm naturally.',
+      action: 'note',
+      aliases: ['/note', '/nota', 'nota', 'note'],
+    },
+    {
+      id: 'weather',
+      command: pt ? '/clima' : '/weather',
+      label: pt ? '/clima' : '/weather',
+      subtitle: pt ? 'Clima atual e previsao' : 'Current weather and forecast',
+      directive: 'Call weather.get. If the user typed a city after the shortcut, use that city. If userLocation coordinates are in context, use them. Otherwise ask for the city.',
+      action: 'weather',
+      aliases: ['/weather', '/clima', 'tempo', 'clima', 'weather'],
+    },
+    {
+      id: 'gmail',
+      command: '/gmail',
+      label: '/gmail',
+      subtitle: pt ? 'Procurar emails, ler contexto e criar rascunhos' : 'Search email, read context, and draft replies',
+      directive: 'Use connectors.list to verify Gmail access, then gmail.search_messages to search and select relevant messages. Extract insights from subject/from/date/snippet. If the user asks for a reply, draft with gmail.create_draft only after recipients and content are clear.',
+      action: 'gmail',
+      aliases: ['/gmail', 'email', 'emails', 'e-mail', 'correio'],
+    },
+    {
+      id: 'drive',
+      command: '/drive',
+      label: '/drive',
+      subtitle: pt ? 'Descobrir arquivos no Drive e ler o selecionado' : 'Discover Drive files and read the selected one',
+      directive: 'Use connectors.list to find an authorized Google Drive connector. Use connectors.search_docs for discovery inside the configured folder. After selecting the relevant file internally, call connectors.read_drive_file to read it, then summarize or extract insights.',
+      action: 'drive',
+      aliases: ['/drive', 'arquivo', 'arquivos', 'pasta', 'folder'],
+    },
+    {
+      id: 'docs',
+      command: '/docs',
+      label: '/docs',
+      subtitle: pt ? 'Buscar, ler, editar e resumir documentos' : 'Find, read, edit, and summarize documents',
+      directive: 'Use connectors.list to find Google Docs connectors by name. Use connectors.search_docs for discovery when needed, connectors.read_doc to read, and connectors.docs_agent for requested edits. Extract insights only after reading tool results.',
+      action: 'docs',
+      aliases: ['/docs', '/documentos', 'doc', 'docs', 'documento', 'documentos'],
+    },
+    {
+      id: 'sheets',
+      command: pt ? '/planilhas' : '/sheets',
+      label: pt ? '/planilhas' : '/sheets',
+      subtitle: pt ? 'Buscar, ler, editar e analisar planilhas' : 'Find, read, edit, and analyze spreadsheets',
+      directive: 'Use connectors.list to find Google Sheets connectors by name. Use connectors.search_docs for discovery when needed, connectors.read_sheet to read ranges, and connectors.sheets_agent for requested edits. Extract insights from the actual rows returned.',
+      action: 'sheets',
+      aliases: ['/sheets', '/planilhas', '/planilha', 'sheets', 'sheet', 'planilha', 'planilhas'],
+    },
+  ];
+}
 
 interface NoteResult {
   id: string;
@@ -89,19 +167,20 @@ interface EventResult {
 interface CommandPaletteProps {
   anchorEl: HTMLElement | null;   // position relative to input box
   query: string;                  // text after "/"
+  uiLang?: UiLang;
   onSelect: (item: ContextItem) => void;
   onClose: () => void;
 }
 
-type Tab = 'actions' | 'notes' | 'events';
-
-export default function CommandPalette({ anchorEl, query, onSelect, onClose }: CommandPaletteProps) {
+export default function CommandPalette({ anchorEl, query, uiLang = 'en', onSelect, onClose }: CommandPaletteProps) {
   const [tab, setTab] = useState<Tab>('actions');
   const [notes, setNotes] = useState<NoteResult[]>([]);
   const [events, setEvents] = useState<EventResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
+  const text = PALETTE_TEXT[uiLang];
+  const actions = getActions(uiLang);
 
   const fetchNotes = useCallback(async (q: string) => {
     setLoading(true);
@@ -141,10 +220,12 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
     else if (tab === 'events') fetchEvents(query);
   }, [query, tab, fetchNotes, fetchEvents]);
 
-  const filteredActions = ACTIONS.filter(a => {
+  const filteredActions = actions.filter(a => {
     if (!query) return true;
     const q = query.toLowerCase();
-    return a.command.toLowerCase().includes(q) || a.subtitle.toLowerCase().includes(q);
+    return a.command.toLowerCase().includes(q)
+      || a.subtitle.toLowerCase().includes(q)
+      || a.aliases.some(alias => alias.toLowerCase().includes(q));
   });
 
   const items: ContextItem[] = tab === 'actions'
@@ -236,12 +317,12 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
               '&:hover': { color: 'text.primary' },
             }}
           >
-            {t === 'actions' ? 'Actions' : t === 'notes' ? 'Notes' : 'Events'}
+            {text.tabs[t]}
           </Box>
         ))}
         <Box sx={{ flex: 1 }} />
         <Typography variant="caption" color="text.disabled" sx={{ alignSelf: 'center', pr: 1.5 }}>
-          Tab to switch · ↑↓ navigate · Enter select · Esc close
+          {text.help}
         </Typography>
       </Box>
 
@@ -253,7 +334,7 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
           </Box>
         ) : items.length === 0 ? (
           <Typography variant="body2" color="text.disabled" sx={{ p: 2, textAlign: 'center' }}>
-            {query ? `No ${tab} matching "${query}"` : `No ${tab} found`}
+            {text.empty(text.tabs[tab].toLowerCase(), query)}
           </Typography>
         ) : (
           <List dense disablePadding ref={listRef} component="ul">
@@ -273,7 +354,15 @@ export default function CommandPalette({ anchorEl, query, onSelect, onClose }: C
                           ? <WbSunnyIcon fontSize="small" sx={{ color: 'warning.main' }} />
                           : item.action === 'weather'
                             ? <WbSunnyIcon fontSize="small" sx={{ color: '#38bdf8' }} />
-                            : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
+                            : item.action === 'gmail'
+                              ? <EmailIcon fontSize="small" sx={{ color: '#ef4444' }} />
+                              : item.action === 'drive'
+                                ? <FolderIcon fontSize="small" sx={{ color: '#fbbc04' }} />
+                                : item.action === 'docs'
+                                  ? <DescriptionIcon fontSize="small" sx={{ color: '#4285f4' }} />
+                                  : item.action === 'sheets'
+                                    ? <GridOnIcon fontSize="small" sx={{ color: '#0f9d58' }} />
+                                    : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
                     : item.kind === 'note'
                       ? <NoteIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       : <EventIcon fontSize="small" sx={{ color: 'info.main' }} />}

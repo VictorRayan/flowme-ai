@@ -27,7 +27,11 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
-import CommandPalette, { ContextItem } from '@/components/ai/CommandPalette';
+import EmailIcon from '@mui/icons-material/Email';
+import DescriptionIcon from '@mui/icons-material/Description';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import FolderIcon from '@mui/icons-material/Folder';
+import CommandPalette, { ContextItem, type CommandAction } from '@/components/ai/CommandPalette';
 import { UI, resolveUiLang } from '@/lib/i18n';
 
 // ── Note edit block parsing ───────────────────────────────────────────────────
@@ -208,6 +212,17 @@ function isWhatsAppThread(thread: Pick<Thread, 'title'> | null | undefined): boo
   return (thread?.title || '').trim().toLowerCase() === 'whatsapp';
 }
 
+function pendingActionIcon(action: CommandAction): React.ReactElement | undefined {
+  const iconSx = { fontSize: '14px !important' };
+  if (action === 'weather') return <WbSunnyIcon sx={iconSx} />;
+  if (action === 'gmail') return <EmailIcon sx={iconSx} />;
+  if (action === 'drive') return <FolderIcon sx={iconSx} />;
+  if (action === 'docs') return <DescriptionIcon sx={iconSx} />;
+  if (action === 'sheets') return <GridOnIcon sx={iconSx} />;
+  if (action === 'note') return <EditNoteIcon sx={iconSx} />;
+  return undefined;
+}
+
 export default function AIPage() {
   const [threads, setThreads]         = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -223,7 +238,7 @@ export default function AIPage() {
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
-  const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: 'council' | 'briefing' | 'note' | 'weather' } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: CommandAction } | null>(null);
   const [destructiveDialog, setDestructiveDialog] = useState<DestructiveDialog>(null);
   const [uiLang, setUiLang] = useState<Lang>('en');
   const [interfaceLang, setInterfaceLang] = useState<'en' | 'pt'>('en');
@@ -1051,7 +1066,7 @@ Rules:
           <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip
               size="small"
-              icon={pendingAction.action === 'weather' ? <WbSunnyIcon sx={{ fontSize: '14px !important' }} /> : undefined}
+              icon={pendingActionIcon(pendingAction.action)}
               label={pendingAction.label}
               color="primary"
               onDelete={() => setPendingAction(null)}
@@ -1158,7 +1173,7 @@ Rules:
             }}
             size="small" disabled={loading || activeIsWhatsAppThread} suppressHydrationWarning />
           <span suppressHydrationWarning>
-            <IconButton color="primary" onClick={sendMessage} disabled={activeIsWhatsAppThread || (!input.trim() && attachments.length === 0 && contextItems.length === 0) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
+            <IconButton color="primary" onClick={sendMessage} disabled={activeIsWhatsAppThread || (!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
               {loading ? <CircularProgress size={20} /> : <SendIcon />}
             </IconButton>
           </span>
@@ -1169,6 +1184,7 @@ Rules:
           <CommandPalette
             anchorEl={inputBoxRef.current}
             query={cmdQuery}
+            uiLang={interfaceLang}
             onSelect={handleContextSelect}
             onClose={() => setCmdOpen(false)}
           />
@@ -1208,6 +1224,12 @@ const TOOL_LABELS: Record<Lang, Record<string, string>> = {
     'notes.list_notes': 'Searching notes',
     'notes.edit_note': 'Editing note',
     'connectors.list': 'Listing connections',
+    'connectors.search_docs': 'Discovering files',
+    'connectors.read_drive_file': 'Reading Drive file',
+    'connectors.read_doc': 'Reading document',
+    'connectors.read_sheet': 'Reading spreadsheet',
+    'connectors.docs_agent': 'Editing document',
+    'connectors.sheets_agent': 'Editing spreadsheet',
     'council.convene': 'Convening the council',
     'council.round_1': 'Council round 1',
     'council.round_2': 'Council round 2',
@@ -1229,6 +1251,12 @@ const TOOL_LABELS: Record<Lang, Record<string, string>> = {
     'notes.list_notes': 'Buscando notas',
     'notes.edit_note': 'Editando nota',
     'connectors.list': 'Listando conexões',
+    'connectors.search_docs': 'Procurando arquivos',
+    'connectors.read_drive_file': 'Lendo arquivo do Drive',
+    'connectors.read_doc': 'Lendo documento',
+    'connectors.read_sheet': 'Lendo planilha',
+    'connectors.docs_agent': 'Editando documento',
+    'connectors.sheets_agent': 'Editando planilha',
     'council.convene': 'Convocando o conselho',
     'council.round_1': 'Rodada 1 do conselho',
     'council.round_2': 'Rodada 2 do conselho',
@@ -1351,6 +1379,7 @@ const I18N: Record<Lang, I18nStrings> = {
         : tool === 'people.search' ? (n === 1 ? 'contact' : 'contacts')
         : tool === 'notes.list_notes' ? (n === 1 ? 'note' : 'notes')
         : tool === 'gmail.search_messages' ? (n === 1 ? 'message' : 'messages')
+        : tool === 'connectors.search_docs' ? (n === 1 ? 'file' : 'files')
         : 'results';
       return `${n} ${noun} found`;
     },
@@ -1369,6 +1398,7 @@ const I18N: Record<Lang, I18nStrings> = {
         : tool === 'people.search' ? (n === 1 ? 'contato encontrado' : 'contatos encontrados')
         : tool === 'notes.list_notes' ? (n === 1 ? 'nota encontrada' : 'notas encontradas')
         : tool === 'gmail.search_messages' ? (n === 1 ? 'mensagem encontrada' : 'mensagens encontradas')
+        : tool === 'connectors.search_docs' ? (n === 1 ? 'arquivo encontrado' : 'arquivos encontrados')
         : 'resultados';
       return `${n} ${noun}`;
     },

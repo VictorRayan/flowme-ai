@@ -207,7 +207,7 @@ export const UI = {
         gmail: { description: 'Read emails and use them as context for Balys', scopes: 'Read & draft emails' },
         google_docs: { description: 'Connect documents so Balys can reference them', scopes: 'Read documents' },
         google_sheets: { description: 'Connect spreadsheets for financial or data context', scopes: 'Read spreadsheets' },
-        google_drive: { description: 'Connect a Drive folder to index its files', scopes: 'Read Drive files' },
+        google_drive: { description: 'Connect a Drive folder so Balys can discover and read files', scopes: 'Read Drive files' },
       },
     },
 
@@ -447,7 +447,7 @@ export const UI = {
         gmail: { description: 'Leia e-mails e use-os como contexto para o Balys', scopes: 'Ler e rascunhar e-mails' },
         google_docs: { description: 'Conecte documentos para que o Balys possa referenciá-los', scopes: 'Ler documentos' },
         google_sheets: { description: 'Conecte planilhas para contexto financeiro ou de dados', scopes: 'Ler planilhas' },
-        google_drive: { description: 'Conecte uma pasta do Drive para indexar seus arquivos', scopes: 'Ler arquivos do Drive' },
+        google_drive: { description: 'Conecte uma pasta do Drive para o Balys descobrir e ler arquivos', scopes: 'Ler arquivos do Drive' },
       },
     },
 

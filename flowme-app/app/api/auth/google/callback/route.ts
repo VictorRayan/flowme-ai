@@ -97,6 +97,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${appUrl}/app/settings?google_error=token_store_failed`);
     }
 
+    const { error: accountUpdateError } = await supabase
+      .from('linked_accounts')
+      .update({ is_active: true })
+      .eq('id', state.linked_account_id)
+      .eq('user_id', user.id);
+
+    if (accountUpdateError) {
+      console.error('Failed to activate linked account after Google OAuth:', accountUpdateError);
+      return NextResponse.redirect(`${appUrl}/app/settings?google_error=token_store_failed`);
+    }
+
     // If OAuth was triggered from a connector, link it to this linked_account
     if (state.connector_id) {
       await supabase

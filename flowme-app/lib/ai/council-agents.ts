@@ -108,27 +108,32 @@ export interface CouncilResult {
 
 export interface CouncilPipelineOptions {
   mode?: CouncilMode;
-  provider?: 'openai';
+  provider?: 'gemini';
   maxRounds?: number;
   onProgress?: (event: { type: string; [key: string]: unknown }) => void;
 }
 
-type OpenAIClient = InstanceType<typeof OpenAI>;
+type GeminiClient = InstanceType<typeof OpenAI>;
 
 type CouncilMember = typeof councilMembers[number];
 
+const GEMINI_OPENAI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+const GEMINI_COUNCIL_ADVISOR_MODEL = 'gemini-2.5-flash';
+const GEMINI_COUNCIL_CEO_MODELS = ['gemini-2.5-pro', 'gemini-2.5-flash'];
+const ADVISOR_UNAVAILABLE_MESSAGE = 'Advisor unavailable right now. Continue with the available council reports.';
+
 export async function runAiCouncilPipeline(
   contextText: string,
-  providerOrOptions: 'openai' | CouncilPipelineOptions = 'openai'
+  providerOrOptions: 'gemini' | CouncilPipelineOptions = 'gemini'
 ): Promise<CouncilResult> {
   const options = normalizeOptions(providerOrOptions);
   const councilMode = options.mode || 'cheap';
   const maxRounds = Math.min(Math.max(options.maxRounds || 3, 1), 3);
-  const openai = createOpenAIClient();
+  const gemini = createGeminiClient();
   const transcript: CouncilTranscriptEntry[] = [];
 
   const initialResults = await runAdvisorRound({
-    openai,
+    gemini,
     contextText,
     round: 1,
     phase: 'initial',
@@ -165,7 +170,7 @@ export async function runAiCouncilPipeline(
 
   const roundOneContext = formatAdviceList(initialResults);
   const refinedResults = await runAdvisorRound({
-    openai,
+    gemini,
     contextText,
     round: 2,
     phase: 'refinement',
@@ -185,7 +190,7 @@ Keep it under 220 words.`,
   let roundsRun = 2;
   let shouldContinue = maxRounds >= 3;
   if (shouldContinue) {
-    shouldContinue = await decideIfCrossExaminationNeeded(openai, contextText, initialResults, refinedResults, options.onProgress);
+    shouldContinue = await decideIfCrossExaminationNeeded(gemini, contextText, initialResults, refinedResults, options.onProgress);
   }
 
   if (shouldContinue && maxRounds >= 3) {
@@ -194,7 +199,7 @@ Keep it under 220 words.`,
       ['Round 2 - refined positions and questions', refinedResults],
     ]);
     const crossResults = await runAdvisorRound({
-      openai,
+      gemini,
       contextText,
       round: 3,
       phase: 'cross_examination',
@@ -234,18 +239,21 @@ Keep it under 220 words.`,
   };
 }
 
-function normalizeOptions(providerOrOptions: 'openai' | CouncilPipelineOptions): CouncilPipelineOptions {
+function normalizeOptions(providerOrOptions: 'gemini' | CouncilPipelineOptions): CouncilPipelineOptions {
   if (typeof providerOrOptions === 'string') return { provider: providerOrOptions };
   return providerOrOptions || {};
 }
 
-function createOpenAIClient(): OpenAIClient | null {
-  if (!process.env.OPENAI_API_KEY) return null;
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function createGeminiClient(): GeminiClient | null {
+  if (!process.env.GEMINI_API_KEY) return null;
+  return new OpenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    baseURL: GEMINI_OPENAI_BASE_URL,
+  });
 }
 
 async function runAdvisorRound(args: {
-  openai: OpenAIClient | null;
+  gemini: GeminiClient | null;
   contextText: string;
   round: number;
   phase: CouncilTranscriptEntry['phase'];
@@ -260,7 +268,7 @@ async function runAdvisorRound(args: {
     summary: args.startSummary,
   });
   const results = await Promise.all(councilMembers.map(async (member) => {
-    const advice = await callAdvisor(args.openai, member, args.userPrompt(member));
+    const advice = await callAdvisor(args.gemini, member, args.userPrompt(member));
     const result = { role: member.role, title: member.title, advice, round: args.round };
     emitVoice(args.onProgress, args.phase, result);
     return result;
@@ -274,11 +282,11 @@ async function runAdvisorRound(args: {
   return results;
 }
 
-async function callAdvisor(openai: OpenAIClient | null, member: CouncilMember, userPrompt: string): Promise<string> {
-  if (!openai) return 'Unavailable at the moment (missing OPENAI_API_KEY).';
+async function callAdvisor(gemini: GeminiClient | null, member: CouncilMember, userPrompt: string): Promise<string> {
+  if (!gemini) return ADVISOR_UNAVAILABLE_MESSAGE;
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await gemini.chat.completions.create({
+      model: GEMINI_COUNCIL_ADVISOR_MODEL,
       temperature: 0.7,
       messages: [
         { role: 'system', content: member.prompt },
@@ -288,13 +296,13 @@ async function callAdvisor(openai: OpenAIClient | null, member: CouncilMember, u
     return completion.choices[0]?.message?.content?.trim() || 'No advice provided.';
   } catch (e: any) {
     const msg = e?.response?.data?.error?.message || e?.message || String(e);
-    console.error(`[Council] Error in module ${member.role}:`, msg);
-    return `Unavailable at the moment (${msg}).`;
+    console.error(`[Council] Gemini advisor ${member.role} failed:`, msg);
+    return ADVISOR_UNAVAILABLE_MESSAGE;
   }
 }
 
 async function decideIfCrossExaminationNeeded(
-  openai: OpenAIClient | null,
+  gemini: GeminiClient | null,
   contextText: string,
   initialResults: CouncilAdvice[],
   refinedResults: CouncilAdvice[],
@@ -303,7 +311,7 @@ async function decideIfCrossExaminationNeeded(
   const callId = emitStart(onProgress, 'council.alignment', {
     summary: 'CEO is checking whether the council needs cross-examination.',
   });
-  if (!openai) {
+  if (!gemini) {
     emitEnd(onProgress, 'council.alignment', callId, {
       status: 'council_phase',
       summary: 'No CEO alignment check available; continuing debate.',
@@ -313,8 +321,8 @@ async function decideIfCrossExaminationNeeded(
   }
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await gemini.chat.completions.create({
+      model: GEMINI_COUNCIL_ADVISOR_MODEL,
       temperature: 0.1,
       messages: [
         {
@@ -373,37 +381,30 @@ async function consolidateWithFallbacks(
   systemPrompt: string,
 ): Promise<string> {
   const errors: string[] = [];
+  const gemini = createGeminiClient();
 
-  if (process.env.OPENAI_API_KEY) {
-    const result = await tryOpenAICeo('gpt-4o-mini', megaContext, systemPrompt);
-    if (result.ok) return result.text;
-    errors.push(`gpt-4o-mini: ${result.reason}`);
+  if (gemini) {
+    for (const model of GEMINI_COUNCIL_CEO_MODELS) {
+      const result = await tryGeminiCeo(gemini, model, megaContext, systemPrompt);
+      if (result.ok) return result.text;
+      errors.push(`${model}: ${result.reason}`);
+    }
+  } else {
+    errors.push('missing GEMINI_API_KEY');
   }
 
-  if (process.env.OPENAI_API_KEY) {
-    const result = await tryOpenAICeo('gpt-4o', megaContext, systemPrompt);
-    if (result.ok) return result.text;
-    errors.push(`gpt-4o: ${result.reason}`);
-  }
-
-  if (process.env.GEMINI_API_KEY) {
-    const result = await tryGeminiCeo('gemini-2.5-pro', megaContext, systemPrompt);
-    if (result.ok) return result.text;
-    errors.push(`gemini-2.5-pro: ${result.reason}`);
-  }
-
-  console.error('[Council] All CEO providers failed. Falling back to manual synthesis. Errors:', errors);
-  return buildManualSynthesis(individualResults, errors);
+  console.error('[Council] All Gemini CEO models failed. Falling back to manual synthesis. Errors:', errors);
+  return buildManualSynthesis(individualResults);
 }
 
-async function tryOpenAICeo(
+async function tryGeminiCeo(
+  gemini: GeminiClient,
   model: string,
   megaContext: string,
   systemPrompt: string,
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await openai.chat.completions.create({
+    const completion = await gemini.chat.completions.create({
       model,
       temperature: 0.5,
       messages: [
@@ -416,47 +417,15 @@ async function tryOpenAICeo(
     return { ok: true, text };
   } catch (e: any) {
     const msg = e?.response?.data?.error?.message || e?.message || String(e);
-    console.error(`[Council] OpenAI CEO ${model} failed:`, msg);
+    console.error(`[Council] Gemini CEO ${model} failed:`, msg);
     return { ok: false, reason: msg };
   }
 }
 
-async function tryGeminiCeo(
-  model: string,
-  megaContext: string,
-  systemPrompt: string,
-): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY!;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts: [{ text: megaContext }] }],
-        generationConfig: { temperature: 0.5 },
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      return { ok: false, reason: `HTTP ${res.status}: ${body.slice(0, 300)}` };
-    }
-    const data = await res.json();
-    const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-    if (!text) return { ok: false, reason: 'empty response' };
-    return { ok: true, text };
-  } catch (e: any) {
-    const msg = e?.message || String(e);
-    console.error('[Council] Gemini CEO failed:', msg);
-    return { ok: false, reason: msg };
-  }
-}
-
-function buildManualSynthesis(individualResults: CouncilAdvice[], errors: string[]): string {
-  const valid = individualResults.filter(r => r.advice && !r.advice.startsWith('Unavailable at the moment'));
+function buildManualSynthesis(individualResults: CouncilAdvice[]): string {
+  const valid = individualResults.filter(r => r.advice && r.advice !== ADVISOR_UNAVAILABLE_MESSAGE);
   if (valid.length === 0) {
-    return `MODE: clarification\nDIRECTIVE:\nThe council could not deliberate right now. Please try again in a few minutes. Errors: ${errors.join(' | ')}`;
+    return 'MODE: clarification\nDIRECTIVE:\nThe council could not deliberate right now because the Gemini models are unavailable. Please try again in a few minutes.';
   }
   const top = valid.slice(0, 5)
     .map(r => `**${r.title}**\n${r.advice.split('\n').slice(0, 6).join('\n')}`)

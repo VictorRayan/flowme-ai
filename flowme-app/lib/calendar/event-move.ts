@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 
 export interface MovableCalendarEvent {
   id: string;
-  source: 'google' | 'flowme';
+  source: 'google';
   start_at: string;
   end_at?: string | null;
   linked_account_id?: string;
@@ -47,18 +47,6 @@ export function buildMovedEventTimes(event: MovableCalendarEvent, newStart: stri
 }
 
 export function buildEventMoveRequest(event: MovableCalendarEvent, moved: MovedEventTimes): EventMoveRequest {
-  if (event.source === 'flowme') {
-    return {
-      url: `/api/events/${event.id}`,
-      method: 'PATCH',
-      body: {
-        start_at: moved.start_at,
-        end_at: moved.end_at,
-        scheduled_date: moved.scheduled_date,
-      },
-    };
-  }
-
   if (!event.linked_account_id) {
     throw new Error('This Google event is missing its linked account. Reconnect the calendar and try again.');
   }

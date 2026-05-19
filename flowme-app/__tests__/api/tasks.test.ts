@@ -57,53 +57,53 @@ describe('GET /api/tasks', () => {
 });
 
 describe('POST /api/tasks', () => {
-  it('creates a task and returns it', async () => {
+  it('rejects local task creation', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
       body: JSON.stringify({ title: 'Write tests', category: 'negotiable', scheduled_date: '2026-05-01' }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.task).toBeDefined();
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 
-  it('returns VALIDATION_ERROR when title is empty', async () => {
+  it('returns VALIDATION_ERROR when title is empty through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
       body: JSON.stringify({ title: '', category: 'negotiable' }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     const body = await res.json();
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('returns VALIDATION_ERROR when title is missing', async () => {
+  it('returns VALIDATION_ERROR when title is missing through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
       body: JSON.stringify({ category: 'negotiable' }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     const body = await res.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('returns VALIDATION_ERROR for unknown category', async () => {
+  it('returns VALIDATION_ERROR for unknown category through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
       body: JSON.stringify({ title: 'My task', category: 'invalid_category' }),
     });
     const res = await POST(req);
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('accepts goal operating system task metadata', async () => {
+  it('rejects goal operating system task metadata because tasks must be calendar events', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
       body: JSON.stringify({
@@ -118,47 +118,48 @@ describe('POST /api/tasks', () => {
       }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
   });
 });
 
 describe('PATCH /api/tasks/[id]', () => {
-  it('updates task status to completed', async () => {
+  it('rejects local task updates', async () => {
     const req = new NextRequest('http://localhost/api/tasks/task-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'completed' }),
     });
     const res = await PATCH(req, { params: Promise.resolve({ id: 'task-1' }) });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     const body = await res.json();
-    expect(body.ok).toBe(true);
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 
-  it('returns VALIDATION_ERROR when no fields provided', async () => {
+  it('rejects empty local task update through the shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks/task-1', {
       method: 'PATCH',
       body: JSON.stringify({}),
     });
     const res = await PATCH(req, { params: Promise.resolve({ id: 'task-1' }) });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     const body = await res.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 });
 
 describe('DELETE /api/tasks/[id]', () => {
-  it('deletes a task and returns deleted:true', async () => {
+  it('rejects local task deletion', async () => {
     const req = new NextRequest('http://localhost/api/tasks/task-1', { method: 'DELETE' });
     const res = await DELETE(req, { params: Promise.resolve({ id: 'task-1' }) });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.deleted).toBe(true);
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 });
 
 describe('POST /api/tasks/[id]/move', () => {
-  it('creates a new occurrence and marks the original as moved', async () => {
+  it('rejects local task moves', async () => {
     const req = new NextRequest('http://localhost/api/tasks/task-1/move', {
       method: 'POST',
       body: JSON.stringify({ scheduled_date: '2026-05-03', outcome_reason: 'Moved from Today' }),
@@ -166,13 +167,12 @@ describe('POST /api/tasks/[id]/move', () => {
     const res = await MOVE(req, { params: Promise.resolve({ id: 'task-1' }) });
     const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
-    expect(body.moved).toBe(true);
-    expect(body.new_task).toBeDefined();
+    expect(res.status).toBe(410);
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 
-  it('rejects invalid move date', async () => {
+  it('rejects invalid move date through the local move shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks/task-1/move', {
       method: 'POST',
       body: JSON.stringify({ scheduled_date: 'tomorrow' }),
@@ -180,7 +180,7 @@ describe('POST /api/tasks/[id]/move', () => {
     const res = await MOVE(req, { params: Promise.resolve({ id: 'task-1' }) });
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 });

@@ -10,7 +10,6 @@ import { getCalendarEvents } from '@/lib/google/google-calendar';
  * Query params:
  *   - start (required): ISO date string
  *   - end (required): ISO date string
- *   - include_flowme_events: "true" to include Flowme-native events
  *   - include_google_events: "true" to include Google Calendar events
  *   - account_ids: comma-separated linked account IDs
  *
@@ -25,8 +24,6 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const start = url.searchParams.get('start');
     const end = url.searchParams.get('end');
-    const includeFlowmeEvents = url.searchParams.get('include_flowme_events') === 'true'
-      || url.searchParams.get('include_microactivities') === 'true';
     const includeGoogleEvents = url.searchParams.get('include_google_events') !== 'false'; // default true
     const accountIdsParam = url.searchParams.get('account_ids');
 
@@ -37,31 +34,6 @@ export async function GET(req: NextRequest) {
     const accountIds = accountIdsParam ? accountIdsParam.split(',').filter(Boolean) : null;
     const aggregatedEvents: any[] = [];
 
-    if (includeFlowmeEvents) {
-      const { data: flowmeEvents, error: mError } = await supabase
-        .from('microactivities')
-        .select('id, title, description, start_at, end_at')
-        .eq('user_id', userId)
-        .gte('start_at', start)
-        .lt('start_at', end);
-
-      if (mError) throw mError;
-
-      if (flowmeEvents) {
-        aggregatedEvents.push(
-          ...flowmeEvents.map((m: any) => ({
-            source: 'flowme',
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            start_at: m.start_at,
-            end_at: m.end_at,
-          }))
-        );
-      }
-    }
-
-    // 2. Fetch Google Calendar Events
     if (includeGoogleEvents) {
       let accountsQuery = supabase
         .from('linked_accounts')

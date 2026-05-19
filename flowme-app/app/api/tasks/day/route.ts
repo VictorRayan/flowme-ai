@@ -2,16 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
-import { buildDayUnit, normalizeCalendarEventTask, normalizeFlowmeEventTask } from '@/lib/goals/task-dto';
-
-const TASK_FIELDS = `
-  id, title, description, notes, category, status, priority,
-  scheduled_date, start_at, end_at, completed_at, duration_minutes,
-  linked_goal_id, action_plan_id, plan_day,
-  is_recurring, recurrence_rule, source_type, source_id, outcome, outcome_reason,
-  moved_to_task_id, priority_source, priority_reason, is_time_blocked, sort_order,
-  created_at, updated_at
-`;
+import { buildDayUnit, normalizeCalendarEventTask } from '@/lib/goals/task-dto';
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,37 +19,7 @@ export async function GET(req: NextRequest) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'timezone is invalid');
     }
 
-    const { data: flowmeEvents, error } = await supabase
-      .from('microactivities')
-      .select(TASK_FIELDS)
-      .eq('user_id', user.id)
-      .eq('scheduled_date', date)
-      .order('sort_order', { ascending: true })
-      .order('priority', { ascending: false })
-      .order('start_at', { ascending: true });
-
-    if (error) throw error;
-
-    // Fetch action plan names for any plans referenced today
-    const planIds = [...new Set(
-      (flowmeEvents || []).map(r => r.action_plan_id).filter(Boolean)
-    )];
-    let planTitleMap: Record<string, string> = {};
-    if (planIds.length > 0) {
-      const { data: plans } = await supabase
-        .from('action_plans')
-        .select('id, title')
-        .eq('user_id', user.id)
-        .in('id', planIds);
-      if (plans) {
-        planTitleMap = Object.fromEntries(plans.map(p => [p.id, p.title]));
-      }
-    }
-
-    const tasks = (flowmeEvents || []).map(row => ({
-      ...normalizeFlowmeEventTask(row),
-      action_plan_title: row.action_plan_id ? (planTitleMap[row.action_plan_id] ?? null) : null,
-    }));
+    const tasks = [];
 
     if (includeGoogleEvents) {
       const { start, end } = getLocalDayBounds(date, timezone);

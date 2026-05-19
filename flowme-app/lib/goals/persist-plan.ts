@@ -3,8 +3,6 @@ import { buildGoalOperatingPlan, GoalProposalInput } from '@/lib/goals/planner';
 
 const GOAL_FIELDS = 'id, title, timeframe, parent_goal_id, status, starts_on, due_on, target_date, success_criteria';
 const ACTION_PLAN_FIELDS = 'id, title, plan_type, linked_goal_id, linked_goal_ids, status, starts_on, review_date, success_criteria';
-const TASK_FIELDS = 'id, title, scheduled_date, start_at, end_at, duration_minutes, category, priority, linked_goal_id, action_plan_id, plan_day, source_type, outcome';
-
 export async function persistGoalOperatingPlan(
   supabase: SupabaseClient,
   userId: string,
@@ -14,11 +12,9 @@ export async function persistGoalOperatingPlan(
   const created: {
     goalIds: string[];
     actionPlanId: string | null;
-    taskIds: string[];
   } = {
     goalIds: [],
     actionPlanId: null,
-    taskIds: [],
   };
 
   try {
@@ -59,45 +55,12 @@ export async function persistGoalOperatingPlan(
 
     if (linksError) throw linksError;
 
-    const taskRows = plan.active_tasks.map(task => ({
-      user_id: userId,
-      title: task.title,
-      description: task.description,
-      category: task.category,
-      status: 'pending',
-      priority: task.priority,
-      scheduled_date: task.scheduled_date,
-      start_at: task.start_at || `${task.scheduled_date}T09:00:00.000Z`,
-      end_at: task.end_at,
-      duration_minutes: task.duration_minutes,
-      linked_goal_id: weekly.id,
-      action_plan_id: actionPlan.id,
-      plan_day: task.plan_day,
-      is_recurring: false,
-      recurrence_rule: null,
-      source_type: task.source_type,
-      source_id: task.client_id,
-      outcome: 'pending',
-      priority_source: task.priority_source,
-      priority_reason: task.priority_reason,
-      is_time_blocked: Boolean(task.start_at && task.end_at),
-      sort_order: task.sort_order,
-    }));
-
-    const { data: tasks, error: tasksError } = await supabase
-      .from('microactivities')
-      .insert(taskRows)
-      .select(TASK_FIELDS);
-
-    if (tasksError) throw tasksError;
-    created.taskIds = (tasks || []).map((task: { id: string }) => task.id);
-
     return {
       plan,
       persisted: {
         goals: { yearly, monthly, weekly },
         action_plan: actionPlan,
-        tasks: tasks || [],
+        tasks: [],
       },
     };
   } catch (error) {
@@ -142,10 +105,28 @@ async function insertGoal(
   return data;
 }
 
+export async function cleanupPersistedGoalOperatingPlan(
+  supabase: SupabaseClient,
+  userId: string,
+  persisted: {
+    goals?: { yearly?: { id: string }; monthly?: { id: string }; weekly?: { id: string } };
+    action_plan?: { id: string };
+  },
+) {
+  await cleanupCreatedPlan(supabase, userId, {
+    actionPlanId: persisted.action_plan?.id || null,
+    goalIds: [
+      persisted.goals?.yearly?.id,
+      persisted.goals?.monthly?.id,
+      persisted.goals?.weekly?.id,
+    ].filter((id): id is string => Boolean(id)),
+  });
+}
+
 async function cleanupCreatedPlan(
   supabase: SupabaseClient,
   userId: string,
-  created: { goalIds: string[]; actionPlanId: string | null; taskIds: string[] },
+  created: { goalIds: string[]; actionPlanId: string | null },
 ) {
   const cleanupErrors: unknown[] = [];
   const run = async (label: string, operation: unknown) => {
@@ -155,14 +136,6 @@ async function cleanupCreatedPlan(
       cleanupErrors.push({ label, error });
     }
   };
-
-  if (created.taskIds.length > 0) {
-    await run('tasks', supabase
-      .from('microactivities')
-      .delete()
-      .eq('user_id', userId)
-      .in('id', created.taskIds));
-  }
 
   if (created.actionPlanId) {
     await run('action_plan_goal_links', supabase

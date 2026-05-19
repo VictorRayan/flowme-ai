@@ -28,7 +28,7 @@ describe('/api/microactivities legacy route', () => {
     expect(data.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('POST should create a legacy local event successfully', async () => {
+  it('POST rejects local activity creation', async () => {
     const req = new NextRequest('http://localhost/api/microactivities', {
       method: 'POST',
       body: JSON.stringify({ title: 'New Activity', start_at: '2025-01-01T10:00:00Z' })
@@ -36,8 +36,8 @@ describe('/api/microactivities legacy route', () => {
     const res = await POST(req);
     const data = await res.json();
     
-    expect(res.status).toBe(200);
-    expect(data.ok).toBe(true);
-    expect(data.microactivity.title).toBe('New Activity');
+    expect(res.status).toBe(410);
+    expect(data.ok).toBe(false);
+    expect(data.error.message).toContain('Google Calendar');
   });
 });

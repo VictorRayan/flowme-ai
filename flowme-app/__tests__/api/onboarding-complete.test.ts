@@ -3,16 +3,33 @@ import { POST } from '@/app/api/v1/onboarding/complete/route';
 import { persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 
 function makeChain() {
+  let currentTable = '';
   const chain: any = {};
-  const methods = ['from', 'upsert'];
+  const methods = ['select', 'eq', 'order', 'upsert'];
   methods.forEach(method => { chain[method] = jest.fn().mockReturnValue(chain); });
+  chain.from = jest.fn((table: string) => {
+    currentTable = table;
+    return chain;
+  });
   chain.then = (resolve: Function, reject: Function) =>
-    Promise.resolve({ data: null, error: null }).then(resolve as any, reject as any);
+    Promise.resolve({
+      data: currentTable === 'linked_accounts' ? [{ id: 'google-1' }] : null,
+      error: null,
+    }).then(resolve as any, reject as any);
   return chain;
 }
 
 jest.mock('@/lib/goals/persist-plan', () => ({
-  persistGoalOperatingPlan: jest.fn().mockResolvedValue({ persisted: { goals: {} } }),
+  persistGoalOperatingPlan: jest.fn().mockResolvedValue({
+    plan: {
+      active_tasks: [{ title: 'Prospect', description: 'Prospect daily', scheduled_date: '2026-05-19', start_at: null, end_at: null, duration_minutes: 20 }],
+    },
+    persisted: { goals: {} },
+  }),
+}));
+
+jest.mock('@/lib/google/google-calendar', () => ({
+  createCalendarEvent: jest.fn().mockResolvedValue({ id: 'google-event-1', htmlLink: 'https://calendar.google.com/event', meetLink: null }),
 }));
 
 jest.mock('@/lib/api/auth', () => ({

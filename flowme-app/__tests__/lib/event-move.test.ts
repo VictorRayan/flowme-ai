@@ -58,23 +58,6 @@ describe('buildEventMoveRequest', () => {
     expect(request.body.linked_account_id).toBe('account-1');
   });
 
-  it('builds a local task update request for Flowme events', () => {
-    const moved = {
-      start_at: '2026-05-02T10:15:00.000Z',
-      end_at: '2026-05-02T11:00:00.000Z',
-      scheduled_date: '2026-05-02',
-    };
-
-    const request = buildEventMoveRequest({
-      id: 'micro-1',
-      source: 'flowme',
-      start_at: '2026-05-01T10:15:00.000Z',
-    }, moved);
-
-    expect(request.url).toBe('/api/events/micro-1');
-    expect(request.body.scheduled_date).toBe('2026-05-02');
-  });
-
   it('rejects Google events without a linked account', () => {
     const moved = {
       start_at: '2026-05-02T10:15:00.000Z',

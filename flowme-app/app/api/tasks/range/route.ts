@@ -2,16 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
-import { buildDayUnit, normalizeCalendarEventTask, normalizeFlowmeEventTask } from '@/lib/goals/task-dto';
-
-const TASK_FIELDS = `
-  id, title, description, notes, category, status, priority,
-  scheduled_date, start_at, end_at, completed_at, duration_minutes,
-  linked_goal_id, action_plan_id, plan_day,
-  is_recurring, recurrence_rule, source_type, source_id, outcome, outcome_reason,
-  moved_to_task_id, priority_source, priority_reason, is_time_blocked, sort_order,
-  created_at, updated_at
-`;
+import { buildDayUnit, normalizeCalendarEventTask } from '@/lib/goals/task-dto';
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,42 +26,9 @@ export async function GET(req: NextRequest) {
     }
     if (dates.length > 60) return apiError(ErrorCode.VALIDATION_ERROR, 'range too large (max 60 days)');
 
-    // Fetch all flowme tasks in range
-    const { data: rows, error } = await supabase
-      .from('microactivities')
-      .select(TASK_FIELDS)
-      .eq('user_id', user.id)
-      .gte('scheduled_date', from)
-      .lte('scheduled_date', to)
-      .order('scheduled_date', { ascending: true })
-      .order('sort_order',     { ascending: true })
-      .order('priority',       { ascending: false })
-      .order('start_at',       { ascending: true });
-
-    if (error) throw error;
-
-    // Fetch action plan names
-    const planIds = [...new Set((rows || []).map((r: any) => r.action_plan_id).filter(Boolean))];
-    let planTitleMap: Record<string, string> = {};
-    if (planIds.length > 0) {
-      const { data: plans } = await supabase
-        .from('action_plans').select('id, title')
-        .eq('user_id', user.id).in('id', planIds);
-      if (plans) planTitleMap = Object.fromEntries(plans.map((p: any) => [p.id, p.title]));
-    }
-
-    // Group by date
     const byDate: Record<string, any[]> = {};
     for (const date of dates) byDate[date] = [];
-    for (const row of rows || []) {
-      const d = row.scheduled_date;
-      if (byDate[d]) byDate[d].push({
-        ...normalizeFlowmeEventTask(row),
-        action_plan_title: row.action_plan_id ? (planTitleMap[row.action_plan_id] ?? null) : null,
-      });
-    }
 
-    // Fetch Google Calendar events for the whole range
     const { data: accounts } = await supabase
       .from('linked_accounts').select('id, name, type, provider')
       .eq('user_id', user.id).eq('is_active', true).eq('is_deleted', false).eq('provider', 'google');

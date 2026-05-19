@@ -6,7 +6,7 @@ type Operation = {
   args: unknown[];
 };
 
-function makeSupabaseMock(options: { failTaskInsert?: boolean } = {}) {
+function makeSupabaseMock(options: { failActionPlanLinkInsert?: boolean } = {}) {
   const operations: Operation[] = [];
   let goalCounter = 0;
 
@@ -54,14 +54,8 @@ function makeSupabaseMock(options: { failTaskInsert?: boolean } = {}) {
           return Promise.resolve({ data: {}, error: null });
         },
         then(resolve: Function, reject: Function) {
-          if (table === 'microactivities' && operation === 'insert' && options.failTaskInsert) {
-            return Promise.resolve({ data: null, error: new Error('task insert failed') }).then(resolve as any, reject as any);
-          }
-          if (table === 'microactivities' && operation === 'insert') {
-            return Promise.resolve({
-              data: [{ id: 'task-1', title: 'Task', scheduled_date: '2026-05-02' }],
-              error: null,
-            }).then(resolve as any, reject as any);
+          if (table === 'action_plan_goal_links' && operation === 'insert' && options.failActionPlanLinkInsert) {
+            return Promise.resolve({ data: null, error: new Error('link insert failed') }).then(resolve as any, reject as any);
           }
           return Promise.resolve({ data: [], error: null }).then(resolve as any, reject as any);
         },
@@ -88,13 +82,17 @@ describe('persistGoalOperatingPlan', () => {
 
     expect(result.persisted.goals.yearly.id).toBe('goal-1');
     expect(result.persisted.action_plan.id).toBe('plan-1');
-    expect(result.persisted.tasks).toHaveLength(1);
+    expect(result.persisted.tasks).toHaveLength(0);
+    expect(result.plan.active_tasks.length).toBeGreaterThan(0);
+    expect(supabase.operations).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'microactivities', method: 'insert' }),
+    ]));
   });
 
-  it('cleans up goals, links, and action plan when task insertion fails', async () => {
-    const supabase = makeSupabaseMock({ failTaskInsert: true });
+  it('cleans up goals and action plan when link insertion fails', async () => {
+    const supabase = makeSupabaseMock({ failActionPlanLinkInsert: true });
 
-    await expect(persistGoalOperatingPlan(supabase as any, 'user-1', VALID_INPUT)).rejects.toThrow('task insert failed');
+    await expect(persistGoalOperatingPlan(supabase as any, 'user-1', VALID_INPUT)).rejects.toThrow('link insert failed');
 
     expect(supabase.operations).toEqual(expect.arrayContaining([
       expect.objectContaining({ table: 'action_plan_goal_links', method: 'delete' }),

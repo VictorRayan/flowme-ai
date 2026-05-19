@@ -1,5 +1,6 @@
 import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListTool } from '@/lib/ai/tools/goals-tools';
 import { persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
+import { createCalendarEvent } from '@/lib/google/google-calendar';
 
 jest.mock('@/lib/goals/persist-plan', () => ({
   persistGoalOperatingPlan: jest.fn().mockResolvedValue({
@@ -18,6 +19,10 @@ jest.mock('@/lib/goals/persist-plan', () => ({
       tasks: [{ id: 'task-1', scheduled_date: '2026-05-02', start_at: null, end_at: null, title: 'Task 1' }],
     },
   }),
+}));
+
+jest.mock('@/lib/google/google-calendar', () => ({
+  createCalendarEvent: jest.fn().mockResolvedValue({ id: 'google-event-1', htmlLink: 'https://calendar.google.com/event', meetLink: null }),
 }));
 
 function makeContext() {
@@ -42,6 +47,7 @@ function makeContext() {
         then(resolve: Function, reject: Function) {
           if (table === 'smart_goals') return Promise.resolve({ data: [{ id: 'goal-1', title: 'Revenue goal' }], error: null }).then(resolve as any, reject as any);
           if (table === 'action_plans' && operation !== 'insert') return Promise.resolve({ data: [{ id: 'plan-1', title: 'Active plan' }], error: null }).then(resolve as any, reject as any);
+          if (table === 'linked_accounts') return Promise.resolve({ data: [{ id: 'google-1', name: 'Personal', type: 'calendar' }], error: null }).then(resolve as any, reject as any);
           if (table === 'microactivities') return Promise.resolve({ data: [{ id: 'task-1', title: 'Sleep by eleven' }], error: null }).then(resolve as any, reject as any);
           return Promise.resolve({ data: [], error: null }).then(resolve as any, reject as any);
         },
@@ -82,10 +88,13 @@ describe('goals tools', () => {
     expect(persistGoalOperatingPlan).toHaveBeenCalledWith(context.supabase, 'user-1', expect.objectContaining({
       annual_smart_goal: 'Reach R$ 20k monthly revenue by December 2026',
     }));
-    expect(result.receipt).toEqual(expect.objectContaining({ goals_created: 3, tasks_created: 1 }));
+    expect(result.receipt).toEqual(expect.objectContaining({ goals_created: 3, calendar_events_created: 1 }));
+    expect(createCalendarEvent).toHaveBeenCalledWith('google-1', expect.objectContaining({
+      title: 'Task 1',
+    }), context);
   });
 
-  it('creates a short-term action plan with flexible event-style tasks', async () => {
+  it('creates a short-term action plan with Google Calendar events', async () => {
     const context = makeContext();
     const result = await goalsCreateShortActionPlanTool.call({
       title: 'Sleep recovery',
@@ -100,12 +109,14 @@ describe('goals tools', () => {
 
     expect(result.ok).toBe(true);
     expect(result.receipt).toEqual(expect.objectContaining({
-      tasks_created: 1,
+      calendar_events_created: 1,
       linked_goal_count: 1,
     }));
-    expect((result.receipt as any).warnings[0]).toContain('flexible');
+    expect((result.receipt as any).warnings[0]).toContain('Google Calendar');
     expect(context.supabase.calls).toEqual(expect.arrayContaining([
       expect.objectContaining({ table: 'action_plans', method: 'insert' }),
+    ]));
+    expect(context.supabase.calls).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ table: 'microactivities', method: 'insert' }),
     ]));
   });

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { defineTool } from './Tool';
-import { persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
+import { defineTool, ToolContext } from './Tool';
+import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
+import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-calendar';
 
 const goalTimeframeSchema = z.enum(['yearly', 'monthly', 'weekly']);
 const goalStatusSchema = z.enum(['not_started', 'in_progress', 'completed', 'cancelled']);
@@ -19,10 +20,128 @@ const ACTION_PLAN_FIELDS = `
   created_at, updated_at
 `;
 
-const TASK_FIELDS = `
-  id, title, scheduled_date, start_at, end_at, duration_minutes, category, priority,
-  linked_goal_id, action_plan_id, plan_day, source_type, outcome
-`;
+type GoogleAccount = {
+  id: string;
+  name: string;
+  type?: string | null;
+};
+
+type CalendarOccurrence = {
+  title: string;
+  description?: string | null;
+  scheduled_date: string;
+  start_at?: string | null;
+  end_at?: string | null;
+  duration_minutes?: number | null;
+};
+
+async function resolveGoogleCalendarAccount(
+  context: ToolContext,
+  accountNickname?: string,
+): Promise<{ ok: true; account: GoogleAccount } | { ok: false; error: string }> {
+  const { data, error } = await context.supabase
+    .from('linked_accounts')
+    .select('id, name, type')
+    .eq('user_id', context.user.id)
+    .eq('is_active', true)
+    .eq('is_deleted', false)
+    .eq('provider', 'google')
+    .order('created_at', { ascending: true });
+
+  if (error || !Array.isArray(data) || data.length === 0) {
+    return { ok: false, error: 'No active Google Calendar account connected. Connect Google Calendar before creating plans or tasks.' };
+  }
+
+  const accounts = data as GoogleAccount[];
+  const wanted = String(accountNickname || '').trim().toLowerCase();
+  if (wanted) {
+    const match = accounts.find(account =>
+      String(account.name || '').trim().toLowerCase() === wanted ||
+      String(account.type || '').trim().toLowerCase() === wanted ||
+      String(account.name || '').trim().toLowerCase().includes(wanted)
+    );
+    if (match) return { ok: true, account: match };
+    return { ok: false, error: `I could not find a Google Calendar account called "${accountNickname}". Available account nicknames: ${accounts.map(account => account.name).join(', ')}.` };
+  }
+
+  if (accounts.length > 1) {
+    return { ok: false, error: `Which calendar account should I use? Available account nicknames: ${accounts.map(account => account.name).join(', ')}.` };
+  }
+
+  return { ok: true, account: accounts[0] };
+}
+
+function timezoneOffset(date: string, timezone: string): string {
+  try {
+    const probe = new Date(`${date}T12:00:00.000Z`);
+    const label = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'shortOffset',
+      hour: 'numeric',
+    }).formatToParts(probe).find(part => part.type === 'timeZoneName')?.value || '';
+    const match = label.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+    if (match) {
+      const hours = match[2].padStart(2, '0');
+      const minutes = (match[3] || '0').padStart(2, '0');
+      return `${match[1]}${hours}:${minutes}`;
+    }
+  } catch {}
+  return '+00:00';
+}
+
+function defaultStartIso(date: string, timezone: string): string {
+  return `${date}T09:00:00${timezoneOffset(date, timezone)}`;
+}
+
+function addMinutesIso(startIso: string, minutes: number): string {
+  return new Date(new Date(startIso).getTime() + minutes * 60000).toISOString();
+}
+
+function calendarTimesForOccurrence(task: CalendarOccurrence, timezone: string) {
+  const startAt = task.start_at || defaultStartIso(task.scheduled_date, timezone);
+  const duration = task.duration_minutes || 30;
+  return {
+    startAt,
+    endAt: task.end_at || addMinutesIso(startAt, duration),
+  };
+}
+
+async function createCalendarEventsForOccurrences(
+  context: ToolContext,
+  account: GoogleAccount,
+  occurrences: CalendarOccurrence[],
+  onCreated?: (eventId: string) => void,
+) {
+  const created = [];
+  for (const occurrence of occurrences) {
+    const times = calendarTimesForOccurrence(occurrence, context.timezone || 'UTC');
+    const event = await createCalendarEvent(account.id, {
+      title: occurrence.title,
+      description: occurrence.description || undefined,
+      startAt: times.startAt,
+      endAt: times.endAt,
+    }, context);
+    onCreated?.(event.id);
+    created.push({
+      title: occurrence.title,
+      provider_event_id: event.id,
+      html_link: event.htmlLink,
+      start_at: times.startAt,
+      end_at: times.endAt,
+    });
+  }
+  return created;
+}
+
+async function rollbackCalendarEvents(accountId: string, eventIds: string[], context: ToolContext) {
+  for (const eventId of eventIds) {
+    try {
+      await deleteCalendarEvent(accountId, eventId, context);
+    } catch (error) {
+      console.error('Google Calendar rollback failed:', { eventId, error });
+    }
+  }
+}
 
 export const goalsListTool = defineTool({
   name: 'goals.list',
@@ -104,9 +223,9 @@ CONTRACT — cadence rules (CRITICAL — apply exactly):
 - NEVER schedule tasks on days that don't match the cadence.
 
 CALENDAR EVENTS:
-- Always call calendar.create_event for each task occurrence so the user sees them in Google Calendar.
-- Do this AFTER this tool returns, in the same agent loop, using the scheduled_dates from the receipt.
-- If no preferred_time was given, remind the user to pick times and offer to schedule them.
+- This tool itself creates one Google Calendar event for each concrete occurrence.
+- Do NOT call calendar.create_event again after this tool succeeds; that would duplicate events.
+- If no preferred_time was given, this tool uses a default 09:00 start time in the user's timezone.
 
 ASK BEFORE CALLING IF: goal is vague, cadence is ambiguous, or user hasn't confirmed the proposal.
 
@@ -136,17 +255,38 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
     preferred_time:              z.string().regex(/^\d{2}:\d{2}$/).optional().describe('Preferred start time for tasks in HH:MM (24h). Optional — if omitted, tasks are flexible.'),
     default_task_duration_minutes: z.number().min(1).max(240).optional().describe('Duration in minutes for each task occurrence. Defaults to 15.'),
     execution_window_days:       z.number().min(1).max(21).optional().describe('How many calendar days to materialise tasks for. Defaults to 14. Max 21.'),
+    calendar_account_nickname:   z.string().optional().describe('Google Calendar account nickname/name. Required when the user has more than one active Google account.'),
   })),
   call: async (args, context) => {
+    let result: Awaited<ReturnType<typeof persistGoalOperatingPlan>> | null = null;
+    let accountId: string | null = null;
+    const createdGoogleEventIds: string[] = [];
     try {
-      const result = await persistGoalOperatingPlan(context.supabase, context.user.id, args);
-      const tasks = result.persisted.tasks as Array<{ scheduled_date: string; start_at?: string | null; end_at?: string | null; title: string }>;
+      const account = await resolveGoogleCalendarAccount(context, args.calendar_account_nickname);
+      if (!account.ok) return { ok: false, error: account.error };
+      accountId = account.account.id;
+
+      result = await persistGoalOperatingPlan(context.supabase, context.user.id, args);
+      const tasks = result.plan.active_tasks.map(task => ({
+        title: task.title,
+        description: task.description,
+        scheduled_date: task.scheduled_date,
+        start_at: task.start_at,
+        end_at: task.end_at,
+        duration_minutes: task.duration_minutes,
+      }));
+      const calendarEvents = await createCalendarEventsForOccurrences(
+        context,
+        account.account,
+        tasks,
+        eventId => createdGoogleEventIds.push(eventId),
+      );
       return {
         ok: true,
         receipt: {
           goals_created: 3,
           action_plan_created: true,
-          tasks_created: tasks.length,
+          calendar_events_created: calendarEvents.length,
           first_task_date: result.plan.active_tasks[0]?.scheduled_date || null,
           review_date: result.plan.action_plan.review_date,
           cadence_summary: result.plan.future_work_template.cadence_summary,
@@ -157,14 +297,18 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
             end_at: t.end_at || null,
             title: t.title,
           })),
+          calendar_events: calendarEvents,
           warnings: result.plan.warnings,
-          next_step: tasks.length > 0 && args.preferred_time
-            ? 'Use calendar.create_event to add each scheduled_date occurrence to Google Calendar.'
-            : 'Ask the user what time they prefer for these sessions, then use calendar.create_event for each date.',
-          summary: `Goal created. ${tasks.length} task(s) scheduled for the first ${result.plan.future_work_template.concrete_window_days} days (${result.plan.future_work_template.cadence_summary}). Action plan renews on ${result.plan.action_plan.review_date}.`,
+          summary: `Goal created. ${calendarEvents.length} Google Calendar event(s) scheduled for the first ${result.plan.future_work_template.concrete_window_days} days (${result.plan.future_work_template.cadence_summary}). Action plan renews on ${result.plan.action_plan.review_date}.`,
         },
       };
     } catch (error) {
+      if (accountId && createdGoogleEventIds.length > 0) {
+        await rollbackCalendarEvents(accountId, createdGoogleEventIds, context);
+      }
+      if (result) {
+        await cleanupPersistedGoalOperatingPlan(context.supabase, context.user.id, result.persisted);
+      }
       return { ok: false, error: error instanceof Error ? error.message : 'Failed to create goal operating plan' };
     }
   },
@@ -188,7 +332,9 @@ MANDATORY BEFORE CALLING:
 CONTRACT:
 - duration_days max 21. If user wants more, create multiple plans or suggest a meta instead.
 - Every task must have a specific scheduled_date within the plan window.
-- After creating, call calendar.create_event for each task so they appear on the user's calendar.
+- This tool itself creates one Google Calendar event for every task.
+- Do NOT call calendar.create_event again after this tool succeeds; that would duplicate events.
+- If the user has not provided concrete tasks yet, ask for them before calling this tool.
 
 WRONG (never do this): recycling an existing goal title like "Atingir R$10k" as the action plan title.
 RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" or "Contatar 10 clientes potenciais esta semana".`,
@@ -214,24 +360,29 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
     review_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     success_criteria: z.string().max(1000).optional(),
     priority_label: priorityLabelSchema.optional().default('negotiable'),
+    calendar_account_nickname: z.string().optional().describe('Google Calendar account nickname/name. Required when the user has more than one active Google account.'),
     tasks: z.array(z.object({
       title: z.string().min(3).max(180),
       description: z.string().max(800).optional(),
       scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-      start_at: z.string().datetime().optional(),
-      end_at: z.string().datetime().optional(),
+      start_at: z.string().optional().describe('ISO-like datetime. Timezone offset preferred; if omitted, app timezone/default handling is used.'),
+      end_at: z.string().optional().describe('ISO-like datetime after start_at. Timezone offset preferred.'),
       duration_minutes: z.number().min(1).max(240).optional().default(5),
       priority_label: priorityLabelSchema.optional().default('negotiable'),
-    })).max(366).optional().default([]),
+    })).min(1).max(366),
   })),
   call: async (args, context) => {
+    const account = await resolveGoogleCalendarAccount(context, args.calendar_account_nickname);
+    if (!account.ok) return { ok: false, error: account.error };
+    const createdGoogleEventIds: string[] = [];
+
     const linkedGoalIds = Array.from(new Set(args.linked_goal_ids || []));
     const startsOn = args.starts_on || context.nowIso.slice(0, 10);
     const durationDays = args.duration_days ?? 14;
     const priorityLabel = args.priority_label ?? 'negotiable';
     const taskInputs = args.tasks || [];
     const reviewDate = args.review_date || addDays(startsOn, durationDays);
-    const created: { actionPlanId: string | null; taskIds: string[] } = { actionPlanId: null, taskIds: [] };
+    const created: { actionPlanId: string | null } = { actionPlanId: null };
 
     try {
       const { data: actionPlan, error: actionPlanError } = await context.supabase
@@ -268,44 +419,26 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
         if (linksError) throw linksError;
       }
 
-      let tasks: Array<{ id: string; title: string }> = [];
+      let calendarEvents: Array<{ title: string; provider_event_id: string; html_link: string; start_at: string; end_at: string }> = [];
       if (taskInputs.length > 0) {
-        const taskRows = taskInputs.map((task, index) => {
+        const occurrences = taskInputs.map((task, index) => {
           const scheduledDate = task.scheduled_date || addDays(startsOn, index);
           const duration = task.duration_minutes || inferDurationMinutes(task.start_at, task.end_at) || 5;
           return {
-            user_id: context.user.id,
             title: task.title.trim(),
             description: task.description?.trim() || null,
-            category: task.priority_label,
-            status: 'pending',
-            priority: priorityScore(task.priority_label),
             scheduled_date: scheduledDate,
             start_at: task.start_at || `${scheduledDate}T09:00:00.000Z`,
             end_at: task.end_at || null,
             duration_minutes: duration,
-            linked_goal_id: linkedGoalIds[0] || null,
-            action_plan_id: actionPlan.id,
-            plan_day: index + 1,
-            is_recurring: false,
-            recurrence_rule: null,
-            source_type: 'action_plan_task',
-            source_id: `short-plan-${index + 1}`,
-            outcome: 'pending',
-            priority_source: 'balys',
-            priority_reason: `Task created for short-term action plan: ${args.title.trim()}`,
-            is_time_blocked: Boolean(task.start_at && task.end_at),
-            sort_order: index,
           };
         });
-
-        const { data, error } = await context.supabase
-          .from('microactivities')
-          .insert(taskRows)
-          .select(TASK_FIELDS);
-        if (error) throw error;
-        tasks = data || [];
-        created.taskIds = tasks.map(task => task.id);
+        calendarEvents = await createCalendarEventsForOccurrences(
+          context,
+          account.account,
+          occurrences,
+          eventId => createdGoogleEventIds.push(eventId),
+        );
       }
 
       const flexibleEventCount = taskInputs.filter(task => !task.start_at).length;
@@ -313,15 +446,17 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
         ok: true,
         receipt: {
           action_plan: actionPlan,
-          tasks_created: tasks.length,
+          calendar_events_created: calendarEvents.length,
           linked_goal_count: linkedGoalIds.length,
+          calendar_events: calendarEvents,
           warnings: flexibleEventCount > 0
-            ? [`${flexibleEventCount} event(s) are flexible because no start time was provided.`]
+            ? [`${flexibleEventCount} Google Calendar event(s) used the default 09:00 start time because no start time was provided.`]
             : [],
-          summary: `Created a short-term action plan with ${tasks.length} Flowme event(s).`,
+          summary: `Created a short-term action plan with ${calendarEvents.length} Google Calendar event(s).`,
         },
       };
     } catch (error) {
+      await rollbackCalendarEvents(account.account.id, createdGoogleEventIds, context);
       await cleanupShortActionPlan(context.supabase, context.user.id, created);
       return { ok: false, error: error instanceof Error ? error.message : 'Failed to create short-term action plan' };
     }
@@ -331,12 +466,9 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
 async function cleanupShortActionPlan(
   supabase: any,
   userId: string,
-  created: { actionPlanId: string | null; taskIds: string[] },
+  created: { actionPlanId: string | null },
 ) {
   try {
-    if (created.taskIds.length > 0) {
-      await supabase.from('microactivities').delete().eq('user_id', userId).in('id', created.taskIds);
-    }
     if (created.actionPlanId) {
       await supabase.from('action_plan_goal_links').delete().eq('user_id', userId).eq('action_plan_id', created.actionPlanId);
       await supabase.from('action_plans').delete().eq('user_id', userId).eq('id', created.actionPlanId);
@@ -344,12 +476,6 @@ async function cleanupShortActionPlan(
   } catch (error) {
     console.error('Short action plan cleanup failed:', error);
   }
-}
-
-function priorityScore(label: 'non_negotiable' | 'negotiable' | 'routine'): number {
-  if (label === 'non_negotiable') return 3;
-  if (label === 'routine') return 1;
-  return 2;
 }
 
 function inferDurationMinutes(startAt?: string | null, endAt?: string | null): number | null {

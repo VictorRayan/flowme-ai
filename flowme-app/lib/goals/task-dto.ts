@@ -99,8 +99,6 @@ export function classifyExecutionType(_durationMinutes: number | null, _isTimeBl
 export function normalizeFlowmeEventTask(row: FlowmeEventRow): NormalizedTask {
   const duration = row.duration_minutes ?? inferDurationMinutes(row.start_at, row.end_at);
   const sourceType = parseSourceType(row.source_type, 'manual');
-  // Always use the DB primary key (row.id) for mutations — row.source_id is an
-  // external reference (e.g. "short-plan-1") and is not the microactivities UUID.
   const dbId = row.id;
   const priorityLabel = parsePriorityLabel(row.category);
   const outcome = parseOutcome(row.outcome || row.status);

@@ -34,14 +34,14 @@ jest.mock('@/lib/api/auth', () => ({
 }));
 
 describe('/api/events', () => {
-  it('GET returns Flowme events for a date range', async () => {
+  it('GET returns legacy events for a date range', async () => {
     const req = new NextRequest('http://localhost/api/events?start=2026-05-02T00:00:00Z&end=2026-05-03T00:00:00Z');
     const res = await GET(req);
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.events[0].title).toBe('Write plan');
+    expect(body.events).toEqual([]);
   });
 
   it('GET rejects missing range', async () => {
@@ -53,7 +53,7 @@ describe('/api/events', () => {
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('POST creates a flexible Flowme event', async () => {
+  it('POST rejects local event creation', async () => {
     const req = new NextRequest('http://localhost/api/events', {
       method: 'POST',
       body: JSON.stringify({ title: 'Stretch', scheduled_date: '2026-05-02', duration_minutes: 5 }),
@@ -61,12 +61,12 @@ describe('/api/events', () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
-    expect(body.event.title).toBe('Write plan');
+    expect(res.status).toBe(410);
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 
-  it('POST rejects missing title', async () => {
+  it('POST rejects missing title through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/events', {
       method: 'POST',
       body: JSON.stringify({ scheduled_date: '2026-05-02' }),
@@ -74,11 +74,11 @@ describe('/api/events', () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('POST rejects invalid priority label', async () => {
+  it('POST rejects invalid priority label through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/events', {
       method: 'POST',
       body: JSON.stringify({ title: 'Stretch', scheduled_date: '2026-05-02', priority_label: 'urgent' }),
@@ -86,11 +86,11 @@ describe('/api/events', () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('PATCH updates an event', async () => {
+  it('PATCH rejects local event updates', async () => {
     const req = new NextRequest('http://localhost/api/events/event-1', {
       method: 'PATCH',
       body: JSON.stringify({ title: 'Updated plan' }),
@@ -98,12 +98,12 @@ describe('/api/events', () => {
     const res = await PATCH(req, { params: Promise.resolve({ id: 'event-1' }) });
     const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
-    expect(body.event).toBeDefined();
+    expect(res.status).toBe(410);
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 
-  it('PATCH rejects empty body', async () => {
+  it('PATCH rejects empty body through the local update shutdown', async () => {
     const req = new NextRequest('http://localhost/api/events/event-1', {
       method: 'PATCH',
       body: JSON.stringify({}),
@@ -111,17 +111,17 @@ describe('/api/events', () => {
     const res = await PATCH(req, { params: Promise.resolve({ id: 'event-1' }) });
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(410);
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('DELETE returns deleted true', async () => {
+  it('DELETE rejects local event deletion', async () => {
     const req = new NextRequest('http://localhost/api/events/event-1', { method: 'DELETE' });
     const res = await DELETE(req, { params: Promise.resolve({ id: 'event-1' }) });
     const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
-    expect(body.deleted).toBe(true);
+    expect(res.status).toBe(410);
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toContain('Google Calendar');
   });
 });

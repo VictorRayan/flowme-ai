@@ -19,7 +19,7 @@ describe('goal operating task DTO', () => {
     expect(classifyExecutionType(5, false)).toBe('event');
   });
 
-  it('normalizes a Flowme event row into stable task fields', () => {
+  it('normalizes a legacy local row into stable task fields', () => {
     const task = normalizeFlowmeEventTask({
       id: 'task-1',
       title: 'Call Leticia',

@@ -823,8 +823,6 @@ Rules:
                 'calendar.update_event': ['calendar'],
                 'calendar.delete_event': ['calendar'],
                 'calendar.delete_events_batch': ['calendar'],
-                'events.create': ['calendar', 'today'],
-                'events.delete': ['calendar', 'today'],
                 'notes.create_note': ['notes'],
                 'notes.edit_note': ['notes'],
                 'memory.append_to_person': ['notes'],

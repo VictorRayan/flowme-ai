@@ -4,15 +4,19 @@ import { POST } from '@/app/api/goals/plan/route';
 const tableRows: Record<string, unknown> = {
   smart_goals: { id: 'goal-1', title: 'Goal', timeframe: 'yearly', status: 'in_progress' },
   action_plans: { id: 'plan-1', title: 'Action plan', plan_type: 'goal_plan', status: 'in_progress' },
-  microactivities: [{ id: 'task-1', title: 'Task', scheduled_date: '2026-05-02' }],
   action_plan_goal_links: [{ id: 'link-1' }],
+  linked_accounts: { id: 'google-1', is_active: true, is_deleted: false },
 };
+
+jest.mock('@/lib/google/google-calendar', () => ({
+  createCalendarEvent: jest.fn().mockResolvedValue({ id: 'google-event-1', htmlLink: 'https://calendar.google.com/event', meetLink: null }),
+}));
 
 function makeChain() {
   let currentTable = '';
   const chain: any = {
     then(resolve: Function, reject: Function) {
-      const data = currentTable === 'microactivities' || currentTable === 'action_plan_goal_links'
+      const data = currentTable === 'action_plan_goal_links'
         ? tableRows[currentTable] || []
         : [tableRows[currentTable] || {}];
       return Promise.resolve({ data, error: null }).then(resolve as any, reject as any);
@@ -48,6 +52,7 @@ describe('POST /api/goals/plan', () => {
         annual_smart_goal: 'Reach R$ 20k monthly revenue by December 2026',
         monthly_milestone: 'Close one new consulting client this month',
         weekly_routine: 'Prospect for 20 minutes daily',
+        linked_account_id: 'google-1',
         start_date: '2026-05-02',
         target_date: '2026-05-05',
         execution_window_days: 4,
@@ -60,6 +65,7 @@ describe('POST /api/goals/plan', () => {
     expect(body.plan.goals).toHaveLength(3);
     expect(body.plan.active_tasks).toHaveLength(4);
     expect(body.persisted.action_plan).toBeDefined();
+    expect(body.calendar_events).toHaveLength(4);
   });
 
   it('returns validation error for incomplete proposal', async () => {
@@ -69,6 +75,7 @@ describe('POST /api/goals/plan', () => {
         annual_smart_goal: '',
         monthly_milestone: 'Close one new client',
         weekly_routine: 'Prospect daily',
+        linked_account_id: 'google-1',
       }),
     }));
     const body = await res.json();

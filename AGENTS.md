@@ -1,5 +1,7 @@
 # Flowme-ai Monorepo Instructions
 
+Before planning or changing application code, read `flowme-app/implementation.md` for the current implementation priorities and sequencing.
+
 The Next.js application now lives in `flowme-app/`. Follow `flowme-app/AGENTS.md` for all application code, tests, API routes, and Balys behavior.
 
 Balys connector behavior is product-critical. Before changing chat commands, connector tools, Google OAuth, Gmail/Docs/Sheets/Drive flows, or connector UI feedback, read `flowme-app/docs/connectors/README.md` and the connector-specific docs under `flowme-app/docs/connectors/`.

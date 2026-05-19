@@ -1,10 +1,21 @@
 jest.mock('@/lib/google/google-gmail', () => ({
   searchEmails: jest.fn().mockResolvedValue([{ id: 'm1', threadId: 't1', snippet: 'hello', subject: 'Subject', from: 'a@example.com', date: 'today' }]),
+  readEmailMessage: jest.fn().mockResolvedValue({
+    id: 'm1',
+    threadId: 't1',
+    snippet: 'hello',
+    subject: 'Subject',
+    from: 'a@example.com',
+    to: 'victor@example.com',
+    date: 'today',
+    body_text: 'Full body',
+    attachments: [],
+  }),
   createDraft: jest.fn().mockResolvedValue({ id: 'draft-1', messageId: 'message-1' }),
 }));
 
-import { gmailCreateDraftTool, gmailSearchMessagesTool } from '@/lib/ai/tools/connectors-tools';
-import { createDraft, searchEmails } from '@/lib/google/google-gmail';
+import { gmailCreateDraftTool, gmailReadMessageTool, gmailSearchMessagesTool } from '@/lib/ai/tools/connectors-tools';
+import { createDraft, readEmailMessage, searchEmails } from '@/lib/google/google-gmail';
 
 function makeContext() {
   const chain: any = {
@@ -48,5 +59,14 @@ describe('gmail connector tools', () => {
 
     expect(result.ok).toBe(true);
     expect(createDraft).toHaveBeenCalledWith('linked-account-1', ['test@example.com'], 'Subject', 'Body', context);
+  });
+
+  it('passes tool context to Gmail body reads for WhatsApp/backend auth flows', async () => {
+    const context = makeContext();
+
+    const result = await gmailReadMessageTool.call({ message_id: 'm1' }, context);
+
+    expect(result.ok).toBe(true);
+    expect(readEmailMessage).toHaveBeenCalledWith('linked-account-1', 'm1', context);
   });
 });

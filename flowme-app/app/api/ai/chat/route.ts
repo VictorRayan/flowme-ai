@@ -15,6 +15,11 @@ import { summarizeAndPersistThread, SUMMARIZE_EVERY_N_USER_TURNS } from '@/lib/a
 import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/ai/threads';
 
 const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
+type ConnectorIntent = {
+  id?: string;
+  label?: string;
+  action?: 'gmail' | 'drive' | 'docs' | 'sheets' | 'briefing' | 'note' | 'weather' | 'council';
+};
 
 async function loadUserAiSettings(supabase: any, userId: string): Promise<{ council_mode: 'cheap' | 'best'; memory_enabled: boolean }> {
   try {
@@ -78,6 +83,7 @@ export async function POST(request: NextRequest) {
       timezone,
       clientNowIso,
       rawUserInput,
+      connectorIntent,
       userLocation,
     } = await request.json();
     if (!messages?.length) return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
@@ -124,13 +130,36 @@ export async function POST(request: NextRequest) {
       contextScores: contextScores ?? undefined,
     });
 
+    const parsedConnectorIntent: ConnectorIntent | null = connectorIntent && typeof connectorIntent === 'object'
+      ? connectorIntent
+      : null;
+    const connectorIntentPrompt = parsedConnectorIntent?.action
+      ? [
+          `Structured command intent: ${parsedConnectorIntent.label || parsedConnectorIntent.action}.`,
+          'Treat this as deterministic metadata selected by the user, not as optional decoration.',
+          parsedConnectorIntent.action === 'gmail'
+            ? 'Use Gmail tools. SHORT-CIRCUIT: if asked to read an email, search and immediately call gmail.read_message on the top unambiguous result. Search is discovery only; never answer from snippets alone.'
+            : '',
+          parsedConnectorIntent.action === 'docs'
+            ? 'Use Google Docs connector tools. SHORT-CIRCUIT: if the user asks what files are here, call connectors.search_docs immediately and list them. Use connectors.find_and_read_doc to read a named document.'
+            : '',
+          parsedConnectorIntent.action === 'sheets'
+            ? 'Use Google Sheets connector tools. SHORT-CIRCUIT: if asked to list sheets, call connectors.search_docs immediately. Read or analyze actual spreadsheet content before giving insights.'
+            : '',
+          parsedConnectorIntent.action === 'drive'
+            ? 'Use Google Drive connector tools. SHORT-CIRCUIT: if asked what files are here, call connectors.search_docs immediately. Discover files before selecting and reading the relevant file.'
+            : '',
+        ].filter(Boolean).join(' ')
+      : '';
+    const effectiveSystemAddendum = [typeof systemAddendum === 'string' ? systemAddendum : '', connectorIntentPrompt].filter(s => s.trim()).join('\n\n');
+
     const systemPromptFull = buildBalysSystemPrompt({
       nowSection: buildNowSystemPrompt({
         timezone: typeof timezone === 'string' ? timezone : undefined,
         clientNowIso: typeof clientNowIso === 'string' ? clientNowIso : undefined,
       }),
       language: typeof language === 'string' ? language : undefined,
-      systemAddendum: typeof systemAddendum === 'string' ? systemAddendum : undefined,
+      systemAddendum: effectiveSystemAddendum || undefined,
       notesMap: typeof notesMap === 'string' ? notesMap : undefined,
       toolsAvailable: getActiveToolDomains(),
       factsBlock,
@@ -175,7 +204,11 @@ export async function POST(request: NextRequest) {
             {
               messages: [{ role: 'system', content: systemPromptFull }, ...loopMessages],
               tools: ALL_TOOLS,
-              maxSteps: route.gates?.maxAutoToolCalls || 5,
+              maxSteps: parsedConnectorIntent?.action === 'gmail'
+                ? Math.max(route.gates?.maxAutoToolCalls || 5, 6)
+                : parsedConnectorIntent?.action === 'docs' || parsedConnectorIntent?.action === 'sheets' || parsedConnectorIntent?.action === 'drive'
+                  ? Math.max(route.gates?.maxAutoToolCalls || 5, 10)
+                  : route.gates?.maxAutoToolCalls || 5,
               provider: skillTarget.provider,
               model: skillTarget.model,
               context: {
@@ -278,6 +311,7 @@ export async function POST(request: NextRequest) {
                 role: 'user',
                 content: typeof lastIncoming.content === 'string' ? lastIncoming.content : '',
                 attachments: attachmentMeta && attachmentMeta.length > 0 ? attachmentMeta : undefined,
+                selected_action: lastIncoming.selectedAction || parsedConnectorIntent || undefined,
                 transcript: latestAudioTranscript || undefined,
               });
               // The prepared (post-transcription) content is what the model actually saw —

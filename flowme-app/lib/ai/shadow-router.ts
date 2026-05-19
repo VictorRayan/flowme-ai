@@ -186,6 +186,9 @@ function inferWriteIntent(text: string, taskType: TaskType): WriteIntent {
 }
 
 function inferToolDomain(taskType: TaskType, text: string): ToolDomain {
+  if (text.includes('/gmail')) return 'gmail';
+  if (hasAny(text, [/\/(docs|drive|sheets|planilhas)/])) return 'connectors';
+  
   if (taskType === 'calendar') return 'calendar';
   if (taskType === 'email') return 'gmail';
   if (taskType === 'notes') return 'notes';
@@ -195,6 +198,7 @@ function inferToolDomain(taskType: TaskType, text: string): ToolDomain {
 }
 
 function inferNeedsTools(taskType: TaskType, text: string): boolean {
+  if (hasAny(text, [/\/(docs|drive|sheets|planilhas|gmail)/])) return true;
   if (taskType === 'briefing') return true;
   if (taskType === 'calendar' || taskType === 'notes' || taskType === 'goals') return true;
   if (taskType === 'email' || taskType === 'mixed') return true;

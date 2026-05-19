@@ -1,5 +1,7 @@
 # Flowme-ai — Agent Instructions
 
+Before planning or changing application code, read `implementation.md` and align work with the current priorities there.
+
 ## What this project is
 
 A personal productivity platform ("Flow Me") that combines calendar management, rich note-taking, document knowledge base, AI skills, and tasks — accessible via a web UI and a REST API for external AI agents. The AI assistant is called **Balys**.

@@ -154,7 +154,8 @@ interface ThinkingStep {
   error?: string;
   preliminary_text?: string;
 }
-interface Message { role: 'user' | 'assistant'; content: string; attachments?: Attachment[]; transcript?: string; thinking?: ThinkingStep[]; }
+interface SelectedActionMeta { id: string; label: string; action: CommandAction; }
+interface Message { role: 'user' | 'assistant'; content: string; attachments?: Attachment[]; transcript?: string; thinking?: ThinkingStep[]; selectedAction?: SelectedActionMeta; }
 type DestructiveDialog =
   | { kind: 'deleteThread'; threadId: string; title: string; step: 1 | 2 }
   | { kind: 'clearThread'; threadId: string; title: string; step: 1 | 2 }
@@ -403,6 +404,7 @@ export default function AIPage() {
           attachments: Array.isArray(m.attachments)
             ? m.attachments.map((a: any) => ({ ...a, dataUrl: '' }))
             : undefined,
+          selectedAction: m.selected_action || undefined,
           transcript: m.transcript || undefined,
         }));
         if (msgs.length === 0) return;
@@ -670,7 +672,10 @@ Rules:
       : '';
     const combinedAddendum = [actionDirective, noteEditSystemPrompt].filter(s => s && s.trim()).join('\n\n');
 
-    const userMsg: Message = { role: 'user', content: messageContent, attachments };
+    const selectedAction = pendingAction
+      ? { id: pendingAction.id, label: pendingAction.label, action: pendingAction.action }
+      : undefined;
+    const userMsg: Message = { role: 'user', content: messageContent, attachments, selectedAction };
     const newMessages = [...activeThread.messages, userMsg];
     const title = activeThread.title === 'New chat' && input.trim()
       ? input.trim().slice(0, 40)
@@ -695,6 +700,7 @@ Rules:
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           clientNowIso: new Date().toISOString(),
           rawUserInput,
+          connectorIntent: selectedAction,
           userLocation: userLocation ?? undefined,
         }),
       });
@@ -1016,6 +1022,22 @@ Rules:
                     {!isUser && msg.thinking && msg.thinking.length > 0 && (
                       <ThinkingTimeline steps={msg.thinking} done={Boolean(displayText)} lang={uiLang} />
                     )}
+                    {isUser && msg.selectedAction && (
+                      <Chip
+                        icon={pendingActionIcon(msg.selectedAction.action)}
+                        label={msg.selectedAction.label}
+                        size="small"
+                        variant="outlined"
+                        sx={{
+                          height: 22,
+                          fontSize: 11,
+                          color: 'primary.contrastText',
+                          borderColor: 'rgba(255,255,255,0.35)',
+                          bgcolor: 'rgba(255,255,255,0.08)',
+                          '& .MuiChip-icon': { color: 'inherit' },
+                        }}
+                      />
+                    )}
                     {(displayText || msg.role === 'assistant') && (
                       <Paper elevation={0} sx={{
                         px: 2, py: 1.5,
@@ -1219,6 +1241,7 @@ const TOOL_LABELS: Record<Lang, Record<string, string>> = {
     'calendar.delete_event': 'Removing event',
     'calendar.delete_events_batch': 'Removing events in bulk',
     'gmail.search_messages': 'Searching emails',
+    'gmail.read_message': 'Reading email',
     'gmail.create_draft': 'Drafting email',
     'notes.create_note': 'Creating note',
     'notes.list_notes': 'Searching notes',
@@ -1248,6 +1271,7 @@ const TOOL_LABELS: Record<Lang, Record<string, string>> = {
     'calendar.delete_event': 'Removendo evento',
     'calendar.delete_events_batch': 'Removendo eventos em lote',
     'gmail.search_messages': 'Buscando emails',
+    'gmail.read_message': 'Lendo email',
     'gmail.create_draft': 'Rascunhando email',
     'notes.create_note': 'Criando nota',
     'notes.list_notes': 'Buscando notas',

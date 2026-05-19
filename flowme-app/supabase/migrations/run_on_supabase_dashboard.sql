@@ -401,6 +401,7 @@ CREATE TABLE IF NOT EXISTS public.thread_messages (
     role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL DEFAULT '',
     attachments JSONB,
+    selected_action JSONB,
     transcript TEXT,
     thinking JSONB,
     created_at TIMESTAMPTZ DEFAULT now()

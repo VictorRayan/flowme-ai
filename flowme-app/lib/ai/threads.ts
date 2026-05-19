@@ -39,6 +39,7 @@ export interface PersistedMessageRow {
   role: 'user' | 'assistant';
   content: string;
   attachments: ThreadAttachmentMeta[] | null;
+  selected_action: unknown | null;
   transcript: string | null;
   thinking: unknown | null;
   created_at: string;
@@ -59,6 +60,7 @@ export interface PersistMessageInput {
   role: 'user' | 'assistant';
   content: string;
   attachments?: ThreadAttachmentMeta[];
+  selected_action?: unknown;
   transcript?: string;
   thinking?: unknown;
 }
@@ -148,6 +150,7 @@ export async function persistMessage(
         role: input.role,
         content: input.content || '',
         attachments: attachmentsMeta && attachmentsMeta.length > 0 ? attachmentsMeta : null,
+        selected_action: input.selected_action || null,
         transcript: input.transcript || null,
         thinking: input.thinking || null,
       })

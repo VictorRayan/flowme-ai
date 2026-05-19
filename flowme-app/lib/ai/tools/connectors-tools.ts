@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
-import { searchEmails, createDraft } from '@/lib/google/google-gmail';
+import { searchEmails, createDraft, readEmailMessage } from '@/lib/google/google-gmail';
 import { google } from 'googleapis';
 import { getValidGoogleToken } from '@/lib/google/google-auth';
 import { runSheetsAgent } from '@/lib/ai/agents/sheets-agent';
@@ -841,6 +841,45 @@ ASK THE USER FIRST IF: the query is broad enough to be sensitive ("all emails fr
         detailedError = `Gmail access denied. The user likely needs to reconnect their Google account with Gmail scope. Original: ${googleMsg}`;
       }
       console.error('[gmail.search_messages] Google API error:', { errCode, status, googleMsg });
+      return { ok: false, error: detailedError };
+    }
+  },
+});
+
+export const gmailReadMessageTool = defineTool({
+  name: 'gmail.read_message',
+  description: `Reads the full body of a selected Gmail message. Read-only — does not mark, archive, reply, or modify anything.
+
+WHEN TO USE: after gmail.search_messages returns candidate messages and the user asks what an email says, why someone replied, what the main point is, or asks for a reply based on a specific email.
+
+CONTRACT:
+- message_id is the internal Gmail id from gmail.search_messages. Never ask the user for it and never show it.
+- This is required before answering questions about email body content.
+- Prefer body_text for summaries and insights. body_html is sanitized and only present when Gmail returned HTML.
+
+RETURNS receipt: { message }. The message includes subject, from, to, date, body_text, optional body_html, attachments metadata, id, and threadId.
+- id and threadId are technical IDs — never read aloud or quote.
+- attachments are metadata only; no attachment bytes are downloaded.
+- If the read fails, say Gmail could not open the message instead of guessing from the snippet.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    message_id: z.string().describe('Internal Gmail message id returned by gmail.search_messages. Resolve internally; never ask the user for it.'),
+  }),
+  call: async (args, context) => {
+    const accountId = await getGoogleAccountId(context);
+    if (!accountId) return { ok: false, error: 'No active Google account connected.' };
+    try {
+      const message = await readEmailMessage(accountId, args.message_id, context);
+      return { ok: true, receipt: { message } };
+    } catch (e: any) {
+      const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
+      const errCode = e?.response?.data?.error?.code || e?.code;
+      const status = e?.response?.data?.error?.status;
+      let detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to read Gmail message');
+      if (errCode === 401 || errCode === 403 || status === 'PERMISSION_DENIED' || /scope|consent|authoriz/i.test(googleMsg || '')) {
+        detailedError = `Gmail access denied. The user likely needs to reconnect their Google account with Gmail scope. Original: ${googleMsg}`;
+      }
+      console.error('[gmail.read_message] Google API error:', { errCode, status, googleMsg });
       return { ok: false, error: detailedError };
     }
   },

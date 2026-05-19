@@ -109,7 +109,7 @@ function getActions(uiLang: UiLang): ActionDef[] {
       command: '/gmail',
       label: '/gmail',
       subtitle: pt ? 'Procurar emails, ler contexto e criar rascunhos' : 'Search email, read context, and draft replies',
-      directive: 'Use connectors.list to verify Gmail access, then gmail.search_messages to search and select relevant messages. Extract insights from subject/from/date/snippet. If the user asks for a reply, draft with gmail.create_draft only after recipients and content are clear.',
+      directive: 'Use connectors.list to verify Gmail access, then gmail.search_messages to search and select relevant messages. If the user asks what an email says, asks for insight from a specific email, or asks for a reply based on an email, call gmail.read_message before answering or drafting. Treat snippets as discovery only. If the user asks for a reply, draft with gmail.create_draft only after recipients and content are clear.',
       action: 'gmail',
       aliases: ['/gmail', 'email', 'emails', 'e-mail', 'correio'],
     },

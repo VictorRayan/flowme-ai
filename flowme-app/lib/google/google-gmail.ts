@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { google, gmail_v1 } from 'googleapis';
 import { getValidGoogleToken, GoogleTokenAuthContext } from './google-auth';
 
 export type GmailMessageSummary = {
@@ -9,6 +9,111 @@ export type GmailMessageSummary = {
   from: string;
   date: string;
 };
+
+export type GmailAttachmentMeta = {
+  filename: string;
+  mimeType: string;
+  size: number;
+  attachmentId?: string;
+};
+
+export type GmailMessageBody = {
+  id: string;
+  threadId: string;
+  snippet: string;
+  subject: string;
+  from: string;
+  to: string;
+  date: string;
+  body_text: string;
+  body_html?: string;
+  attachments: GmailAttachmentMeta[];
+};
+
+function decodeBase64Url(data: string): string {
+  const normalized = data.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
+  return Buffer.from(padded, 'base64').toString('utf-8');
+}
+
+function getHeader(headers: gmail_v1.Schema$MessagePartHeader[] | undefined, name: string): string {
+  return headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+}
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .trim();
+}
+
+function htmlToText(html: string): string {
+  return sanitizeHtml(html)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s+/g, '\n')
+    .trim();
+}
+
+function collectMessageParts(
+  part: gmail_v1.Schema$MessagePart | undefined,
+  state: { plain: string[]; html: string[]; attachments: GmailAttachmentMeta[] },
+) {
+  if (!part) return;
+
+  const filename = part.filename || '';
+  if (filename) {
+    state.attachments.push({
+      filename,
+      mimeType: part.mimeType || 'application/octet-stream',
+      size: part.body?.size || 0,
+      attachmentId: part.body?.attachmentId || undefined,
+    });
+  }
+
+  const data = part.body?.data;
+  if (data && !filename) {
+    const decoded = decodeBase64Url(data);
+    if (part.mimeType === 'text/plain') state.plain.push(decoded);
+    if (part.mimeType === 'text/html') state.html.push(sanitizeHtml(decoded));
+  }
+
+  for (const child of part.parts || []) {
+    collectMessageParts(child, state);
+  }
+}
+
+export function decodeGmailMessage(message: gmail_v1.Schema$Message): GmailMessageBody {
+  const state: { plain: string[]; html: string[]; attachments: GmailAttachmentMeta[] } = { plain: [], html: [], attachments: [] };
+  collectMessageParts(message.payload || undefined, state);
+
+  const bodyText = state.plain.join('\n').trim() || state.html.map(htmlToText).join('\n').trim();
+  const headers = message.payload?.headers || [];
+
+  return {
+    id: message.id || '',
+    threadId: message.threadId || '',
+    snippet: message.snippet || '',
+    subject: getHeader(headers, 'Subject') || '(No Subject)',
+    from: getHeader(headers, 'From') || '(Unknown Sender)',
+    to: getHeader(headers, 'To'),
+    date: getHeader(headers, 'Date'),
+    body_text: bodyText,
+    body_html: state.html.length > 0 ? state.html.join('\n') : undefined,
+    attachments: state.attachments,
+  };
+}
 
 export async function searchEmails(linkedAccountId: string, query: string, maxResults: number = 10, authContext?: GoogleTokenAuthContext): Promise<GmailMessageSummary[]> {
   const auth = await getValidGoogleToken(linkedAccountId, authContext);
@@ -55,6 +160,19 @@ export async function searchEmails(linkedAccountId: string, query: string, maxRe
   );
 
   return detailedMessages.filter((m): m is GmailMessageSummary => m !== null);
+}
+
+export async function readEmailMessage(linkedAccountId: string, messageId: string, authContext?: GoogleTokenAuthContext): Promise<GmailMessageBody> {
+  const auth = await getValidGoogleToken(linkedAccountId, authContext);
+  const gmail = google.gmail({ version: 'v1', auth });
+
+  const res = await gmail.users.messages.get({
+    userId: 'me',
+    id: messageId,
+    format: 'full',
+  });
+
+  return decodeGmailMessage(res.data);
 }
 
 export async function createDraft(linkedAccountId: string, to: string[], subject: string, bodyText: string, authContext?: GoogleTokenAuthContext): Promise<{ id: string; messageId: string }> {

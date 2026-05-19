@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
           role: m.role,
           content,
           attachments,
+          selected_action: m.selectedAction,
           transcript: typeof m.transcript === 'string' ? m.transcript : undefined,
           thinking: m.thinking,
         });

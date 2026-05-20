@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('whatsapp_channels')
-    .select('id, phone, status, verified_at, created_at')
+    .select('id, phone, status, verified_at, reminders_enabled, is_default_reminder_channel, created_at')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         phone,
         status: 'pending_verification',
+        reminders_enabled: body?.reminders_enabled !== false,
+        is_default_reminder_channel: body?.is_default_reminder_channel !== false,
         verification_code: code,
         code_expires_at: expiresAt,
         verified_at: null,
@@ -76,6 +78,31 @@ export async function POST(request: NextRequest) {
   }
 
   return apiSuccess({ sent: true, phone, expires_at: expiresAt });
+}
+
+export async function PATCH(request: NextRequest) {
+  const { supabase, user } = await requireAuth(request);
+  const body = await request.json().catch(() => ({}));
+  const patch: Record<string, boolean | string> = { updated_at: new Date().toISOString() };
+
+  if (typeof body?.reminders_enabled === 'boolean') {
+    patch.reminders_enabled = body.reminders_enabled;
+  }
+  if (typeof body?.is_default_reminder_channel === 'boolean') {
+    patch.is_default_reminder_channel = body.is_default_reminder_channel;
+  }
+
+  if (Object.keys(patch).length === 1) {
+    return apiError(ErrorCode.VALIDATION_ERROR, 'No channel settings to update', 400);
+  }
+
+  const { error } = await supabase
+    .from('whatsapp_channels')
+    .update(patch)
+    .eq('user_id', user.id);
+
+  if (error) return apiError(ErrorCode.INTERNAL_ERROR, error.message);
+  return apiSuccess({ updated: true });
 }
 
 /** DELETE — remove the user's WhatsApp channel. */

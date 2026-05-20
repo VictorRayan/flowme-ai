@@ -289,7 +289,9 @@ export const calendarCreateEventTool = defineTool({
   name: 'calendar.create_event',
   description: `Creates a new event on the user's primary Google Calendar. Writes immediately — there is no preview step.
 
-WHEN TO USE: user says "schedule…", "book…", "put on my calendar…", "add a meeting…", "remind me to…", "crie um evento…", "agenda…" with a specific time.
+WHEN TO USE: user says "schedule…", "book…", "put on my calendar…", "add a meeting…", "crie um evento…", "agenda…" with a specific time.
+
+DO NOT USE for standalone reminder notifications like "me lembre amanhã de beber água" or "remind me at 9". Use reminders.create for those. If the user asks to create a calendar event AND be reminded about it, create the Google Calendar event first, then call reminders.create with the calendar event source metadata.
 
 CONTRACT:
 - title, start_iso, end_iso are REQUIRED. Never invent them — if any is missing or vague ("sometime tomorrow"), ASK THE USER before calling.

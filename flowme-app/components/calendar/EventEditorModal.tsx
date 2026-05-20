@@ -34,6 +34,9 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
   const [customNotification, setCustomNotification] = useState(false);
   const [notificationMinutes, setNotificationMinutes] = useState(30);
   const [notificationMethod, setNotificationMethod] = useState('popup');
+  const [flowmeReminderEnabled, setFlowmeReminderEnabled] = useState(false);
+  const [flowmeReminderMinutes, setFlowmeReminderMinutes] = useState(30);
+  const [flowmeReminderChannel, setFlowmeReminderChannel] = useState<'default' | 'whatsapp' | 'instagram' | 'push'>('default');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +104,9 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
             setNotificationMinutes(30);
             setNotificationMethod('popup');
         }
+        setFlowmeReminderEnabled(false);
+        setFlowmeReminderMinutes(30);
+        setFlowmeReminderChannel('default');
       } else {
         // Create Mode Defaults
         setTitle('');
@@ -114,6 +120,9 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
         setCustomNotification(false);
         setNotificationMinutes(30);
         setNotificationMethod('popup');
+        setFlowmeReminderEnabled(false);
+        setFlowmeReminderMinutes(30);
+        setFlowmeReminderChannel('default');
       }
       setEmailInput('');
       setError(null);
@@ -193,6 +202,31 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
             });
             const data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to create google event');
+
+            if (flowmeReminderEnabled) {
+              const reminderTime = startAt.subtract(flowmeReminderMinutes, 'minute');
+              const reminderRes = await fetch('/api/reminders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  message: `Reminder: ${title}`,
+                  scheduled_for: reminderTime.toISOString(),
+                  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                  channel_preference: flowmeReminderChannel,
+                  source: {
+                    type: 'calendar_event',
+                    provider: 'google_calendar',
+                    id: data.provider_event_id,
+                    title,
+                    start_at: startAt.toISOString(),
+                  },
+                }),
+              });
+              const reminderData = await reminderRes.json();
+              if (!reminderRes.ok || !reminderData.ok) {
+                throw new Error(`Event created, but reminder failed: ${reminderData?.error?.message || 'Failed to create reminder'}`);
+              }
+            }
         }
       }
       
@@ -336,6 +370,41 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
                 </Box>
              )}
           </Box>
+
+          {!isEditing && (
+            <Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'grey.200', borderRadius: 1 }}>
+              <FormControlLabel
+                control={<Switch checked={flowmeReminderEnabled} onChange={e => setFlowmeReminderEnabled(e.target.checked)} />}
+                label={<Typography fontWeight="medium">Flowme Reminder</Typography>}
+                sx={{ mb: flowmeReminderEnabled ? 2 : 0 }}
+              />
+              {flowmeReminderEnabled && (
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <TextField
+                    type="number"
+                    size="small"
+                    label="Minutes before"
+                    value={flowmeReminderMinutes}
+                    onChange={e => setFlowmeReminderMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    sx={{ width: 140 }}
+                  />
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Channel</InputLabel>
+                    <Select
+                      value={flowmeReminderChannel}
+                      onChange={e => setFlowmeReminderChannel(e.target.value as 'default' | 'whatsapp' | 'instagram' | 'push')}
+                      label="Channel"
+                    >
+                      <MenuItem value="default">Default</MenuItem>
+                      <MenuItem value="whatsapp">WhatsApp</MenuItem>
+                      <MenuItem value="instagram">Instagram</MenuItem>
+                      <MenuItem value="push">Push</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
+            </Box>
+          )}
 
           {!isEditing && linkedAccounts.length > 0 ? (
             <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>

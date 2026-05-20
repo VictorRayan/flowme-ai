@@ -10,6 +10,7 @@ import GoogleIcon from '@mui/icons-material/Google';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import LinkAccountModal from '@/components/calendar/LinkAccountModal';
 import WhatsAppChannelPanel from '@/components/settings/WhatsAppChannelPanel';
+import RemindersPanel from '@/components/settings/RemindersPanel';
 import { useSearchParams } from 'next/navigation';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 
@@ -551,6 +552,8 @@ function SettingsPageContent() {
         <Divider sx={{ mb: 3 }} />
         <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>{t.whatsapp}</Typography>
         <WhatsAppChannelPanel />
+        <Divider sx={{ my: 3 }} />
+        <RemindersPanel />
       </Paper>
 
       <LinkAccountModal

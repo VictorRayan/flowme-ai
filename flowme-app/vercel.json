@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/summarize-stale-threads",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

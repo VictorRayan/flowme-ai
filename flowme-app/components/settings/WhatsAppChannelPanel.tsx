@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box, Typography, Button, TextField, Chip, CircularProgress,
-  Alert, Divider, Stack,
+  Alert, Divider, Stack, FormControlLabel, Switch,
 } from '@mui/material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -17,6 +17,8 @@ interface Channel {
   phone: string;
   status: ChannelStatus;
   verified_at: string | null;
+  reminders_enabled?: boolean;
+  is_default_reminder_channel?: boolean;
 }
 
 const STRINGS = {
@@ -38,6 +40,13 @@ const STRINGS = {
     numberLabel: 'WhatsApp number',
     sendCode: 'Send verification code',
     footerNote: 'Once verified, send any message to Balys on WhatsApp — text, image, or voice note — and Balys will reply with your full context and tools.',
+    balysMessages: 'Balys messages',
+    balysMessagesCaption: 'This number can receive and reply to Balys chats.',
+    reminders: 'Reminders',
+    remindersCaption: 'Use this WhatsApp number for reminder notifications.',
+    defaultReminderChannel: 'Default reminder channel',
+    defaultReminderChannelCaption: 'Balys will choose WhatsApp when no reminder channel is specified.',
+    settingsSaved: 'Channel settings saved.',
   },
   pt: {
     codeSent: 'Código de verificação enviado para o seu WhatsApp. Verifique suas mensagens!',
@@ -57,6 +66,13 @@ const STRINGS = {
     numberLabel: 'Número do WhatsApp',
     sendCode: 'Enviar código de verificação',
     footerNote: 'Uma vez verificado, envie qualquer mensagem ao Balys pelo WhatsApp — texto, imagem ou nota de voz — e o Balys responderá com seu contexto e ferramentas completos.',
+    balysMessages: 'Mensagens do Balys',
+    balysMessagesCaption: 'Este número pode receber e responder conversas com o Balys.',
+    reminders: 'Lembretes',
+    remindersCaption: 'Use este número de WhatsApp para notificações de lembrete.',
+    defaultReminderChannel: 'Canal padrão de lembretes',
+    defaultReminderChannelCaption: 'O Balys escolherá WhatsApp quando nenhum canal de lembrete for especificado.',
+    settingsSaved: 'Configurações do canal salvas.',
   },
 };
 
@@ -163,6 +179,31 @@ export default function WhatsAppChannelPanel() {
     }
   };
 
+  const updateReminderSettings = async (patch: Pick<Channel, 'reminders_enabled' | 'is_default_reminder_channel'>) => {
+    if (!channel) return;
+    const previous = channel;
+    const next = { ...channel, ...patch };
+    setChannel(next);
+    setError(null);
+    setSuccess(null);
+    setSaving(true);
+    try {
+      const res = await fetch('/api/whatsapp/channel', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to update channel settings');
+      setSuccess(t.settingsSaved);
+    } catch (e: unknown) {
+      setChannel(previous);
+      setError(e instanceof Error ? e.message : 'Failed to update channel settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const instancePhone = process.env.NEXT_PUBLIC_WHATSAPP_INSTANCE_DISPLAY_NUMBER ?? '';
 
   if (loading) {
@@ -179,30 +220,80 @@ export default function WhatsAppChannelPanel() {
       {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
       {step === 'active' && channel ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <CheckCircleIcon color="success" />
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <CheckCircleIcon color="success" />
+              <Box>
+                <Typography fontWeight={600}>+{channel.phone}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {channel.verified_at
+                    ? t.connected(new Date(channel.verified_at).toLocaleDateString())
+                    : t.connectedSimple}
+                </Typography>
+              </Box>
+              <Chip icon={<WhatsAppIcon />} label={t.active} color="success" size="small" variant="outlined" />
+            </Box>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<DeleteIcon />}
+              onClick={handleDisconnect}
+              disabled={saving}
+            >
+              {t.disconnect}
+            </Button>
+          </Box>
+          <Divider />
+          <Stack spacing={1}>
             <Box>
-              <Typography fontWeight={600}>+{channel.phone}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {channel.verified_at
-                  ? t.connected(new Date(channel.verified_at).toLocaleDateString())
-                  : t.connectedSimple}
+              <FormControlLabel
+                control={<Switch checked disabled />}
+                label={t.balysMessages}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 6 }}>
+                {t.balysMessagesCaption}
               </Typography>
             </Box>
-            <Chip icon={<WhatsAppIcon />} label={t.active} color="success" size="small" variant="outlined" />
-          </Box>
-          <Button
-            variant="outlined"
-            color="error"
-            size="small"
-            startIcon={<DeleteIcon />}
-            onClick={handleDisconnect}
-            disabled={saving}
-          >
-            {t.disconnect}
-          </Button>
-        </Box>
+            <Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={channel.reminders_enabled !== false}
+                    onChange={e => updateReminderSettings({
+                      reminders_enabled: e.target.checked,
+                      is_default_reminder_channel: e.target.checked ? channel.is_default_reminder_channel !== false : false,
+                    })}
+                    disabled={saving}
+                  />
+                }
+                label={t.reminders}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 6 }}>
+                {t.remindersCaption}
+              </Typography>
+            </Box>
+            <Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={channel.reminders_enabled !== false && channel.is_default_reminder_channel !== false}
+                    onChange={e => updateReminderSettings({
+                      reminders_enabled: e.target.checked ? true : channel.reminders_enabled !== false,
+                      is_default_reminder_channel: e.target.checked,
+                    })}
+                    disabled={saving || channel.reminders_enabled === false}
+                  />
+                }
+                label={t.defaultReminderChannel}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 6 }}>
+                {t.defaultReminderChannelCaption}
+              </Typography>
+            </Box>
+          </Stack>
+        </Stack>
       ) : step === 'sent' ? (
         <Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

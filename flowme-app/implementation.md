@@ -58,4 +58,6 @@ Balys connector behavior is product-critical. Before changing connector tools, c
 
 ## Later: Reminders
 
-After the connector workflow is reliable, plan the reminders system. Treat reminders as a separate product track with its own schema, API routes, notification delivery model, UI states, and tests.
+The provider-agnostic reminders architecture is planned in `docs/11-reminders-implementation-plan.md`.
+
+Treat reminders as a separate product track with its own schema, API routes, notification delivery model, UI states, and tests. Reminders are notifications, not local tasks, microactivities, or "Flow me events".

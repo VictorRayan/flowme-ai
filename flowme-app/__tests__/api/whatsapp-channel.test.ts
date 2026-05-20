@@ -27,7 +27,7 @@ jest.mock('@/lib/whatsapp/evolution-client', () => ({
   sendVerificationCode: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { GET, POST, DELETE } from '@/app/api/whatsapp/channel/route';
+import { GET, POST, PATCH, DELETE } from '@/app/api/whatsapp/channel/route';
 import { POST as VERIFY } from '@/app/api/whatsapp/channel/verify/route';
 import { requireAuth } from '@/lib/api/auth';
 import { sendVerificationCode } from '@/lib/whatsapp/evolution-client';
@@ -49,7 +49,15 @@ describe('GET /api/whatsapp/channel', () => {
   });
 
   it('returns channel data when found', async () => {
-    const mockChannel = { id: 'ch-1', phone: '5511999999999', status: 'active', verified_at: null, created_at: '2026-01-01' };
+    const mockChannel = {
+      id: 'ch-1',
+      phone: '5511999999999',
+      status: 'active',
+      verified_at: null,
+      reminders_enabled: true,
+      is_default_reminder_channel: true,
+      created_at: '2026-01-01',
+    };
     (requireAuth as jest.Mock).mockResolvedValueOnce({
       user: { id: 'user-1' },
       supabase: makeChain(mockChannel),
@@ -57,6 +65,7 @@ describe('GET /api/whatsapp/channel', () => {
     const res  = await GET(new NextRequest('http://localhost/api/whatsapp/channel', { method: 'GET' }));
     const data = await res.json();
     expect(data.channel.phone).toBe('5511999999999');
+    expect(data.channel.reminders_enabled).toBe(true);
   });
 });
 
@@ -90,6 +99,20 @@ describe('POST /api/whatsapp/channel', () => {
     (requireAuth as jest.Mock).mockResolvedValueOnce({ user: { id: 'user-2' }, supabase: chain });
     const res = await POST(makeReq({ phone: '+5511999999999' }));
     expect(res.status).toBe(409);
+  });
+});
+
+describe('PATCH /api/whatsapp/channel', () => {
+  it('updates reminder channel settings', async () => {
+    const res = await PATCH(makeReq({ reminders_enabled: false, is_default_reminder_channel: false }, 'PATCH'));
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(data.updated).toBe(true);
+  });
+
+  it('rejects empty channel settings update', async () => {
+    const res = await PATCH(makeReq({}, 'PATCH'));
+    expect(res.status).toBe(400);
   });
 });
 

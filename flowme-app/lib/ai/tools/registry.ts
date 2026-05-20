@@ -7,6 +7,7 @@ import { peopleSearchTool } from './people-tools';
 import { memoryAppendToBriefingTool, memoryAppendToPersonTool, memorySaveFactTool, memoryRecallThreadsTool } from './memory-tools';
 import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListTool } from './goals-tools';
 import { weatherGetTool } from './weather-tools';
+import { remindersCancelTool, remindersCreateTool, remindersListTool } from './reminders-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
@@ -34,6 +35,9 @@ export const ALL_TOOLS: Tool[] = [
   goalsListTool,
   goalsCreateOperatingPlanTool,
   goalsCreateShortActionPlanTool,
+  remindersCreateTool,
+  remindersListTool,
+  remindersCancelTool,
   memorySaveFactTool,
   memoryRecallThreadsTool,
   memoryAppendToPersonTool,
@@ -50,10 +54,11 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   people: 'people.',
   memory: 'memory.',
   goals: 'goals.',
+  reminders: 'reminders.',
   weather: 'weather.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'weather' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

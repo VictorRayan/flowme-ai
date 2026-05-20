@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/connectors/route';
 import { PATCH, DELETE } from '@/app/api/connectors/[id]/route';
+import { POST as CONNECT } from '@/app/api/connectors/[id]/connect/route';
+import { requireAuth } from '@/lib/api/auth';
 
 const MOCK_CONNECTOR = {
   id: 'conn-1',
@@ -22,9 +24,10 @@ function makeChain(listData: any[] = [MOCK_CONNECTOR], singleData: any = MOCK_CO
       return Promise.resolve({ data: listData, error: null }).catch(reject as any);
     },
   };
-  const methods = ['from', 'select', 'eq', 'order', 'insert', 'update', 'delete', 'upsert', 'or', 'ilike'];
+  const methods = ['from', 'select', 'eq', 'order', 'limit', 'insert', 'update', 'delete', 'upsert', 'or', 'ilike'];
   methods.forEach(m => { chain[m] = jest.fn().mockReturnValue(chain); });
   chain.single = jest.fn().mockResolvedValue({ data: singleData, error: null });
+  chain.maybeSingle = jest.fn().mockResolvedValue({ data: singleData, error: null });
   lastChain = chain;
   return chain;
 }
@@ -164,5 +167,84 @@ describe('DELETE /api/connectors/[id]', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.deleted).toBe(true);
+  });
+});
+
+describe('POST /api/connectors/[id]/connect', () => {
+  function makeMaybeChain(data: any) {
+    const chain: any = {};
+    ['select', 'eq', 'order', 'limit'].forEach(m => { chain[m] = jest.fn().mockReturnValue(chain); });
+    chain.maybeSingle = jest.fn().mockResolvedValue({ data, error: null });
+    return chain;
+  }
+
+  function makeInsertChain(data: any) {
+    const chain: any = {};
+    ['insert', 'select'].forEach(m => { chain[m] = jest.fn().mockReturnValue(chain); });
+    chain.single = jest.fn().mockResolvedValue({ data, error: null });
+    return chain;
+  }
+
+  it('reuses an existing Google linked account instead of creating a duplicate placeholder', async () => {
+    const connector = {
+      id: 'conn-sheets',
+      name: 'Google Sheets',
+      type: 'google_sheets',
+      config: {},
+    };
+    const connectorChain = makeMaybeChain(connector);
+    const reusableAccountChain = makeMaybeChain({ id: 'acc-google-1' });
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === 'connectors') return connectorChain;
+        if (table === 'linked_accounts') return reusableAccountChain;
+        return makeMaybeChain(null);
+      }),
+    };
+    (requireAuth as jest.Mock).mockResolvedValueOnce({ user: { id: 'user-1' }, supabase });
+
+    const res = await CONNECT(new NextRequest('http://localhost/api/connectors/conn-sheets/connect', { method: 'POST' }), {
+      params: Promise.resolve({ id: 'conn-sheets' }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.redirect_url).toContain('linked_account_id=acc-google-1');
+    expect(body.redirect_url).toContain('connector_id=conn-sheets');
+  });
+
+  it('creates a unique linked account placeholder only when no Google account exists', async () => {
+    const connector = {
+      id: 'conn-drive',
+      name: 'Google Drive',
+      type: 'google_drive',
+      config: {},
+    };
+    const chains = {
+      connectors: [makeMaybeChain(connector)],
+      linked_accounts: [
+        makeMaybeChain(null),
+        makeInsertChain({ id: 'new-acc-1' }),
+      ],
+    };
+    const insertChain = chains.linked_accounts[1];
+    const supabase = {
+      from: jest.fn((table: keyof typeof chains) => chains[table].shift()),
+    };
+    (requireAuth as jest.Mock).mockResolvedValueOnce({ user: { id: 'user-1' }, supabase });
+
+    const res = await CONNECT(new NextRequest('http://localhost/api/connectors/conn-drive/connect', { method: 'POST' }), {
+      params: Promise.resolve({ id: 'conn-drive' }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.redirect_url).toContain('linked_account_id=new-acc-1');
+    expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      name: expect.stringContaining('conn-dri'),
+      provider: 'google',
+      is_active: false,
+    }));
   });
 });

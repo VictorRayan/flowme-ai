@@ -72,6 +72,16 @@ function isPending(connector: Connector): boolean {
   return Boolean(connector.config?.linked_account_id) && !connector.is_active;
 }
 
+function friendlyConnectError(message: string, uiLang: UiLang): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('failed to create linked account') || normalized.includes('failed to start authorization')) {
+    return uiLang === 'pt'
+      ? 'Nao foi possivel iniciar a conexao com o Google. Tente novamente.'
+      : 'Could not start the Google connection. Please try again.';
+  }
+  return message;
+}
+
 /* ── Add connector dialog ── */
 function AddConnectorDialog({ open, onClose, onCreated, uiLang }: {
   open: boolean; onClose: () => void; onCreated: (c: Connector) => void; uiLang: UiLang;
@@ -319,11 +329,10 @@ function ConnectorsContent() {
     try {
       const res = await fetch(`/api/connectors/${connector.id}/connect`, { method: 'POST' });
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to start authorization');
-      // Redirect to Google OAuth
+      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to start Google connection');
       window.location.href = data.redirect_url;
     } catch (err: any) {
-      setError(err.message);
+      setError(friendlyConnectError(err.message, uiLang));
       setConnecting(null);
     }
   };

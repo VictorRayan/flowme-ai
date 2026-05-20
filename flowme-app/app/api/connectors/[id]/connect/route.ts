@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, ErrorCode } from '@/lib/api/errors';
 
+function connectorAccountName(connector: { id: string; name: string; type: string }): string {
+  return `${connector.name} (${connector.type.replace('_', ' ')}) ${connector.id.slice(0, 8)}`;
+}
+
+function googleConnectUrl(linkedAccountId: string, connectorId: string): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return `${appUrl}/api/auth/google/connect?linked_account_id=${linkedAccountId}&connector_id=${connectorId}`;
+}
+
 // POST /api/connectors/[id]/connect
 // Creates a linked_account if needed, then redirects to Google OAuth.
 // After OAuth, the callback links the connector to the authorized account.
@@ -32,15 +41,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .eq('user_id', user.id)
         .maybeSingle();
       if (existing && !existing.is_deleted) {
-        // Re-auth: send to OAuth to refresh tokens
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        const connectUrl = `${appUrl}/api/auth/google/connect?linked_account_id=${existing.id}&connector_id=${connectorId}`;
-        return NextResponse.json({ ok: true, redirect_url: connectUrl });
+        return NextResponse.json({ ok: true, redirect_url: googleConnectUrl(existing.id, connectorId) });
       }
     }
 
-    // Create a new linked_account placeholder for this connector
-    const accountName = `${connector.name} (${connector.type.replace('_', ' ')})`;
+    const { data: reusableAccount } = await supabase
+      .from('linked_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', 'google')
+      .eq('is_deleted', false)
+      .order('is_active', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (reusableAccount?.id) {
+      return NextResponse.json({ ok: true, redirect_url: googleConnectUrl(reusableAccount.id, connectorId) });
+    }
+
+    const accountName = connectorAccountName(connector);
     const { data: newAccount, error: accountError } = await supabase
       .from('linked_accounts')
       .insert({
@@ -54,12 +74,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .single();
 
     if (accountError || !newAccount) {
+      console.error('POST /api/connectors/[id]/connect linked_account insert error:', accountError);
       return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to create linked account', 500);
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const connectUrl = `${appUrl}/api/auth/google/connect?linked_account_id=${newAccount.id}&connector_id=${connectorId}`;
-    return NextResponse.json({ ok: true, redirect_url: connectUrl });
+    return NextResponse.json({ ok: true, redirect_url: googleConnectUrl(newAccount.id, connectorId) });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('POST /api/connectors/[id]/connect error:', err);

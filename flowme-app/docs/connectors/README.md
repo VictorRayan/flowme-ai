@@ -11,6 +11,7 @@ Balys should behave like a capable assistant with access to the user's connected
 - Balys resolves files, sheets, messages, and connector rows internally.
 - A selected palette command is a deterministic instruction, not a hint the model may ignore.
 - UI feedback must show which connector/action is attached before and after sending.
+- User-facing UI must say "connect account" / "connected" / "reconnect", not "authorize" or "OAuth". OAuth is implementation detail.
 
 ## Required Workflow
 
@@ -24,6 +25,8 @@ Every connector interaction follows this order:
 6. Confirm the result in natural language without IDs, raw JSON, or internal tool details.
 
 For Docs, Sheets, and Drive, discovery lists the user's files. The connection form must not ask for a document URL, spreadsheet URL, folder URL, or file ID.
+
+Connecting a connector should run the full Google account connection flow directly. The user should not need to understand a separate "authorize" step.
 
 Pasted Google links are valid input. If the user provides a Google Docs, Sheets, or Drive URL, Balys must read or edit from that URL directly instead of asking for a name or ID.
 

@@ -21,7 +21,14 @@ export async function GET(req: NextRequest) {
 
     // User denied access
     if (errorParam) {
-      return NextResponse.redirect(`${appUrl}/app/settings?google_error=access_denied`);
+      let returnTo = '/app/settings';
+      try {
+        if (stateParam) {
+          const state = JSON.parse(Buffer.from(stateParam, 'base64').toString()) as { return_to?: string };
+          returnTo = state.return_to || returnTo;
+        }
+      } catch {}
+      return NextResponse.redirect(`${appUrl}${returnTo}?google_error=access_denied`);
     }
 
     if (!code || !stateParam) {

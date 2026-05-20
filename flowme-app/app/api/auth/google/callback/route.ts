@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
 
     // If OAuth was triggered from a connector, link it to this linked_account
     if (state.connector_id) {
-      await supabase
+      const { error: connectorUpdateError } = await supabase
         .from('connectors')
         .update({
           config: { linked_account_id: state.linked_account_id },
@@ -125,6 +125,11 @@ export async function GET(req: NextRequest) {
         })
         .eq('id', state.connector_id)
         .eq('user_id', user.id);
+
+      if (connectorUpdateError) {
+        console.error('Failed to link connector after Google OAuth:', connectorUpdateError);
+        return NextResponse.redirect(`${appUrl}${state.return_to || '/app/connectors'}?google_error=connector_link_failed`);
+      }
     }
 
     const returnTo = state.return_to || '/app/settings';

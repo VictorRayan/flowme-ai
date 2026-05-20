@@ -53,6 +53,7 @@ jest.mock('@/lib/ai/agents/docs-agent', () => ({
 }));
 
 import {
+  connectorsListTool,
   connectorsCreateDocTool,
   connectorsDocsAgentTool,
   connectorsFindAndReadDocTool,
@@ -126,6 +127,82 @@ describe('Drive connector tools', () => {
     expect(mockDriveFilesList.mock.calls[0][0].q).toContain("name contains 'budget'");
     expect(mockDriveFilesList.mock.calls[0][0].q).toContain("fullText contains 'budget'");
     expect(result.receipt).toMatchObject({ count: 1 });
+  });
+
+  it('lists a connector as connected only after credentials validate', async () => {
+    const connector = {
+      id: 'conn-sheets',
+      name: 'Finance 2026',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+      created_at: '2026-05-01T00:00:00Z',
+    };
+    const listChain: any = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      then(resolve: Function, reject: Function) {
+        return Promise.resolve({ data: [connector], error: null }).then(resolve as any, reject as any);
+      },
+    };
+    const context = {
+      supabase: { from: jest.fn().mockReturnValue(listChain) },
+      user: { id: 'user-1', email: 'victor@example.com' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-11T12:00:00.000Z',
+    } as any;
+
+    const result = await connectorsListTool.call({}, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockGetValidGoogleToken).toHaveBeenCalledWith('linked-1', {
+      supabase: context.supabase,
+      user: context.user,
+    });
+    expect(result.receipt).toMatchObject({
+      connectors: [expect.objectContaining({
+        name: 'Finance 2026',
+        is_connected: true,
+        connection_status: 'connected',
+      })],
+    });
+  });
+
+  it('lists a connector as needs_reconnect when token validation fails', async () => {
+    mockGetValidGoogleToken.mockRejectedValueOnce(new Error('GOOGLE_AUTH_MISSING'));
+    const connector = {
+      id: 'conn-sheets',
+      name: 'Finance 2026',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+      created_at: '2026-05-01T00:00:00Z',
+    };
+    const listChain: any = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      then(resolve: Function, reject: Function) {
+        return Promise.resolve({ data: [connector], error: null }).then(resolve as any, reject as any);
+      },
+    };
+    const context = {
+      supabase: { from: jest.fn().mockReturnValue(listChain) },
+      user: { id: 'user-1', email: 'victor@example.com' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-11T12:00:00.000Z',
+    } as any;
+
+    const result = await connectorsListTool.call({}, context);
+
+    expect(result.ok).toBe(true);
+    expect(result.receipt).toMatchObject({
+      connectors: [expect.objectContaining({
+        is_connected: false,
+        connection_status: 'needs_reconnect',
+      })],
+    });
   });
 
   it('filters discovery to Google Docs for Docs connectors', async () => {

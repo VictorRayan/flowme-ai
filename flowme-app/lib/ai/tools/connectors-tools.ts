@@ -23,6 +23,8 @@ type ConnectorRow = {
   config?: ConnectorConfig | null;
 };
 
+type ConnectorConnectionStatus = 'connected' | 'needs_connection' | 'needs_reconnect';
+
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const GOOGLE_SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
 const GOOGLE_SLIDES_MIME = 'application/vnd.google-apps.presentation';
@@ -120,7 +122,7 @@ async function getConnectorRow(
 /* ── helpers ── */
 
 async function getGoogleAccountId(context: ToolContext): Promise<string | null> {
-  // Prefer an authorized Gmail connector over a generic linked account
+  // Prefer an connected Gmail connector over a generic linked account
   const { data: gmailConnector } = await context.supabase
     .from('connectors')
     .select('config')
@@ -150,13 +152,23 @@ async function getGoogleAccountId(context: ToolContext): Promise<string | null> 
   return data.id;
 }
 
-async function getAuthorizedClient(linkedAccountId: string, context: ToolContext) {
+async function getConnectedClient(linkedAccountId: string, context: ToolContext) {
   try {
     return await getValidGoogleToken(linkedAccountId, { supabase: context.supabase, user: context.user });
   } catch (error) {
     console.error('[connectors] Google credential refresh failed:', error);
     return null;
   }
+}
+
+async function resolveConnectorConnectionStatus(
+  connector: ConnectorRow,
+  context: ToolContext,
+): Promise<ConnectorConnectionStatus> {
+  const linkedAccountId = configOf(connector).linked_account_id;
+  if (!connector.is_active || !linkedAccountId) return 'needs_connection';
+  const client = await getConnectedClient(linkedAccountId, context);
+  return client ? 'connected' : 'needs_reconnect';
 }
 
 async function getConnectorLinkedAccountId(
@@ -221,15 +233,20 @@ function extractGoogleDocPlainText(elements: any[]): string {
 
 export const connectorsListTool = defineTool({
   name: 'connectors.list',
-  description: `Lists all connectors the user has added, including their authorization status.
+  description: `Lists all connectors the user has added, including their connection status.
 
-WHEN TO USE: user asks "what's connected", "do I have Gmail linked", "which sources can you access"; or before using a connector tool to verify it's authorized.
+WHEN TO USE: user asks "what's connected", "do I have Gmail linked", "which sources can you access"; or before using a connector tool to verify it is connected.
 
 CONTRACT:
 - Read-only. Returns connectors from the Connectors page (not just linked Google accounts).
-- Each connector has: id, name, type, is_authorized (true = OAuth completed, Balys can read it), is_active.
-- is_authorized=false means the user added the connector but hasn't completed Google authorization yet.
-- Surface "not yet authorized" connectors as "needs setup" to the user — link them to /app/connectors.
+- Each connector has: id, name, type, connection_status, is_connected, is_active.
+- connection_status is the source of truth:
+  - connected: Balys verified Google credentials and can read it.
+  - needs_connection: the user added the connector but has not connected the Google account yet.
+  - needs_reconnect: the connector points to a Google account, but the token is missing or cannot refresh.
+- Never say a connector is connected unless connection_status is "connected".
+- Surface disconnected connectors as "needs connection" to the user. Tell them to open Connectors and click Connect account.
+- Surface needs_reconnect as a backend connection problem. Tell the user the Google connection did not complete correctly and ask them to reconnect the source.
 - id is TECHNICAL — never expose. Use name and type in responses.`,
   isReadOnly: true,
   inputSchema: z.object({}),
@@ -242,12 +259,16 @@ CONTRACT:
 
     if (error) return { ok: false, error: 'Failed to fetch connectors.' };
 
-    const result = (connectors || []).map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      type: c.type,
-      is_active: c.is_active,
-      is_authorized: Boolean(c.config?.linked_account_id) && c.is_active,
+    const result = await Promise.all((connectors || []).map(async (c: any) => {
+      const connectionStatus = await resolveConnectorConnectionStatus(c, context);
+      return {
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        is_active: c.is_active,
+        is_connected: connectionStatus === 'connected',
+        connection_status: connectionStatus,
+      };
     }));
 
     return { ok: true, receipt: { connectors: result, count: result.length } };
@@ -266,7 +287,7 @@ CONTRACT:
 - range: A1 notation, e.g. "Sheet1!A1:D20". Defaults to first 100 rows if omitted.
 - Returns rows as arrays of cell values. Empty cells are empty strings.
 - Read-only. Never modifies the sheet.
-- If the connector is not authorized, tell the user to go to /app/connectors to complete setup.
+- If the connector is not connected, tell the user to open Connectors and click Connect account for this source.
 
 RETURNS receipt: { rows, row_count, sheet_title }`,
   isReadOnly: true,
@@ -280,10 +301,10 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
     const connector = await getConnectorRow(context, args.connector_id);
     const config = configOf(connector);
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
       const sheets = google.sheets({ version: 'v4', auth });
@@ -325,7 +346,7 @@ CONTRACT:
 - Google Docs connectors list Google Docs files; Google Sheets connectors list spreadsheets; Google Drive connectors list Drive files.
 - Returns file names and types only. Use this for discovery, then call a read/edit tool on the selected file.
 - If the user provided a Google Docs URL or a clear document title to read, prefer connectors.find_and_read_doc instead of only listing.
-- If connector is not authorized, tell the user to go to /app/connectors.
+- If connector is not connected, tell the user to open Connectors and click Connect account for this source.
 
 RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTime, webViewLink }.`,
   isReadOnly: true,
@@ -338,10 +359,10 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
     const connector = await getConnectorRow(context, args.connector_id);
     const searchQuery = args.query ?? '';
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
       const drive = google.drive({ version: 'v3', auth });
@@ -393,10 +414,10 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
       const fileId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.file_url);
@@ -443,10 +464,10 @@ WHEN TO USE: user says "read my contract", "what does the document say", "summar
 CONTRACT:
 - connector_id: required. Get from connectors.list — match by name, pass the id.
 - file_id or document_url can be a document id from discovery or a full Google Docs URL pasted by the user.
-- The connector must be a google_docs type with an authorized Google account.
+- The connector must be a google_docs type connected to a Google account.
 - Returns the full document text. If the document is very long, summarise the key sections in your reply rather than dumping everything.
 - Read-only. Never modifies the document.
-- If the connector is not authorized, tell the user to go to /app/connectors to complete setup.
+- If the connector is not connected, tell the user to open Connectors and click Connect account for this source.
 
 RETURNS receipt: { title, content, word_count }`,
   isReadOnly: true,
@@ -457,10 +478,10 @@ RETURNS receipt: { title, content, word_count }`,
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     const { data: connectorRow } = await context.supabase
       .from('connectors')
@@ -524,10 +545,10 @@ RETURNS receipt: { title, document_id, content, word_count, matched_by, candidat
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
       const docs = google.docs({ version: 'v1', auth });
@@ -596,7 +617,7 @@ WHEN TO USE:
 - User selected /docs and asked for new content instead of reading an existing file.
 
 HOW IT WORKS:
-1. Use connectors.list to find an authorized Google Docs connector.
+1. Use connectors.list to find a connected Google Docs connector.
 2. Draft the content in the user's requested language using the Google Docs Editorial Agent standards.
 3. Call this tool with a clear title and polished initial content.
 
@@ -616,10 +637,10 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
       const docs = google.docs({ version: 'v1', auth });
@@ -694,9 +715,9 @@ RETURNS receipt: { summary, changes[], insights[] }`,
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     const { data: connectorRow } = await context.supabase
       .from('connectors')
@@ -767,9 +788,9 @@ RETURNS receipt: { summary, changes[] }`,
   }),
   call: async (args, context) => {
     const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
-    if (!linkedAccountId) return { ok: false, error: 'Connector not authorized. Ask the user to go to /app/connectors and click Authorize.' };
-    const auth = await getAuthorizedClient(linkedAccountId, context);
-    if (!auth) return { ok: false, error: 'Could not get Google credentials for this connector.' };
+    if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
+    const auth = await getConnectedClient(linkedAccountId, context);
+    if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     const { data: connectorRow } = await context.supabase
       .from('connectors')
@@ -838,7 +859,7 @@ ASK THE USER FIRST IF: the query is broad enough to be sensitive ("all emails fr
       const status = e?.response?.data?.error?.status;
       let detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to search Gmail');
       if (errCode === 401 || errCode === 403 || status === 'PERMISSION_DENIED' || /scope|consent|authoriz/i.test(googleMsg || '')) {
-        detailedError = `Gmail access denied. The user likely needs to reconnect their Google account with Gmail scope. Original: ${googleMsg}`;
+        detailedError = `Gmail connection needs refresh. Ask the user to open Connectors and click Reconnect account.`;
       }
       console.error('[gmail.search_messages] Google API error:', { errCode, status, googleMsg });
       return { ok: false, error: detailedError };
@@ -877,7 +898,7 @@ RETURNS receipt: { message }. The message includes subject, from, to, date, body
       const status = e?.response?.data?.error?.status;
       let detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to read Gmail message');
       if (errCode === 401 || errCode === 403 || status === 'PERMISSION_DENIED' || /scope|consent|authoriz/i.test(googleMsg || '')) {
-        detailedError = `Gmail access denied. The user likely needs to reconnect their Google account with Gmail scope. Original: ${googleMsg}`;
+        detailedError = `Gmail connection needs refresh. Ask the user to open Connectors and click Reconnect account.`;
       }
       console.error('[gmail.read_message] Google API error:', { errCode, status, googleMsg });
       return { ok: false, error: detailedError };
@@ -920,7 +941,7 @@ ASK THE USER FIRST IF: recipients are ambiguous or unverified, the email is sens
       const status = e?.response?.data?.error?.status;
       let detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to create Gmail draft');
       if (errCode === 401 || errCode === 403 || status === 'PERMISSION_DENIED' || /scope|consent|authoriz/i.test(googleMsg || '')) {
-        detailedError = `Gmail access denied. The user likely needs to reconnect their Google account with Gmail scope. Original: ${googleMsg}`;
+        detailedError = `Gmail connection needs refresh. Ask the user to open Connectors and click Reconnect account.`;
       }
       console.error('[gmail.create_draft] Google API error:', { errCode, status, googleMsg });
       return { ok: false, error: detailedError };

@@ -125,13 +125,48 @@ function failResult(error: string): DocsAgentResult {
   return { ok: false, summary: '', changes: [], error };
 }
 
-function createOpenAIClient() {
-  if (process.env.OPENAI_API_KEY) return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  if (process.env.GEMINI_API_KEY) return new OpenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-  });
-  return null;
+function createLlmPlanTargets() {
+  const targets: Array<{ provider: 'gemini' | 'openai'; model: string; client: OpenAI }> = [];
+  if (process.env.GEMINI_API_KEY) {
+    targets.push({
+      provider: 'gemini',
+      model: 'gemini-2.5-pro',
+      client: new OpenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      }),
+    });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    targets.push({
+      provider: 'openai',
+      model: 'gpt-4o',
+      client: new OpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+    });
+  }
+  return targets;
+}
+
+async function createJsonPlanCompletion(
+  targets: ReturnType<typeof createLlmPlanTargets>,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+): Promise<string> {
+  let lastError: unknown = null;
+  for (const target of targets) {
+    try {
+      const response = await target.client.chat.completions.create({
+        model: target.model,
+        temperature: 0.1,
+        messages,
+        response_format: { type: 'json_object' },
+      });
+      return response.choices[0]?.message?.content?.trim() || '{}';
+    } catch (error) {
+      lastError = error;
+      console.warn(`[docs-agent] ${target.provider}:${target.model} planning failed, trying fallback if available:`, error);
+    }
+  }
+  throw lastError || new Error('No LLM provider available.');
 }
 
 async function getAuthorizedDocsClient(linkedAccountId: string, supabase: any) {
@@ -190,10 +225,8 @@ export async function runDocsAgent(options: DocsAgentOptions): Promise<DocsAgent
   const docsApi = await getAuthorizedDocsClient(linkedAccountId, supabase);
   if (!docsApi) return failResult('Could not authenticate with Google Docs.');
 
-  const llm = createOpenAIClient();
-  if (!llm) return failResult('No LLM provider available.');
-
-  const model = process.env.OPENAI_API_KEY ? 'gpt-4o' : 'gemini-2.5-pro';
+  const llmTargets = createLlmPlanTargets();
+  if (llmTargets.length === 0) return failResult('No LLM provider available.');
 
   // ── Phase 1: READ ──────────────────────────────────────────────────────────
   emit('tool_call_start', { tool: 'docs_agent.read', call_id: 'docs-read', args: { documentId } });
@@ -257,16 +290,10 @@ CRITICAL rules:
 
   let planText = '';
   try {
-    const response = await llm.chat.completions.create({
-      model,
-      temperature: 0.1,
-      messages: [
-        { role: 'system', content: DOCS_EDITOR_AGENT_SYSTEM },
-        { role: 'user', content: planPrompt },
-      ],
-      response_format: { type: 'json_object' },
-    });
-    planText = response.choices[0]?.message?.content?.trim() || '{}';
+    planText = await createJsonPlanCompletion(llmTargets, [
+      { role: 'system', content: DOCS_EDITOR_AGENT_SYSTEM },
+      { role: 'user', content: planPrompt },
+    ]);
   } catch (e: any) {
     return failResult(`LLM planning failed: ${e?.message}`);
   }

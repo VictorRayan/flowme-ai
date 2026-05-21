@@ -102,7 +102,7 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
 
   const openai = new OpenAI({ apiKey, baseURL });
 
-  const maxSteps = Math.min(options.maxSteps, 8); // Enforce flexible limit up to 8
+  const maxSteps = Math.max(1, options.maxSteps);
 
   const emit = (event: AgentProgressEvent) => {
     try { options.onProgress?.(event); } catch (e) { console.error('[agent-loop] onProgress threw', e); }

@@ -101,13 +101,65 @@ function quoteSheetName(name: string): string {
   return `'${name.replace(/'/g, "''")}'`;
 }
 
-function createOpenAIClient() {
-  if (process.env.OPENAI_API_KEY) return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  if (process.env.GEMINI_API_KEY) return new OpenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-  });
-  return null;
+function createLlmPlanTargets() {
+  const targets: Array<{ provider: 'gemini' | 'openai'; model: string; client: OpenAI }> = [];
+  if (process.env.GEMINI_API_KEY) {
+    targets.push({
+      provider: 'gemini',
+      model: 'gemini-2.5-pro',
+      client: new OpenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      }),
+    });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    targets.push({
+      provider: 'openai',
+      model: 'gpt-4o',
+      client: new OpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+    });
+  }
+  return targets;
+}
+
+async function createJsonPlanCompletion(
+  targets: ReturnType<typeof createLlmPlanTargets>,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+): Promise<string> {
+  let lastError: unknown = null;
+  for (const target of targets) {
+    try {
+      const response = await target.client.chat.completions.create({
+        model: target.model,
+        temperature: 0.1,
+        messages,
+        response_format: { type: 'json_object' },
+      });
+      return response.choices[0]?.message?.content?.trim() || '{}';
+    } catch (error) {
+      lastError = error;
+      console.warn(`[sheets-agent] ${target.provider}:${target.model} planning failed, trying fallback if available:`, error);
+    }
+  }
+  throw lastError || new Error('No LLM provider available.');
+}
+
+function buildDeterministicSheetResult(sheetContext: string): SheetsAgentResult {
+  const lines = sheetContext.split('\n').map((line) => line.trim()).filter(Boolean);
+  const title = lines.find((line) => line.startsWith('Spreadsheet title:'))?.replace('Spreadsheet title:', '').trim() || 'spreadsheet';
+  const sheets = lines.find((line) => line.startsWith('Sheets:'))?.replace('Sheets:', '').trim();
+  const evidence = lines.slice(0, 24).join('\n').slice(0, 4000);
+  return {
+    ok: true,
+    summary: `I read "${title}" and found ${sheets ? `these tabs: ${sheets}` : 'spreadsheet data'}.`,
+    changes: [],
+    insights: [{
+      title: 'Spreadsheet content',
+      evidence,
+      recommendation: 'Ask for a specific analysis if you want trends, totals, anomalies, or recommendations.',
+    }],
+  };
 }
 
 async function getAuthorizedSheetsClient(linkedAccountId: string, supabase: any) {
@@ -178,10 +230,7 @@ export async function runSheetsAgent(options: SheetsAgentOptions): Promise<Sheet
   const sheetsApi = await getAuthorizedSheetsClient(linkedAccountId, supabase);
   if (!sheetsApi) return failResult('Could not authenticate with Google Sheets.');
 
-  const llm = createOpenAIClient();
-  if (!llm) return failResult('No LLM provider available.');
-
-  const model = process.env.OPENAI_API_KEY ? 'gpt-4o' : 'gemini-2.5-pro';
+  const llmTargets = createLlmPlanTargets();
 
   // ── Phase 1: READ ──────────────────────────────────────────────────────────
   emit('tool_call_start', { tool: 'sheets_agent.read', call_id: 'sheets-read', args: { spreadsheetId } });
@@ -239,18 +288,18 @@ Rules:
 
   let planText = '';
   try {
-    const response = await llm.chat.completions.create({
-      model,
-      temperature: 0.1,
-      messages: [
-        { role: 'system', content: SHEETS_ECONOMIST_AGENT_SYSTEM },
-        { role: 'user', content: planPrompt },
-      ],
-      response_format: { type: 'json_object' },
-    });
-    planText = response.choices[0]?.message?.content?.trim() || '{}';
+    planText = await createJsonPlanCompletion(llmTargets, [
+      { role: 'system', content: SHEETS_ECONOMIST_AGENT_SYSTEM },
+      { role: 'user', content: planPrompt },
+    ]);
   } catch (e: any) {
-    return failResult(`LLM planning failed: ${e?.message}`);
+    emit('tool_call_end', {
+      tool: 'sheets_agent.plan',
+      call_id: 'sheets-plan',
+      ok: true,
+      receipt: { plan: 'LLM planning unavailable; returning deterministic sheet summary.', fallback: true },
+    });
+    return buildDeterministicSheetResult(sheetContext);
   }
 
   let parsed: { plan?: string; operations?: any[]; insights?: Array<{ title?: string; evidence?: string; recommendation?: string }>; summary?: string };

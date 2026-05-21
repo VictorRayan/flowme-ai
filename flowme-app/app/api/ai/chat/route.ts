@@ -44,6 +44,16 @@ type RoutedTarget = {
   model: string;
 };
 
+function computeAgentMaxSteps(route: ReturnType<typeof routeBalysRequest>, connectorIntent: ConnectorIntent | null): number {
+  const routedBudget = route.gates?.maxAutoToolCalls || 5;
+  if (connectorIntent?.action === 'gmail') return Math.max(routedBudget, 18);
+  if (connectorIntent?.action === 'docs' || connectorIntent?.action === 'sheets' || connectorIntent?.action === 'drive') {
+    return Math.max(routedBudget, 24);
+  }
+  if (route.needsTools) return Math.max(routedBudget, 16);
+  return routedBudget;
+}
+
 function sanitizeHeaderValue(value: string): string {
   return value.replace(/[^\x20-\x7E]/g, ' ').trim();
 }
@@ -204,11 +214,7 @@ export async function POST(request: NextRequest) {
             {
               messages: [{ role: 'system', content: systemPromptFull }, ...loopMessages],
               tools: ALL_TOOLS,
-              maxSteps: parsedConnectorIntent?.action === 'gmail'
-                ? Math.max(route.gates?.maxAutoToolCalls || 5, 6)
-                : parsedConnectorIntent?.action === 'docs' || parsedConnectorIntent?.action === 'sheets' || parsedConnectorIntent?.action === 'drive'
-                  ? Math.max(route.gates?.maxAutoToolCalls || 5, 10)
-                  : route.gates?.maxAutoToolCalls || 5,
+              maxSteps: computeAgentMaxSteps(route, parsedConnectorIntent),
               provider: skillTarget.provider,
               model: skillTarget.model,
               context: {

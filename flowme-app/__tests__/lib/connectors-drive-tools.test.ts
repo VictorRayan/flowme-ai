@@ -520,6 +520,64 @@ describe('Drive connector tools', () => {
     }));
   });
 
+  it('falls back to the active Sheets connector when the model passes a spreadsheet id as connector_id', async () => {
+    mockDriveFilesList.mockResolvedValueOnce({
+      data: {
+        files: [
+          { id: 'sheet-2026', name: 'Finance 2026', mimeType: 'application/vnd.google-apps.spreadsheet' },
+        ],
+      },
+    });
+    mockRunSheetsAgent.mockResolvedValueOnce({
+      ok: true,
+      summary: 'analysis done',
+      changes: [],
+      insights: [],
+    });
+
+    const connectorChain: any = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn()
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({
+          data: {
+            id: 'conn-sheets',
+            name: 'Google Sheets',
+            type: 'google_sheets',
+            is_active: true,
+            config: { linked_account_id: 'linked-1' },
+          },
+          error: null,
+        }),
+    };
+    const context = {
+      supabase: { from: jest.fn().mockReturnValue(connectorChain) },
+      user: { id: 'user-1', email: 'victor@example.com' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-11T12:00:00.000Z',
+    } as any;
+
+    const result = await connectorsSheetsAgentTool.call({
+      connector_id: 'sheet-2026',
+      spreadsheet_name: 'Finance 2026',
+      task: 'Tell me what is inside Finance 2026',
+      mode: 'analyze',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockGetValidGoogleToken).toHaveBeenCalledWith('linked-1', {
+      supabase: context.supabase,
+      user: context.user,
+    });
+    expect(mockRunSheetsAgent).toHaveBeenCalledWith(expect.objectContaining({
+      spreadsheetId: 'sheet-2026',
+      linkedAccountId: 'linked-1',
+    }));
+  });
+
   it('passes selected file ids to Docs and Sheets editing agents', async () => {
     mockRunDocsAgent.mockResolvedValueOnce({ ok: true, summary: 'doc edited', changes: [{ description: 'changed' }] });
     mockRunSheetsAgent.mockResolvedValueOnce({ ok: true, summary: 'sheet edited', changes: [{ range: 'A1', description: 'changed' }] });

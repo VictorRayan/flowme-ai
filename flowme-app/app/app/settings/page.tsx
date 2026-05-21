@@ -87,7 +87,7 @@ function SettingsPageContent() {
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/linked-accounts');
+      const res = await fetch('/api/linked-accounts?surface=calendar');
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to fetch accounts');
       setAccounts(data.accounts || []);

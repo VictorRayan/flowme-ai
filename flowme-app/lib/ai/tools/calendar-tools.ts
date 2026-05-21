@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
 import { createCalendarEvent, deleteCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
@@ -132,7 +133,7 @@ async function listGoogleAccounts(context: ToolContext): Promise<GoogleAccount[]
     .order('created_at', { ascending: true });
 
   if (error || !Array.isArray(data)) return [];
-  return data;
+  return data.filter((account) => isCalendarLinkedAccountName(account.name));
 }
 
 async function resolveGoogleAccount(

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { GET, POST, PATCH } from '@/app/api/linked-accounts/route';
 import { DELETE } from '@/app/api/linked-accounts/[id]/route';
+import { requireAuth } from '@/lib/api/auth';
 
 function makeChain(listData: any[] = [{ id: '1', name: 'Work' }], singleData: any = { id: '1', name: 'Work' }) {
   const chain: any = {
@@ -36,6 +37,25 @@ describe('/api/linked-accounts', () => {
     expect(data.ok).toBe(true);
     expect(data.accounts).toHaveLength(1);
     expect(data.accounts[0].name).toBe('Work');
+  });
+
+  it('GET calendar surface hides connector-created linked accounts', async () => {
+    (requireAuth as jest.Mock).mockResolvedValueOnce({
+      user: { id: 'mock-user-id' },
+      supabase: makeChain([
+        { id: 'calendar-1', name: 'victor@example.com', type: 'personal', provider: 'google', is_active: true, user_google_tokens: [{}] },
+        { id: 'sheets-1', name: 'Google Sheets (google sheets)', type: 'personal', provider: 'google', is_active: true, user_google_tokens: [{}] },
+        { id: 'docs-1', name: 'Google Docs (google docs)', type: 'personal', provider: 'google', is_active: true, user_google_tokens: [{}] },
+      ]),
+    });
+
+    const req = new NextRequest('http://localhost/api/linked-accounts?surface=calendar');
+    const res = await GET(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.accounts).toHaveLength(1);
+    expect(data.accounts[0].name).toBe('victor@example.com');
   });
 
   it('POST should validate name length', async () => {

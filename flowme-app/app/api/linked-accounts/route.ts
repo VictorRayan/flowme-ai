@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 export async function GET(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
+    const surface = req.nextUrl.searchParams.get('surface');
 
     // Fetch accounts with a left join to check if Google tokens exist
     const { data: accounts, error } = await supabase
@@ -19,7 +21,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Map to include google_connected flag
-    const enriched = (accounts || []).map((acc: any) => ({
+    const filteredAccounts = surface === 'calendar'
+      ? (accounts || []).filter((acc: any) => isCalendarLinkedAccountName(acc.name))
+      : (accounts || []);
+
+    const enriched = filteredAccounts.map((acc: any) => ({
       id: acc.id,
       name: acc.name,
       type: acc.type,

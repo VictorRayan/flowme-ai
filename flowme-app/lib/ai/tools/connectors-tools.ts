@@ -151,6 +151,41 @@ async function getConnectorRow(
   return data || null;
 }
 
+async function findConnectorByType(
+  context: ToolContext,
+  type: ConnectorType,
+): Promise<ConnectorRow | null> {
+  const { data } = await context.supabase
+    .from('connectors')
+    .select('id, name, type, config, is_active')
+    .eq('user_id', context.user.id)
+    .eq('type', type)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data || null;
+}
+
+async function getConnectorRowForTool(
+  context: ToolContext,
+  connectorId: string,
+  expectedType: ConnectorType,
+): Promise<ConnectorRow | null> {
+  const connector = await getConnectorRow(context, connectorId);
+  if (connector?.type === expectedType && connector.is_active && configOf(connector).linked_account_id) {
+    return connector;
+  }
+  if (connector && connector.type !== expectedType) {
+    console.warn(`[connectors] Tool received ${connector.type} connector for ${expectedType}; falling back to active ${expectedType} connector.`);
+  } else if (!connector) {
+    console.warn(`[connectors] Tool received unknown connector_id for ${expectedType}; falling back to active connector.`);
+  } else if (!configOf(connector).linked_account_id) {
+    console.warn(`[connectors] Tool received ${expectedType} connector without linked_account_id; falling back to active connector.`);
+  }
+  return findConnectorByType(context, expectedType);
+}
+
 /* ── helpers ── */
 
 async function getGoogleAccountId(context: ToolContext): Promise<string | null> {
@@ -211,6 +246,16 @@ async function getConnectorLinkedAccountId(
   const config = configOf(connector);
   if (!connector?.is_active || !config.linked_account_id) return null;
   return config.linked_account_id;
+}
+
+async function getConnectorLinkedAccountIdForTool(
+  context: ToolContext,
+  connectorId: string,
+  expectedType: ConnectorType,
+): Promise<{ connector: ConnectorRow | null; linkedAccountId: string | null }> {
+  const connector = await getConnectorRowForTool(context, connectorId, expectedType);
+  const linkedAccountId = configOf(connector).linked_account_id || null;
+  return { connector, linkedAccountId };
 }
 
 async function readDriveFileText(
@@ -333,9 +378,8 @@ RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
     range: z.string().optional().describe('A1 notation range, e.g. "Sheet1!A1:D50". Omit for first 100 rows of default sheet.'),
   }),
   call: async (args, context) => {
-    const connector = await getConnectorRow(context, args.connector_id);
+    const { connector, linkedAccountId } = await getConnectorLinkedAccountIdForTool(context, args.connector_id, 'google_sheets');
     const config = configOf(connector);
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
     const auth = await getConnectedClient(linkedAccountId, context);
@@ -763,12 +807,10 @@ RETURNS receipt: { summary, changes[], insights[] }`,
     mode: z.enum(['auto', 'analyze', 'edit']).optional().default('auto').describe('Use analyze for insights only, edit for sheet changes, auto when uncertain.'),
   }),
   call: async (args, context) => {
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const { connector: connectorRow, linkedAccountId } = await getConnectorLinkedAccountIdForTool(context, args.connector_id, 'google_sheets');
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
     const auth = await getConnectedClient(linkedAccountId, context);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
-
-    const connectorRow = await getConnectorRow(context, args.connector_id);
 
     const config = configOf(connectorRow);
     let spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.task) || extractGoogleFileId(config.spreadsheet_id, true);

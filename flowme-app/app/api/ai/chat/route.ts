@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
           `Structured command intent: ${parsedConnectorIntent.label || parsedConnectorIntent.action}.`,
           'Treat this as deterministic metadata selected by the user, not as optional decoration.',
           parsedConnectorIntent.action === 'gmail'
-            ? 'Use Gmail tools. SHORT-CIRCUIT: if asked to read an email, search and immediately call gmail.read_message on the top unambiguous result. Search is discovery only; never answer from snippets alone.'
+            ? 'Use Gmail tools. SHORT-CIRCUIT: if asked to read or show the content of an email, immediately call gmail.read_message using the message_id from the history or natural sender/subject fields. Do not call gmail.search_messages first if the email was already listed.'
             : '',
           parsedConnectorIntent.action === 'docs'
             ? 'Use Google Docs connector tools. SHORT-CIRCUIT: if the user asks what files are here, call connectors.search_docs immediately and list them. Use connectors.find_and_read_doc to read a named document.'

@@ -216,8 +216,9 @@ async function findDriveFileByNaturalName(
 
 async function getConnectorRow(
   context: ToolContext,
-  connectorId: string,
+  connectorId?: string,
 ): Promise<ConnectorRow | null> {
+  if (!connectorId) return null;
   const { data } = await context.supabase
     .from('connectors')
     .select('id, name, type, config, is_active')
@@ -243,23 +244,34 @@ async function findConnectorByType(
   return data || null;
 }
 
+async function getConnectorRowWithFallback(
+  context: ToolContext,
+  connectorId?: string,
+  preferredType?: ConnectorType,
+): Promise<ConnectorRow | null> {
+  if (connectorId) {
+    const connector = await getConnectorRow(context, connectorId);
+    if (connector?.is_active && configOf(connector).linked_account_id) {
+      return connector;
+    }
+  }
+  if (preferredType) {
+    const preferred = await findConnectorByType(context, preferredType);
+    if (preferred) return preferred;
+  }
+  for (const type of ['google_sheets', 'google_docs', 'google_drive'] as ConnectorType[]) {
+    const c = await findConnectorByType(context, type);
+    if (c) return c;
+  }
+  return null;
+}
+
 async function getConnectorRowForTool(
   context: ToolContext,
-  connectorId: string,
+  connectorId: string | undefined,
   expectedType: ConnectorType,
 ): Promise<ConnectorRow | null> {
-  const connector = await getConnectorRow(context, connectorId);
-  if (connector?.type === expectedType && connector.is_active && configOf(connector).linked_account_id) {
-    return connector;
-  }
-  if (connector && connector.type !== expectedType) {
-    console.warn(`[connectors] Tool received ${connector.type} connector for ${expectedType}; falling back to active ${expectedType} connector.`);
-  } else if (!connector) {
-    console.warn(`[connectors] Tool received unknown connector_id for ${expectedType}; falling back to active connector.`);
-  } else if (!configOf(connector).linked_account_id) {
-    console.warn(`[connectors] Tool received ${expectedType} connector without linked_account_id; falling back to active connector.`);
-  }
-  return findConnectorByType(context, expectedType);
+  return getConnectorRowWithFallback(context, connectorId, expectedType);
 }
 
 /* ── helpers ── */
@@ -316,17 +328,15 @@ async function resolveConnectorConnectionStatus(
 
 async function getConnectorLinkedAccountId(
   context: ToolContext,
-  connectorId: string,
+  connectorId?: string,
 ): Promise<string | null> {
-  const connector = await getConnectorRow(context, connectorId);
-  const config = configOf(connector);
-  if (!connector?.is_active || !config.linked_account_id) return null;
-  return config.linked_account_id;
+  const connector = await getConnectorRowWithFallback(context, connectorId);
+  return connector ? (configOf(connector).linked_account_id || null) : null;
 }
 
 async function getConnectorLinkedAccountIdForTool(
   context: ToolContext,
-  connectorId: string,
+  connectorId: string | undefined,
   expectedType: ConnectorType,
 ): Promise<{ connector: ConnectorRow | null; linkedAccountId: string | null }> {
   const connector = await getConnectorRowForTool(context, connectorId, expectedType);
@@ -447,7 +457,7 @@ CONTRACT:
 RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
   isReadOnly: true,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list. Match by name, pass the id.'),
     file_id: z.string().optional().describe('Spreadsheet id returned by connectors.search_docs, full Google Sheets URL, or natural spreadsheet title/name. Resolve internally; never ask the user for it.'),
     spreadsheet_url: z.string().optional().describe('Full Google Sheets URL pasted by the user.'),
     spreadsheet_name: z.string().optional().describe('Natural spreadsheet title/name, such as "Finance 2026". Use this instead of asking for a file id.'),
@@ -516,14 +526,14 @@ CONTRACT:
 RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTime, webViewLink }.`,
   isReadOnly: true,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list.'),
     query: z.string().optional().default('').describe('Plain text search query for file names and content. Omit to list recent files.'),
     max_results: z.number().optional().default(10),
   }),
   call: async (args, context) => {
-    const connector = await getConnectorRow(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(context, args.connector_id);
     const searchQuery = args.query ?? '';
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
     const auth = await getConnectedClient(linkedAccountId, context);
@@ -572,7 +582,7 @@ CONTRACT:
 RETURNS receipt: { title, mimeType, content, character_count, truncated, webViewLink }`,
   isReadOnly: true,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list or the discovery tool.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list or the discovery tool.'),
     file_id: z.string().optional().describe('The file id returned by connectors.search_docs, or the full Google file URL pasted by the user. Resolve internally; never ask the user for this.'),
     file_url: z.string().optional().describe('Full Google Docs, Sheets, Slides, or Drive file URL pasted by the user.'),
     max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
@@ -637,25 +647,19 @@ CONTRACT:
 RETURNS receipt: { title, content, word_count }`,
   isReadOnly: true,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list. Match by name, pass the id.'),
     file_id: z.string().optional().describe('Document file id returned by connectors.search_docs, or the full Google Docs URL pasted by the user. Resolve internally; never ask the user for it.'),
     document_url: z.string().optional().describe('Full Google Docs URL pasted by the user.'),
   }),
   call: async (args, context) => {
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(context, args.connector_id, 'google_docs');
+    const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
     const auth = await getConnectedClient(linkedAccountId, context);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
-    const { data: connectorRow } = await context.supabase
-      .from('connectors')
-      .select('config')
-      .eq('id', args.connector_id)
-      .eq('user_id', context.user.id)
-      .maybeSingle();
-
-    const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(connectorRow?.config?.document_id, true);
+    const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(configOf(connector)?.document_id, true);
     if (!documentId) {
       return { ok: false, error: 'No document selected. Pass a Google Docs URL or search documents first with connectors.search_docs, then read the selected file.' };
     }
@@ -704,7 +708,7 @@ CONTRACT:
 RETURNS receipt: { title, document_id, content, word_count, matched_by, candidates[] }. document_id is internal; never show it to the user.`,
   isReadOnly: true,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list. Match by name, pass the id.'),
     name_or_url: z.string().min(1).describe('Natural document title/name or full Google Docs URL pasted by the user.'),
     max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
   }),
@@ -796,7 +800,7 @@ CONTRACT:
 RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
   isReadOnly: false,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list. Match by name.'),
     title: z.string().min(1).max(200).describe('The Google Doc title to create.'),
     content: z.string().min(1).max(30000).describe('Initial plain-text document content in the user requested language.'),
   }),
@@ -876,7 +880,7 @@ CONTRACT:
 RETURNS receipt: { summary, changes[], insights[] }`,
   isReadOnly: false,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list. Match by name.'),
     file_id: z.string().optional().describe('Spreadsheet id returned by connectors.search_docs, full Google Sheets URL, or natural spreadsheet title/name. Resolve internally; never ask the user for it.'),
     spreadsheet_name: z.string().optional().describe('Natural spreadsheet title/name, such as "Finance 2026". Use this instead of asking for a file id.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the spreadsheet. Be specific about values, columns, and rows if known.'),
@@ -951,25 +955,19 @@ CONTRACT:
 RETURNS receipt: { summary, changes[] }`,
   isReadOnly: false,
   inputSchema: z.object({
-    connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
+    connector_id: z.string().optional().describe('The connector id from connectors.list. Match by name.'),
     file_id: z.string().optional().describe('Document file id returned by connectors.search_docs, or the full Google Docs URL pasted by the user. Resolve internally; never ask the user for it.'),
     document_url: z.string().optional().describe('Full Google Docs URL pasted by the user.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the document. For replacements, include the exact phrase to find.'),
   }),
   call: async (args, context) => {
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(context, args.connector_id, 'google_docs');
+    const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
     const auth = await getConnectedClient(linkedAccountId, context);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
-    const { data: connectorRow } = await context.supabase
-      .from('connectors')
-      .select('config')
-      .eq('id', args.connector_id)
-      .eq('user_id', context.user.id)
-      .maybeSingle();
-
-    const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(args.task) || extractGoogleFileId(connectorRow?.config?.document_id, true);
+    const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(args.task) || extractGoogleFileId(configOf(connector)?.document_id, true);
     if (!documentId) {
       return { ok: false, error: 'No document selected. Pass a Google Docs URL or search documents first with connectors.search_docs, then edit the selected file.' };
     }

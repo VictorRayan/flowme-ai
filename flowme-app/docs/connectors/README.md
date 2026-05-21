@@ -9,6 +9,7 @@ Balys should behave like a capable assistant with access to the user's connected
 - Connectors are account-wide capabilities, not one-off file links.
 - The user names things naturally: "Victor - Career Profile", "my finance sheet", "that email from Anna".
 - Balys resolves files, sheets, messages, and connector rows internally.
+- Technical identifiers are never part of the user experience. File IDs, document IDs, spreadsheet IDs, connector IDs, OAuth, scopes, and tool names are implementation details.
 - A selected palette command is a deterministic instruction, not a hint the model may ignore.
 - UI feedback must show which connector/action is attached before and after sending.
 - User-facing UI must say "connect account" / "connected" / "reconnect", not "authorize" or "OAuth". OAuth is implementation detail.
@@ -25,6 +26,8 @@ Every connector interaction follows this order:
 6. Confirm the result in natural language without IDs, raw JSON, or internal tool details.
 
 For Docs, Sheets, and Drive, discovery lists the user's files. The connection form must not ask for a document URL, spreadsheet URL, folder URL, or file ID.
+
+When a user names a document/spreadsheet/file, that name is sufficient input. The implementation must search Drive/Docs/Sheets, choose exact title matches first, fall back to the top relevant result when reasonable, and only ask a human-facing disambiguation question when multiple plausible names remain. A Balys response that asks the user for a file ID, document ID, spreadsheet ID, connector ID, or says "I need the ID" is a product bug.
 
 Connecting a connector should run the full Google account connection flow directly. The user should not need to understand a separate "authorize" step.
 
@@ -47,10 +50,12 @@ For Gmail, search results are only discovery metadata. If the user asks what an 
 - For Docs name/link requests: use `connectors.find_and_read_doc` so "leia o documento X" and pasted Docs URLs work in one intuitive step.
 - For `/docs` creation requests: use `connectors.create_doc` after drafting polished content in the user's language.
 - For `/planilhas`, `/sheets`: first tool should be Sheets discovery, sheet read, economist insight, or sheet edit depending on the request.
+- For Sheets name/link requests: pass the natural spreadsheet title or URL to the read/agent tool. If the model only has "Finance 2026", the tool layer must resolve that title internally instead of requiring a prior file ID.
 - For Sheets financial insight requests: use `connectors.sheets_agent` in analyze mode so the economist agent reads real sheet context and returns evidence-backed observations without modifying the sheet.
 - For `/drive`: first tool should be Drive discovery/read.
 - For `/gmail`: first tool should be Gmail search, followed by Gmail body read when content is requested.
 - Add a resolver that can map follow-ups like "o que tem em Victor - Career Profile" to the last `connectors.search_docs` result.
+- Add the same resolver behavior for Sheets follow-ups like "explica a Finance 2026" and "o que tem nessa planilha".
 - Prevent "which connector do you want?" when the palette action already identifies the domain and there is only one authorized connector of that type.
 
 ### Phase 2: Fix user-visible feedback

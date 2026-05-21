@@ -106,6 +106,38 @@ function extractGoogleFileId(value: string | null | undefined, allowRawId = fals
   return undefined;
 }
 
+function naturalNameFrom(value: string | null | undefined): string | undefined {
+  const text = (value || '').trim();
+  if (!text || extractGoogleFileId(text, true)) return undefined;
+  return text;
+}
+
+function isGenericSpreadsheetConnectorName(value: string | null | undefined): boolean {
+  const normalized = (value || '').trim().toLowerCase();
+  return !normalized || ['google sheets', 'sheets', 'planilhas', 'google planilhas'].includes(normalized);
+}
+
+async function findDriveFileByNaturalName(
+  auth: any,
+  connectorType: ConnectorType | undefined,
+  naturalName: string | undefined,
+): Promise<{ id: string; name?: string | null } | null> {
+  const query = naturalName?.trim();
+  if (!query) return null;
+
+  const drive = google.drive({ version: 'v3', auth });
+  const res = await drive.files.list({
+    q: buildDriveSearchQuery(query, mimeTypeForConnector(connectorType)),
+    pageSize: 10,
+    fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
+    orderBy: 'modifiedTime desc',
+  });
+  const files = res.data.files || [];
+  const exact = files.find((file) => (file.name || '').trim().toLowerCase() === query.toLowerCase());
+  const selected = exact || files[0];
+  return selected?.id ? { id: selected.id, name: selected.name } : null;
+}
+
 async function getConnectorRow(
   context: ToolContext,
   connectorId: string,
@@ -283,18 +315,21 @@ WHEN TO USE: user says "check my financial sheet", "what's in my spreadsheet", "
 
 CONTRACT:
 - connector_id: required. Get it from connectors.list — match by name, use the id.
-- file_id can be a spreadsheet id from discovery or a full Google Sheets URL pasted by the user.
+- file_id can be a spreadsheet id from discovery, a full Google Sheets URL, or the natural spreadsheet name the user typed.
+- spreadsheet_name is a user-facing title like "Finance 2026". Use it when the user names the sheet instead of giving a link.
 - range: A1 notation, e.g. "Sheet1!A1:D20". Defaults to first 100 rows if omitted.
 - Returns rows as arrays of cell values. Empty cells are empty strings.
 - Read-only. Never modifies the sheet.
+- Never ask the user for a spreadsheet ID. Resolve titles internally with Drive search, then read the selected spreadsheet.
 - If the connector is not connected, tell the user to open Connectors and click Connect account for this source.
 
-RETURNS receipt: { rows, row_count, sheet_title }`,
+RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name, pass the id.'),
-    file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs, or the full Google Sheets URL pasted by the user. Resolve internally; never ask the user for it.'),
+    file_id: z.string().optional().describe('Spreadsheet id returned by connectors.search_docs, full Google Sheets URL, or natural spreadsheet title/name. Resolve internally; never ask the user for it.'),
     spreadsheet_url: z.string().optional().describe('Full Google Sheets URL pasted by the user.'),
+    spreadsheet_name: z.string().optional().describe('Natural spreadsheet title/name, such as "Finance 2026". Use this instead of asking for a file id.'),
     range: z.string().optional().describe('A1 notation range, e.g. "Sheet1!A1:D50". Omit for first 100 rows of default sheet.'),
   }),
   call: async (args, context) => {
@@ -309,9 +344,18 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
     try {
       const sheets = google.sheets({ version: 'v4', auth });
 
-      const spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.spreadsheet_url) || extractGoogleFileId(config.spreadsheet_id, true);
+      let spreadsheetTitle: string | undefined;
+      let spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.spreadsheet_url) || extractGoogleFileId(config.spreadsheet_id, true);
       if (!spreadsheetId) {
-        return { ok: false, error: 'No spreadsheet selected. Search spreadsheets first with connectors.search_docs, then read the selected file.' };
+        const naturalName = args.spreadsheet_name
+          || naturalNameFrom(args.file_id)
+          || (!isGenericSpreadsheetConnectorName(connector?.name) ? connector?.name : undefined);
+        const found = await findDriveFileByNaturalName(auth, connector?.type, naturalName);
+        spreadsheetId = found?.id;
+        spreadsheetTitle = found?.name || naturalName;
+      }
+      if (!spreadsheetId) {
+        return { ok: false, error: 'I could not identify which spreadsheet to read. Search spreadsheets by name first, then read the matching result.' };
       }
 
       const range = args.range || 'A1:Z100';
@@ -324,6 +368,7 @@ RETURNS receipt: { rows, row_count, sheet_title }`,
           rows,
           row_count: rows.length,
           range: res.data.range,
+          spreadsheet_title: spreadsheetTitle,
         },
       };
     } catch (e: any) {
@@ -699,17 +744,21 @@ The Financial Economist Agent runs 3 phases automatically:
 
 CONTRACT:
 - connector_id: required. Get from connectors.list, match by name.
+- file_id can be an internal id, a pasted Google Sheets URL, or the natural spreadsheet name/title the user typed.
+- spreadsheet_name is a user-facing title like "Finance 2026". Prefer this over asking the user for any technical identifier.
 - task: describe what to do in plain language. Include specific values, row numbers, column names if known.
 - mode: use "analyze" for insights only, "edit" for requested writes, or omit for auto.
 - The agent handles layout, formatting intent, header preservation, formula input mode, and appending vs overwriting.
 - For financial insight requests, this tool should return insights without modifying the sheet.
+- Never ask the user for a spreadsheet ID. Resolve named spreadsheets internally with Drive search, then run the agent.
 - CONFIRM with the user before calling if the task is ambiguous or could cause data loss.
 
 RETURNS receipt: { summary, changes[], insights[] }`,
   isReadOnly: false,
   inputSchema: z.object({
     connector_id: z.string().describe('The connector id from connectors.list. Match by name.'),
-    file_id: z.string().optional().describe('Spreadsheet file id returned by connectors.search_docs. Resolve internally; never ask the user for it.'),
+    file_id: z.string().optional().describe('Spreadsheet id returned by connectors.search_docs, full Google Sheets URL, or natural spreadsheet title/name. Resolve internally; never ask the user for it.'),
+    spreadsheet_name: z.string().optional().describe('Natural spreadsheet title/name, such as "Finance 2026". Use this instead of asking for a file id.'),
     task: z.string().min(5).max(2000).describe('Plain-language description of what to do in the spreadsheet. Be specific about values, columns, and rows if known.'),
     mode: z.enum(['auto', 'analyze', 'edit']).optional().default('auto').describe('Use analyze for insights only, edit for sheet changes, auto when uncertain.'),
   }),
@@ -719,16 +768,19 @@ RETURNS receipt: { summary, changes[], insights[] }`,
     const auth = await getConnectedClient(linkedAccountId, context);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
-    const { data: connectorRow } = await context.supabase
-      .from('connectors')
-      .select('config')
-      .eq('id', args.connector_id)
-      .eq('user_id', context.user.id)
-      .maybeSingle();
+    const connectorRow = await getConnectorRow(context, args.connector_id);
 
-    const spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.task) || extractGoogleFileId(connectorRow?.config?.spreadsheet_id, true);
+    const config = configOf(connectorRow);
+    let spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.task) || extractGoogleFileId(config.spreadsheet_id, true);
     if (!spreadsheetId) {
-      return { ok: false, error: 'No spreadsheet selected. Pass a Google Sheets URL or search spreadsheets first with connectors.search_docs, then edit the selected file.' };
+      const naturalName = args.spreadsheet_name
+        || naturalNameFrom(args.file_id)
+        || (!isGenericSpreadsheetConnectorName(connectorRow?.name) ? connectorRow?.name : undefined);
+      const found = await findDriveFileByNaturalName(auth, connectorRow?.type, naturalName);
+      spreadsheetId = found?.id;
+    }
+    if (!spreadsheetId) {
+      return { ok: false, error: 'I could not identify which spreadsheet to use. Search spreadsheets by name first, then use the matching result.' };
     }
 
     const result = await runSheetsAgent({

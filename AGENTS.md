@@ -6,6 +6,8 @@ The Next.js application now lives in `flowme-app/`. Follow `flowme-app/AGENTS.md
 
 Balys connector behavior is product-critical. Before changing chat commands, connector tools, Google OAuth, Gmail/Docs/Sheets/Drive flows, or connector UI feedback, read `flowme-app/docs/connectors/README.md` and the connector-specific docs under `flowme-app/docs/connectors/`.
 
+Balys is built for non-technical end users. Connector work must never require users to know file IDs, document IDs, spreadsheet IDs, connector IDs, OAuth terms, or tool names; resolve natural names like "Finance 2026" internally through connector search and prior context.
+
 Production deployment files are split by responsibility:
 
 - `traefik/` reverse proxy and TLS entrypoint

@@ -11,8 +11,8 @@ Google Sheets work is handled by the Google Sheets Financial Economist Agent. Th
 1. Select the authorized `google_sheets` connector from shortcut metadata, user wording, or `connectors.list`.
 2. Use `connectors.search_docs` to list or search spreadsheet files.
 3. Resolve the spreadsheet by title and prior result context.
-4. Use `connectors.read_sheet` for simple range reads.
-5. Use `connectors.sheets_agent` with `mode: "analyze"` for financial insights, expense diagnosis, trends, variance analysis, or recommendations.
+4. Use `connectors.read_sheet` for simple range reads. The tool must accept a natural spreadsheet title, pasted URL, or resolved internal ID.
+5. Use `connectors.sheets_agent` with `mode: "analyze"` for financial insights, expense diagnosis, trends, variance analysis, or recommendations. The tool must accept a natural spreadsheet title, pasted URL, or resolved internal ID.
 6. Use `connectors.sheets_agent` with `mode: "edit"` for edits, formulas, row additions, cleanup, formatting-aware changes, and structural changes.
 
 ## Economist Agent Contract
@@ -27,6 +27,8 @@ Google Sheets work is handled by the Google Sheets Financial Economist Agent. Th
 
 - "/planilhas quais planilhas tem ai?"
 - "abre minha planilha de gastos"
+- "explica o que tem na Finance 2026"
+- "explain what is on Finance 2026"
 - "extrai os maiores custos do mes"
 - "me da insights sobre meus gastos nessa planilha"
 - "qual despesa esta ficando perigosa?"
@@ -37,7 +39,8 @@ Google Sheets work is handled by the Google Sheets Financial Economist Agent. Th
 
 - Connection form asks for type and display name only.
 - Chat bubble shows the selected Sheets shortcut/action after send.
-- Balys does not ask for spreadsheet URL, range, sheet ID, or connector ID unless the user wants a very specific range and did not provide enough human context.
+- Balys does not ask for spreadsheet URL, range, sheet ID, file ID, or connector ID unless the user wants a very specific range and did not provide enough human context.
+- A spreadsheet title like "Finance 2026" is sufficient. Resolve it internally with Drive search, exact-title match first, then the top relevant result if unambiguous.
 - For analysis, Balys uses the economist agent and reads real rows before answering.
 - For writes, Balys confirms destructive or ambiguous changes first.
 
@@ -46,5 +49,6 @@ Google Sheets work is handled by the Google Sheets Financial Economist Agent. Th
 - Empty search query lists recent spreadsheets.
 - `/planilhas` and `/sheets` both resolve to Sheets intent.
 - Follow-up by spreadsheet title reads the selected file.
+- Direct read/analyze by natural spreadsheet title resolves the internal file ID without asking the user.
 - Analysis answers are based on `connectors.sheets_agent` insight receipts or `connectors.read_sheet` receipts for simple ranges.
 - Edit tasks route to `connectors.sheets_agent` with the resolved file ID.

@@ -451,6 +451,75 @@ describe('Drive connector tools', () => {
     expect(result.receipt).toMatchObject({ row_count: 2 });
   });
 
+  it('resolves and reads a Google Sheet by natural title without asking for a file id', async () => {
+    mockDriveFilesList.mockResolvedValueOnce({
+      data: {
+        files: [
+          { id: 'sheet-other', name: 'Finance 2025', mimeType: 'application/vnd.google-apps.spreadsheet' },
+          { id: 'sheet-2026', name: 'Finance 2026', mimeType: 'application/vnd.google-apps.spreadsheet' },
+        ],
+      },
+    });
+    mockSheetsValuesGet.mockResolvedValueOnce({
+      data: { range: 'Sheet1!A1:B2', values: [['Month', 'Spend'], ['May', '100']] },
+    });
+    const context = makeContext({
+      id: 'conn-sheets',
+      name: 'Google Sheets',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsReadSheetTool.call({
+      connector_id: 'conn-sheets',
+      spreadsheet_name: 'Finance 2026',
+      range: 'Sheet1!A1:B2',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockDriveFilesList.mock.calls[0][0].q).toContain("mimeType = 'application/vnd.google-apps.spreadsheet'");
+    expect(mockDriveFilesList.mock.calls[0][0].q).toContain("name contains 'Finance 2026'");
+    expect(mockSheetsValuesGet).toHaveBeenCalledWith({ spreadsheetId: 'sheet-2026', range: 'Sheet1!A1:B2' });
+    expect(result.receipt).toMatchObject({ row_count: 2, spreadsheet_title: 'Finance 2026' });
+  });
+
+  it('runs the Sheets agent against a spreadsheet resolved by natural title', async () => {
+    mockDriveFilesList.mockResolvedValueOnce({
+      data: {
+        files: [
+          { id: 'sheet-2026', name: 'Finance 2026', mimeType: 'application/vnd.google-apps.spreadsheet' },
+        ],
+      },
+    });
+    mockRunSheetsAgent.mockResolvedValueOnce({
+      ok: true,
+      summary: 'analysis done',
+      changes: [],
+      insights: [{ title: 'Spend', evidence: 'May spend is 100' }],
+    });
+    const context = makeContext({
+      id: 'conn-sheets',
+      name: 'Google Sheets',
+      type: 'google_sheets',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsSheetsAgentTool.call({
+      connector_id: 'conn-sheets',
+      spreadsheet_name: 'Finance 2026',
+      task: 'Explain what is in Finance 2026',
+      mode: 'analyze',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(mockRunSheetsAgent).toHaveBeenCalledWith(expect.objectContaining({
+      spreadsheetId: 'sheet-2026',
+      mode: 'analyze',
+    }));
+  });
+
   it('passes selected file ids to Docs and Sheets editing agents', async () => {
     mockRunDocsAgent.mockResolvedValueOnce({ ok: true, summary: 'doc edited', changes: [{ description: 'changed' }] });
     mockRunSheetsAgent.mockResolvedValueOnce({ ok: true, summary: 'sheet edited', changes: [{ range: 'A1', description: 'changed' }] });

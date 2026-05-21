@@ -69,4 +69,74 @@ describe('gmail connector tools', () => {
     expect(result.ok).toBe(true);
     expect(readEmailMessage).toHaveBeenCalledWith('linked-account-1', 'm1', context);
   });
+
+  it('resolves and reads a Gmail follow-up by natural sender and subject', async () => {
+    const context = makeContext();
+    (searchEmails as jest.Mock).mockResolvedValueOnce([
+      {
+        id: 'm-pedro',
+        threadId: 't-pedro',
+        snippet: 'Aula tres comecou',
+        subject: '🔴 [AULA 3] COMEÇOU!',
+        from: 'Pedro Sobral <pedro@example.com>',
+        date: 'Wed, 20 May 2026 10:00:00 -0300',
+      },
+      {
+        id: 'm-other',
+        threadId: 't-other',
+        snippet: 'Other',
+        subject: 'Other subject',
+        from: 'Other <other@example.com>',
+        date: 'Wed, 20 May 2026 11:00:00 -0300',
+      },
+    ]);
+
+    const result = await gmailReadMessageTool.call({
+      sender: 'Pedro Sobral',
+      subject: 'AULA 3 COMEÇOU',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(searchEmails).toHaveBeenCalledWith(
+      'linked-account-1',
+      expect.stringContaining('Pedro Sobral'),
+      10,
+      context,
+    );
+    expect(searchEmails).toHaveBeenCalledWith(
+      'linked-account-1',
+      expect.stringContaining('subject:'),
+      10,
+      context,
+    );
+    expect(readEmailMessage).toHaveBeenCalledWith('linked-account-1', 'm-pedro', context);
+  });
+
+  it('asks for human-facing disambiguation when sender-only Gmail follow-up matches multiple messages', async () => {
+    const context = makeContext();
+    (searchEmails as jest.Mock).mockResolvedValueOnce([
+      {
+        id: 'm-pedro-1',
+        threadId: 't-pedro-1',
+        snippet: 'Aula tres comecou',
+        subject: '🔴 [AULA 3] COMEÇOU!',
+        from: 'Pedro Sobral <pedro@example.com>',
+        date: 'Wed, 20 May 2026 10:00:00 -0300',
+      },
+      {
+        id: 'm-pedro-2',
+        threadId: 't-pedro-2',
+        snippet: 'Falta uma hora',
+        subject: '⏰ FALTA 1H: Google Ads que Funciona',
+        from: 'Pedro Sobral <pedro@example.com>',
+        date: 'Wed, 20 May 2026 09:00:00 -0300',
+      },
+    ]);
+
+    const result = await gmailReadMessageTool.call({ sender: 'Pedro Sobral' }, context);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Multiple emails match');
+    expect(readEmailMessage).not.toHaveBeenCalled();
+  });
 });

@@ -12,6 +12,8 @@ The Gmail connector lets Balys find emails, open a specific email body, extract 
 4. Use `gmail.read_message` before answering any question about the message body.
 5. Use `gmail.create_draft` only for drafts. Balys never sends email.
 
+Follow-ups must preserve the previous result context. If Balys just listed "From Pedro Sobral, titled X" and the user asks "what is in Pedro Sobral?" or quotes that line back, Balys must read that selected message by internal id when available, or by natural sender/subject. It must not run a fresh narrower search that can return zero and contradict the message it already showed.
+
 ## Body Read Contract
 
 `gmail.read_message` must return:
@@ -38,6 +40,7 @@ The UI and Balys response must never show Gmail IDs.
 ## Failure Rules
 
 - If search returns multiple plausible emails, ask by sender/subject/date, not by ID.
+- If a prior result exists, do not say "I could not find it" until the body-read path has tried the prior message id or natural sender/subject from that result.
 - If Gmail is connected in the UI but the tool cannot refresh the token, say the Google authorization failed and ask the user to reconnect only after the backend confirms the token was rejected or missing.
 - If only snippets are available, do not pretend to know the full body.
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
-import { searchEmails, createDraft, readEmailMessage } from '@/lib/google/google-gmail';
+import { searchEmails, createDraft, readEmailMessage, GmailMessageSummary } from '@/lib/google/google-gmail';
 import { google } from 'googleapis';
 import { getValidGoogleToken } from '@/lib/google/google-auth';
 import { runSheetsAgent } from '@/lib/ai/agents/sheets-agent';
@@ -24,6 +24,14 @@ type ConnectorRow = {
 };
 
 type ConnectorConnectionStatus = 'connected' | 'needs_connection' | 'needs_reconnect';
+
+type GmailReadSelector = {
+  message_id?: string;
+  sender?: string;
+  subject?: string;
+  query?: string;
+  hint?: string;
+};
 
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const GOOGLE_SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
@@ -115,6 +123,74 @@ function naturalNameFrom(value: string | null | undefined): string | undefined {
 function isGenericSpreadsheetConnectorName(value: string | null | undefined): boolean {
   const normalized = (value || '').trim().toLowerCase();
   return !normalized || ['google sheets', 'sheets', 'planilhas', 'google planilhas'].includes(normalized);
+}
+
+function normalizeLookupText(value: string | null | undefined): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}@._+-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function quoteGmailSearchTerm(value: string): string {
+  return `"${value.trim().replace(/["\\]/g, ' ')}"`;
+}
+
+function buildGmailReadQuery(args: GmailReadSelector): string {
+  const explicitQuery = args.query?.trim();
+  if (explicitQuery) return explicitQuery;
+
+  const parts: string[] = [];
+  const sender = args.sender?.trim();
+  const subject = args.subject?.trim();
+  const hint = args.hint?.trim();
+
+  if (sender) parts.push(quoteGmailSearchTerm(sender));
+  if (subject) parts.push(`subject:${quoteGmailSearchTerm(subject)}`);
+  if (!sender && !subject && hint) parts.push(hint);
+
+  return parts.join(' ').trim();
+}
+
+function scoreGmailCandidate(message: GmailMessageSummary, args: GmailReadSelector): number {
+  const from = normalizeLookupText(message.from);
+  const subject = normalizeLookupText(message.subject);
+  const snippet = normalizeLookupText(message.snippet);
+  const sender = normalizeLookupText(args.sender);
+  const requestedSubject = normalizeLookupText(args.subject);
+  const hint = normalizeLookupText(args.hint || args.query);
+
+  let score = 0;
+  if (sender && from.includes(sender)) score += 8;
+  if (requestedSubject && subject === requestedSubject) score += 12;
+  else if (requestedSubject && subject.includes(requestedSubject)) score += 10;
+  else if (requestedSubject && requestedSubject.includes(subject)) score += 6;
+  if (hint && (subject.includes(hint) || from.includes(hint) || snippet.includes(hint))) score += 3;
+  return score;
+}
+
+function pickGmailCandidate(messages: GmailMessageSummary[], args: GmailReadSelector): { selected: GmailMessageSummary | null; ambiguous: GmailMessageSummary[] } {
+  if (messages.length === 0) return { selected: null, ambiguous: [] };
+
+  const scored = messages
+    .map((message, index) => ({ message, score: scoreGmailCandidate(message, args), index }))
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const top = scored[0];
+  if ((args.sender || args.subject || args.hint) && top.score === 0) {
+    return { selected: null, ambiguous: messages.slice(0, 5) };
+  }
+
+  const subjectRequested = Boolean(args.subject?.trim());
+  const hasTie = scored.length > 1 && scored[1].score === top.score && top.score > 0;
+  if (!subjectRequested && hasTie) {
+    return { selected: null, ambiguous: scored.filter((item) => item.score === top.score).map((item) => item.message).slice(0, 5) };
+  }
+
+  return { selected: top.message, ambiguous: [] };
 }
 
 async function findDriveFileByNaturalName(
@@ -924,6 +1000,8 @@ export const gmailSearchMessagesTool = defineTool({
 
 WHEN TO USE: user says "find emails from…", "did Anna reply about…", "show me unread invoices", "what did marketing send last week"; or you need recent context before drafting a reply.
 
+DO NOT USE: when the user asks about a message that was already listed in this conversation, like "what is in the Pedro Sobral one?" or quotes a subject you already showed. In that case call gmail.read_message with the known message_id if available, or with natural sender/subject fields so the tool resolves and opens the message.
+
 CONTRACT:
 - query uses Gmail's native operators: from:, to:, subject:, has:attachment, is:unread, after:YYYY/MM/DD, label:inbox, etc. Plain text also works as full-text search.
 - For relative dates, translate to absolute first (today is in context.nowIso) — Gmail does not understand "yesterday".
@@ -965,10 +1043,13 @@ export const gmailReadMessageTool = defineTool({
   name: 'gmail.read_message',
   description: `Reads the full body of a selected Gmail message. Read-only — does not mark, archive, reply, or modify anything.
 
-WHEN TO USE: after gmail.search_messages returns candidate messages and the user asks what an email says, why someone replied, what the main point is, or asks for a reply based on a specific email.
+WHEN TO USE: after gmail.search_messages returns candidate messages and the user asks what an email says, why someone replied, what the main point is, or asks for a reply based on a specific email. Also use this directly for follow-ups that refer to a message you just listed, even if you only have the sender or subject in conversation context.
 
 CONTRACT:
 - message_id is the internal Gmail id from gmail.search_messages. Never ask the user for it and never show it.
+- If message_id is not available, pass sender, subject, query, or hint from the user's natural language or from the previous visible search result. The tool will search and resolve the best matching message internally before reading.
+- If the user quotes your previous list item, extract the sender and subject from that quote and call this tool. Do not run a narrower search that can contradict the previous result.
+- If multiple messages are genuinely plausible and no subject was supplied, ask the user to choose by sender/subject/date, never by ID.
 - This is required before answering questions about email body content.
 - Prefer body_text for summaries and insights. body_html is sanitized and only present when Gmail returned HTML.
 
@@ -978,14 +1059,49 @@ RETURNS receipt: { message }. The message includes subject, from, to, date, body
 - If the read fails, say Gmail could not open the message instead of guessing from the snippet.`,
   isReadOnly: true,
   inputSchema: z.object({
-    message_id: z.string().describe('Internal Gmail message id returned by gmail.search_messages. Resolve internally; never ask the user for it.'),
-  }),
+    message_id: z.string().optional().describe('Internal Gmail message id returned by gmail.search_messages. Resolve internally; never ask the user for it.'),
+    sender: z.string().optional().describe('Natural sender/display name or email from a prior result, such as "Pedro Sobral". Use for follow-ups when message_id is not available.'),
+    subject: z.string().optional().describe('Natural email subject or visible subject fragment, such as "AULA 3 COMEÇOU". Use for follow-ups when message_id is not available.'),
+    query: z.string().optional().describe('Gmail search expression to resolve the message before reading. Do not include relative dates unless the user explicitly asked for that date.'),
+    hint: z.string().optional().describe('Quoted text, snippet, or visible list line from the conversation that helps resolve the email.'),
+  }).refine(
+    (args) => Boolean(args.message_id?.trim() || args.sender?.trim() || args.subject?.trim() || args.query?.trim() || args.hint?.trim()),
+    'Provide message_id or a natural selector such as sender, subject, query, or hint.',
+  ),
   call: async (args, context) => {
     const accountId = await getGoogleAccountId(context);
     if (!accountId) return { ok: false, error: 'No active Google account connected.' };
     try {
-      const message = await readEmailMessage(accountId, args.message_id, context);
-      return { ok: true, receipt: { message } };
+      let messageId = args.message_id?.trim();
+      let resolvedFrom: { subject: string; from: string; date: string } | undefined;
+
+      if (!messageId) {
+        const query = buildGmailReadQuery(args);
+        if (!query) return { ok: false, error: 'No email selected. Use the sender or subject from the previous email list.' };
+
+        const candidates = await searchEmails(accountId, query, 10, context);
+        const picked = pickGmailCandidate(candidates, args);
+        if (!picked.selected) {
+          if (picked.ambiguous.length > 1) {
+            return {
+              ok: false,
+              error: 'Multiple emails match that description. Ask the user to choose by subject or date, not by ID.',
+              receipt: { candidates: picked.ambiguous.map(({ subject, from, date }) => ({ subject, from, date })) },
+            };
+          }
+          return { ok: false, error: 'I could not find that email from the sender or subject in the previous result. Ask the user for the sender, subject, or date in plain language.' };
+        }
+
+        messageId = picked.selected.id;
+        resolvedFrom = {
+          subject: picked.selected.subject,
+          from: picked.selected.from,
+          date: picked.selected.date,
+        };
+      }
+
+      const message = await readEmailMessage(accountId, messageId, context);
+      return { ok: true, receipt: { message, resolved_from: resolvedFrom } };
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
       const errCode = e?.response?.data?.error?.code || e?.code;

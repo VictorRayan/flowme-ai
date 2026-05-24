@@ -50,6 +50,40 @@ const CHANNELS: ReminderChannelPreference[] = ['default', 'whatsapp', 'instagram
 const STATUSES: ReminderStatus[] = ['scheduled', 'sent', 'cancelled', 'failed'];
 const CREATORS: ReminderCreatedBy[] = ['balys', 'user', 'system'];
 
+function timezoneOffsetMs(timezone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  }
+  const hour = map.hour === '24' ? 0 : parseInt(map.hour, 10);
+  const localUtc = Date.UTC(parseInt(map.year, 10), parseInt(map.month, 10) - 1, parseInt(map.day, 10), hour, parseInt(map.minute, 10), parseInt(map.second, 10));
+  return localUtc - date.getTime();
+}
+
+// When the model passes a wall-clock time with `Z` (UTC) but also says the user
+// is in a non-UTC timezone, treat the wall-clock as the user's local time —
+// "10:00" + tz "America/Sao_Paulo" should fire at 10 BRT, not 10 UTC.
+export function normalizeScheduledFor(scheduledFor: string, timezone: string | undefined): string {
+  const parsed = new Date(scheduledFor);
+  if (Number.isNaN(parsed.getTime())) return scheduledFor;
+  if (!timezone || timezone === 'UTC') return parsed.toISOString();
+  const looksLikeUtc = /Z$|[+-]00:?00$/.test(scheduledFor.trim());
+  if (!looksLikeUtc) return parsed.toISOString();
+  try {
+    const offset = timezoneOffsetMs(timezone, parsed);
+    if (offset === 0) return parsed.toISOString();
+    return new Date(parsed.getTime() - offset).toISOString();
+  } catch {
+    return parsed.toISOString();
+  }
+}
+
 export function validateReminderInput(input: CreateReminderInput): string | null {
   if (!input.message?.trim()) return 'message is required';
   if (input.message.trim().length > 1000) return 'message must be at most 1000 characters';
@@ -75,12 +109,13 @@ export async function createReminder(
   const validationError = validateReminderInput(input);
   if (validationError) throw new Error(validationError);
 
+  const timezone = input.timezone?.trim() || 'UTC';
   const values = {
     user_id: userId,
     title: input.title?.trim() || null,
     message: input.message.trim(),
-    scheduled_for: new Date(input.scheduled_for).toISOString(),
-    timezone: input.timezone?.trim() || 'UTC',
+    scheduled_for: normalizeScheduledFor(input.scheduled_for, timezone),
+    timezone,
     channel_preference: input.channel_preference || 'default',
     source_type: input.source?.type || null,
     source_provider: input.source?.provider || null,
@@ -134,12 +169,12 @@ export async function updateReminder(
     if (!values.message.trim()) throw new Error('message is required');
     patch.message = values.message.trim();
   }
+  if (values.timezone !== undefined) patch.timezone = values.timezone?.trim() || 'UTC';
   if (values.scheduled_for !== undefined) {
     const scheduledFor = new Date(values.scheduled_for);
     if (Number.isNaN(scheduledFor.getTime())) throw new Error('scheduled_for must be a valid ISO datetime');
-    patch.scheduled_for = scheduledFor.toISOString();
+    patch.scheduled_for = normalizeScheduledFor(values.scheduled_for, (patch.timezone as string | undefined) || undefined);
   }
-  if (values.timezone !== undefined) patch.timezone = values.timezone?.trim() || 'UTC';
   if (values.channel_preference !== undefined) {
     if (!CHANNELS.includes(values.channel_preference)) throw new Error('channel_preference is invalid');
     patch.channel_preference = values.channel_preference;

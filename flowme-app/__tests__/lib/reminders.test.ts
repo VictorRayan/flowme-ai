@@ -1,5 +1,5 @@
 import { resolveReminderProvider, providerLabel } from '@/lib/reminders/providers';
-import { createReminder, sendDueReminders, validateReminderInput } from '@/lib/reminders/reminders';
+import { createReminder, normalizeScheduledFor, sendDueReminders, validateReminderInput } from '@/lib/reminders/reminders';
 import { sendText } from '@/lib/whatsapp/evolution-client';
 
 jest.mock('@/lib/whatsapp/evolution-client', () => ({
@@ -66,6 +66,20 @@ describe('validateReminderInput', () => {
   it('rejects invalid reminder payloads', () => {
     expect(validateReminderInput({ message: '', scheduled_for: '2026-05-20T10:00:00Z' })).toBe('message is required');
     expect(validateReminderInput({ message: 'Oi', scheduled_for: 'not-a-date' })).toBe('scheduled_for must be a valid ISO datetime');
+  });
+});
+
+describe('normalizeScheduledFor', () => {
+  it('reinterprets a Z-suffixed wall-clock as local time in a non-UTC timezone', () => {
+    expect(normalizeScheduledFor('2026-05-25T10:00:00Z', 'America/Sao_Paulo')).toBe('2026-05-25T13:00:00.000Z');
+  });
+
+  it('leaves explicit offsets untouched', () => {
+    expect(normalizeScheduledFor('2026-05-25T10:00:00-03:00', 'America/Sao_Paulo')).toBe('2026-05-25T13:00:00.000Z');
+  });
+
+  it('keeps UTC as UTC when timezone is UTC', () => {
+    expect(normalizeScheduledFor('2026-05-25T10:00:00Z', 'UTC')).toBe('2026-05-25T10:00:00.000Z');
   });
 });
 

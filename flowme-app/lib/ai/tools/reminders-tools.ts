@@ -20,8 +20,10 @@ WHEN TO USE: user says "me lembre...", "remind me...", "avise-me...", or asks fo
 
 REQUIRED INFORMATION — NEVER CALL THIS TOOL UNTIL YOU HAVE ALL OF IT:
 - **message**: a short, clear notification body (e.g. "Escovar os dentes"). Infer it from the user's request when obvious ("me lembre de escovar os dentes" → "Escovar os dentes"). If you cannot infer it confidently, ASK the user before calling this tool.
-- **scheduled_for**: a full ISO 8601 datetime with the user's timezone offset. You MUST resolve relative phrases ("amanhã", "tomorrow", "next Monday", "daqui 2 horas") using the "Current local date/time" provided in your system prompt, in the user's timezone. If only the date is given but no time of day, ASK the user what time (e.g. "Que horas amanhã?"). NEVER guess a default time.
-- **timezone**: pass the IANA timezone you used to resolve scheduled_for (e.g. "America/Sao_Paulo"). When unsure, use the timezone provided in the system prompt's "Current local date/time" line.
+- **scheduled_for**: a full ISO 8601 datetime carrying the user's timezone offset, NOT \`Z\`/UTC. You MUST resolve relative phrases ("amanhã", "tomorrow", "next Monday", "daqui 2 horas") using the "Current local date/time" in your system prompt, in the user's timezone. If only the date is given but no time of day, ASK the user what time (e.g. "Que horas amanhã?"). NEVER guess a default time.
+  - Correct: \`"2026-05-25T10:00:00-03:00"\` when the user said "amanhã às 10 da manhã" in São Paulo.
+  - WRONG: \`"2026-05-25T10:00:00Z"\` — that fires at 7 AM in São Paulo, not 10 AM.
+- **timezone**: pass the IANA timezone you used to resolve scheduled_for (e.g. "America/Sao_Paulo"). When unsure, use the timezone provided in the system prompt's "Current local date/time" line. Always pair this with a matching offset in scheduled_for.
 
 DO NOT call this tool with placeholder, empty, or undefined values. If anything is missing, ask the user one short clarifying question and stop.
 

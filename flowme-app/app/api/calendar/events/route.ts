@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,8 +36,10 @@ export async function GET(req: NextRequest) {
       accountsQuery = accountsQuery.in('type', accountTypes);
     }
 
-    const { data: accounts, error: aError } = await accountsQuery;
+    const { data: allAccounts, error: aError } = await accountsQuery;
     if (aError) throw aError;
+
+    const accounts = (allAccounts || []).filter((account: any) => isCalendarLinkedAccountName(account.name));
 
     const events: any[] = [];
 

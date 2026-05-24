@@ -4,6 +4,7 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { buildDayUnit, normalizeCalendarEventTask } from '@/lib/goals/task-dto';
 import { listEventOutcomes } from '@/lib/today/event-outcomes';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,9 +31,11 @@ export async function GET(req: NextRequest) {
     const byDate: Record<string, any[]> = {};
     for (const date of dates) byDate[date] = [];
 
-    const { data: accounts } = await supabase
+    const { data: allAccounts } = await supabase
       .from('linked_accounts').select('id, name, type, provider')
       .eq('user_id', user.id).eq('is_active', true).eq('is_deleted', false).eq('provider', 'google');
+
+    const accounts = (allAccounts || []).filter((account: any) => isCalendarLinkedAccountName(account.name));
 
     const collectedEventIds: string[] = [];
     if (accounts && accounts.length > 0) {

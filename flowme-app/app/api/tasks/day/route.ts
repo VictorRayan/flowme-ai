@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { buildDayUnit, normalizeCalendarEventTask } from '@/lib/goals/task-dto';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     if (includeGoogleEvents) {
       const { start, end } = getLocalDayBounds(date, timezone);
-      const { data: accounts, error: accountsError } = await supabase
+      const { data: allAccounts, error: accountsError } = await supabase
         .from('linked_accounts')
         .select('id, name, type, provider')
         .eq('user_id', user.id)
@@ -33,7 +34,9 @@ export async function GET(req: NextRequest) {
 
       if (accountsError) throw accountsError;
 
-      for (const account of accounts || []) {
+      const accounts = (allAccounts || []).filter((account: any) => isCalendarLinkedAccountName(account.name));
+
+      for (const account of accounts) {
         try {
           const events = await getCalendarEvents(account.id, start.toISOString(), end.toISOString());
           for (const event of events) {

@@ -16,6 +16,7 @@ import FilterPanel, { FilterState } from '@/components/calendar/FilterPanel';
 import DayDetailPanel from '@/components/calendar/DayDetailPanel';
 import LinkAccountModal from '@/components/calendar/LinkAccountModal';
 import EventEditorModal from '@/components/calendar/EventEditorModal';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 import { CalendarEvent } from '@/components/calendar/types';
 import { buildEventMoveRequest, buildMovedEventTimes } from '@/lib/calendar/event-move';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
@@ -61,10 +62,11 @@ export default function CalendarPage() {
       const res = await fetch('/api/linked-accounts');
       const data = await res.json();
       if (data.ok) {
-        setLinkedAccounts(data.accounts || []);
+        const calendarAccounts = (data.accounts || []).filter((a: any) => isCalendarLinkedAccountName(a.name));
+        setLinkedAccounts(calendarAccounts);
         setFilters(prev => ({
           ...prev,
-          accountIds: data.accounts.map((a: any) => a.id),
+          accountIds: calendarAccounts.map((a: any) => a.id),
         }));
       }
     } catch (err) {

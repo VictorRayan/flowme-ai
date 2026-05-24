@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { buildDayUnit, normalizeCalendarEventTask } from '@/lib/goals/task-dto';
+import { listEventOutcomes } from '@/lib/today/event-outcomes';
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
       .from('linked_accounts').select('id, name, type, provider')
       .eq('user_id', user.id).eq('is_active', true).eq('is_deleted', false).eq('provider', 'google');
 
+    const collectedEventIds: string[] = [];
     if (accounts && accounts.length > 0) {
       const startIso = new Date(`${from}T00:00:00.000Z`).toISOString();
       const endIso   = new Date(`${to}T23:59:59.000Z`).toISOString();
@@ -44,9 +46,11 @@ export async function GET(req: NextRequest) {
             if (!startAt) continue;
             const date = startAt.slice(0, 10);
             if (!byDate[date]) continue;
+            const taskId = e.id || `${account.id}:${startAt}`;
+            collectedEventIds.push(taskId);
             byDate[date].push({
               ...normalizeCalendarEventTask({
-                id: e.id || `${account.id}:${startAt}`,
+                id: taskId,
                 provider_event_id: e.id || null,
                 linked_account_id: account.id,
                 title: e.summary || 'Untitled Event',
@@ -59,6 +63,19 @@ export async function GET(req: NextRequest) {
           }
         } catch { /* skip failed account */ }
       }));
+    }
+
+    const outcomeMap = await listEventOutcomes(supabase as any, user.id, collectedEventIds);
+    for (const date of dates) {
+      byDate[date] = byDate[date].map((task: any) => {
+        const stored = outcomeMap.get(task.task_id);
+        if (!stored) return task;
+        return {
+          ...task,
+          outcome: stored.outcome,
+          outcome_reason: stored.outcome_reason ?? task.outcome_reason ?? null,
+        };
+      });
     }
 
     const days = dates.map(date => buildDayUnit(date, timezone, byDate[date] || []));

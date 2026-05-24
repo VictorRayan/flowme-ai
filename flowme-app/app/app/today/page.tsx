@@ -139,7 +139,6 @@ export default function TodayPage() {
 
   // Optimistic update: patch state immediately, sync in background
   const update = async (task: NormalizedTask, body: Record<string,unknown>) => {
-    if (task.source_type === 'calendar_event') return;
     setSaving(task.task_id);
 
     // Apply optimistically
@@ -150,22 +149,40 @@ export default function TodayPage() {
       summary: recount(d.tasks.map(t => t.task_id === task.task_id ? { ...t, outcome: newOutcome as TaskOutcome } : t)),
     })));
 
+    const rollback = () => setDays(prev => prev.map(d => ({
+      ...d,
+      tasks: d.tasks.map(t => t.task_id === task.task_id ? task : t),
+      summary: recount(d.tasks.map(t => t.task_id === task.task_id ? task : t)),
+    })));
+
     try {
-      const r = await fetch(`/api/tasks/${task.source_id}`, {
-        method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body),
-      });
-      const j = await r.json();
-      if (!r.ok||!j.ok) {
-        // Rollback on failure
-        setDays(prev => prev.map(d => ({
-          ...d,
-          tasks: d.tasks.map(t => t.task_id === task.task_id ? task : t),
-          summary: recount(d.tasks.map(t => t.task_id === task.task_id ? task : t)),
-        })));
+      let r: Response;
+      if (task.source_type === 'calendar_event') {
+        const url = `/api/calendar/events/${encodeURIComponent(task.task_id)}/outcome`;
+        if (newOutcome === 'pending') {
+          r = await fetch(url, { method: 'DELETE' });
+        } else {
+          r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ outcome: newOutcome, outcome_reason: body.outcome_reason ?? null }),
+          });
+        }
+      } else {
+        r = await fetch(`/api/tasks/${task.source_id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+      }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        rollback();
         throw new Error(j.error?.message || j.error?.code || `HTTP ${r.status}`);
       }
-    } catch(e) { setError(e instanceof Error ? e.message : 'Failed to update task'); }
-    finally    { setSaving(null); }
+    } catch(e) {
+      setError(e instanceof Error ? e.message : 'Failed to update task');
+    } finally {
+      setSaving(null);
+    }
   };
 
   const moveTo = async (task: NormalizedTask, to: string) => {
@@ -394,7 +411,7 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
   uiLang: UiLang;
 }) {
   const [open, setOpen] = useState(false);
-  const readonly = task.source_type === 'calendar_event';
+  const isCalendarEvent = task.source_type === 'calendar_event';
   const done     = task.outcome === 'completed';
   const skipped  = task.outcome === 'skipped' || task.outcome === 'moved';
   const blocked  = task.outcome === 'blocked'  || task.outcome === 'deferred';
@@ -501,23 +518,23 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
               </Box>
             )}
 
-            {!readonly && (
-              <Stack direction="row" spacing={0.5} sx={{mt:1,flexWrap:'wrap'}}>
-                {done ? (
-                  <ABtn color="#94a3b8" icon={<RadioButtonUncheckedIcon sx={{fontSize:13}}/>} label={t.undo}
-                    onClick={()=>{onUndo();setOpen(false);}} disabled={saving}/>
-                ) : (
-                  <>
-                    <ABtn color="#22c55e" icon={<CheckCircleIcon sx={{fontSize:13}}/>} label={t.done}
-                      onClick={()=>{onDone();setOpen(false);}} disabled={saving}/>
+            <Stack direction="row" spacing={0.5} sx={{mt:1,flexWrap:'wrap'}}>
+              {done ? (
+                <ABtn color="#94a3b8" icon={<RadioButtonUncheckedIcon sx={{fontSize:13}}/>} label={t.undo}
+                  onClick={()=>{onUndo();setOpen(false);}} disabled={saving}/>
+              ) : (
+                <>
+                  <ABtn color="#22c55e" icon={<CheckCircleIcon sx={{fontSize:13}}/>} label={t.done}
+                    onClick={()=>{onDone();setOpen(false);}} disabled={saving}/>
+                  {!isCalendarEvent && (
                     <ABtn color="#a78bfa" icon={<SkipNextIcon sx={{fontSize:13}}/>} label={t.tomorrow}
                       onClick={()=>{onMove();setOpen(false);}} disabled={saving}/>
-                    <ABtn color="#f97316" icon={<BlockIcon sx={{fontSize:13}}/>} label={t.skip}
-                      onClick={()=>{onSkip();setOpen(false);}} disabled={saving}/>
-                  </>
-                )}
-              </Stack>
-            )}
+                  )}
+                  <ABtn color="#f97316" icon={<BlockIcon sx={{fontSize:13}}/>} label={t.skip}
+                    onClick={()=>{onSkip();setOpen(false);}} disabled={saving}/>
+                </>
+              )}
+            </Stack>
           </Box>
         </>
       )}

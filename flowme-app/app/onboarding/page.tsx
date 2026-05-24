@@ -109,6 +109,8 @@ type ProposalData = {
   annual_smart_goal: string;
   monthly_milestone: string;
   weekly_routine: string;
+  preferred_time?: string;
+  default_task_duration_minutes?: number;
 };
 
 export default function OnboardingWizard() {

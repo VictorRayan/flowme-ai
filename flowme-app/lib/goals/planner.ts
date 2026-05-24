@@ -315,15 +315,16 @@ function extractRoutineTasks(weeklyRoutine: string, defaultDuration: number, col
 
 // Detects "14h às 17h", "14:00-17:00", "2pm to 5pm" — returns the start time
 // and the total block duration so we book one calendar event per day, not
-// N stacked 15-min blocks.
+// N stacked 15-min blocks. Also catches a single start time paired with a
+// duration ("às 9h durante 1 hora").
 export function extractTimeRange(text: string): { startTime: string; endTime: string; durationMin: number } | null {
   const normalized = text.toLowerCase();
-  const patterns: RegExp[] = [
+  const rangePatterns: RegExp[] = [
     /\b(\d{1,2})(?::(\d{2}))?\s*h(?:oras?)?\s*(?:[àa]s?|at[ée]|to|-|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*h(?:oras?)?\b/,
     /\b(\d{1,2}):(\d{2})\s*(?:[àa]s?|at[ée]|to|-|–|—)\s*(\d{1,2}):(\d{2})\b/,
     /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*(?:to|-|–|—|at[ée])\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/,
   ];
-  for (const pattern of patterns) {
+  for (const pattern of rangePatterns) {
     const match = normalized.match(pattern);
     if (!match) continue;
     const isAmPmPattern = pattern.source.includes('am|pm');
@@ -353,6 +354,31 @@ export function extractTimeRange(text: string): { startTime: string; endTime: st
     const endTotal = endHour * 60 + endMin;
     const durationMin = endTotal - startTotal;
     if (durationMin <= 0 || durationMin > 24 * 60) continue;
+    return {
+      startTime: `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
+      endTime: `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`,
+      durationMin,
+    };
+  }
+
+  // Fallback: a single start time paired with an explicit duration that
+  // appears as "durante/por/for X (minutes|hours)" or "X (minutes|hours) por dia".
+  const startMatch = normalized.match(/\b(?:[àa]s?\s+)?(\d{1,2})(?::(\d{2}))?\s*(h|hs|h(?:oras?)?|am|pm)\b/);
+  const durationMatch = normalized.match(/\b(?:durante|por|for|de)\s+(\d{1,3})\s*(min|mins|minute|minutes|minuto|minutos|h|hr|hrs|hour|hours|hora|horas)\b/);
+  const durationMin = durationMatch
+    ? (durationMatch[2].toLowerCase().startsWith('h') ? Number(durationMatch[1]) * 60 : Number(durationMatch[1]))
+    : null;
+  if (startMatch && durationMin !== null && durationMin > 0) {
+    let startHour = parseInt(startMatch[1], 10);
+    const startMin = startMatch[2] ? parseInt(startMatch[2], 10) : 0;
+    const suffix = startMatch[3];
+    if (suffix === 'pm' && startHour < 12) startHour += 12;
+    if (suffix === 'am' && startHour === 12) startHour = 0;
+    if (startHour > 23 || startMin > 59) return null;
+    const startTotal = startHour * 60 + startMin;
+    const endTotal = startTotal + durationMin;
+    const endHour = Math.floor(endTotal / 60) % 24;
+    const endMin = endTotal % 60;
     return {
       startTime: `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
       endTime: `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`,

@@ -162,6 +162,21 @@ describe('buildGoalOperatingPlan', () => {
     }
   });
 
+  it('books a per-day block from a single start time plus an explicit duration', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Aprender Clean Architecture ate dezembro',
+      monthly_milestone: 'Concluir um curso ate o fim do mes',
+      weekly_routine: 'Estudar Clean Architecture as 9h durante 1 hora todo dia',
+      start_date: '2026-05-25',
+    });
+
+    const mon = plan.active_tasks.find((t) => t.scheduled_date === '2026-05-25');
+    expect(mon).toBeDefined();
+    expect(mon?.duration_minutes).toBe(60);
+    expect(mon?.start_at).toMatch(/T09:00:00/);
+    expect(mon?.end_at).toMatch(/T10:00:00/);
+  });
+
   it('dedupes identical routine task titles instead of stacking them', () => {
     const plan = buildGoalOperatingPlan({
       annual_smart_goal: 'Estudar ingles para fluencia em dezembro',

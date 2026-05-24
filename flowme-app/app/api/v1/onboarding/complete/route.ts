@@ -68,10 +68,18 @@ export async function POST(req: NextRequest) {
 
       let result: Awaited<ReturnType<typeof persistGoalOperatingPlan>> | null = null;
       try {
+        const preferredTime = typeof proposal.preferred_time === 'string' && /^\d{1,2}:\d{2}$/.test(proposal.preferred_time)
+          ? proposal.preferred_time.padStart(5, '0')
+          : undefined;
+        const durationMinutes = Number.isFinite(Number(proposal.default_task_duration_minutes))
+          ? Math.max(5, Math.min(240, Math.round(Number(proposal.default_task_duration_minutes))))
+          : undefined;
         result = await persistGoalOperatingPlan(supabase, user.id, {
           annual_smart_goal: proposal.annual_smart_goal,
           monthly_milestone: proposal.monthly_milestone,
           weekly_routine: proposal.weekly_routine,
+          preferred_time: preferredTime,
+          default_task_duration_minutes: durationMinutes,
           start_date: new Date().toISOString().slice(0, 10),
           execution_window_days: 7,
         });

@@ -69,7 +69,9 @@ You must ALWAYS return your response as a strict JSON object with this exact sch
   "proposalData": {
     "annual_smart_goal": "The fully formed SMART Goal statement",
     "monthly_milestone": "What needs to happen in 30 days to stay on track",
-    "weekly_routine": "The concrete weekly actions the user commits to"
+    "weekly_routine": "The concrete weekly actions the user commits to",
+    "preferred_time": "HH:MM 24h start time the user agreed to (e.g. '09:00') — REQUIRED before proposing unless the user explicitly said they will schedule later",
+    "default_task_duration_minutes": 60
   }
 }
 

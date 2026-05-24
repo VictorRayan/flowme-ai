@@ -37,6 +37,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "dayjs": "^1.11.19",
+    "exceljs": "^4.4.0",
     "googleapis": "^171.4.0",
     "happy-dom": "^20.8.9",
     "next": "^16.1.6",

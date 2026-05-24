@@ -10,7 +10,7 @@ jest.mock('openai', () => {
   }));
 });
 
-import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
+import { autoResolveFileArgs, runBalysAgentLoop } from '@/lib/ai/agent-loop';
 import { z } from 'zod';
 
 describe('runBalysAgentLoop', () => {
@@ -128,5 +128,52 @@ describe('runBalysAgentLoop', () => {
 
     expect(result.content).toContain('reformular');
     expect(mockCompletionsCreate.mock.calls.length).toBeLessThanOrEqual(4);
+  });
+
+  it('patches file_id from a prior search_docs receipt when the model omits it', () => {
+    const messages = [
+      { role: 'user', content: 'o que tem na planilha do InfoMoney' },
+      {
+        role: 'tool',
+        tool_call_id: 'prior-search',
+        name: 'connectors.search_docs',
+        content: JSON.stringify({
+          ok: true,
+          receipt: {
+            files: [{ id: 'file-infomoney-id', name: 'InfoMoney - Planilha de Gastos.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }],
+            count: 1,
+          },
+        }),
+      },
+    ];
+
+    const patched = autoResolveFileArgs('connectors.read_drive_file', {}, messages, 'o que tem na planilha do InfoMoney');
+    expect(patched).toMatchObject({ file_id: 'file-infomoney-id' });
+  });
+
+  it('falls back to the only recent file when the user does not name one', () => {
+    const messages = [
+      {
+        role: 'tool',
+        tool_call_id: 'prior-search',
+        name: 'connectors.search_docs',
+        content: JSON.stringify({ ok: true, receipt: { files: [{ id: 'only-file-id', name: 'Some Sheet.xlsx' }] } }),
+      },
+    ];
+    const patched = autoResolveFileArgs('connectors.sheets_agent', { task: 'show data' }, messages, 'me mostra o conteúdo');
+    expect(patched).toMatchObject({ file_id: 'only-file-id', spreadsheet_name: 'Some Sheet.xlsx' });
+  });
+
+  it('respects an explicit file_id and does not overwrite it', () => {
+    const messages = [
+      {
+        role: 'tool',
+        tool_call_id: 'prior-search',
+        name: 'connectors.search_docs',
+        content: JSON.stringify({ ok: true, receipt: { files: [{ id: 'other-id', name: 'Another File.xlsx' }] } }),
+      },
+    ];
+    const patched = autoResolveFileArgs('connectors.read_drive_file', { file_id: 'explicit-id' }, messages, 'qualquer texto');
+    expect(patched).toEqual({ file_id: 'explicit-id' });
   });
 });

@@ -99,6 +99,71 @@ function parseToolPayload(message: any): any | null {
   }
 }
 
+type RecentFileCandidate = { id: string; name: string; mimeType?: string; webViewLink?: string };
+
+function collectRecentDriveFiles(messages: any[]): RecentFileCandidate[] {
+  const files: RecentFileCandidate[] = [];
+  for (const message of messages) {
+    if (message?.name !== 'connectors.search_docs') continue;
+    const payload = parseToolPayload(message);
+    const list = payload?.receipt?.files || payload?.data?.files || [];
+    if (!Array.isArray(list)) continue;
+    for (const file of list) {
+      if (typeof file?.id !== 'string' || typeof file?.name !== 'string') continue;
+      files.push({ id: file.id, name: file.name, mimeType: file.mimeType, webViewLink: file.webViewLink });
+    }
+  }
+  return files;
+}
+
+function matchFileByText(candidates: RecentFileCandidate[], text: string): RecentFileCandidate | null {
+  if (!text) return null;
+  const haystack = text.toLowerCase();
+  for (const file of candidates) {
+    const name = file.name.toLowerCase();
+    if (haystack.includes(name)) return file;
+  }
+  for (const file of candidates) {
+    const tokens = file.name.toLowerCase().split(/[\s\-_./]+/).filter((token) => token.length >= 4);
+    if (tokens.some((token) => haystack.includes(token))) return file;
+  }
+  return null;
+}
+
+const FILE_ID_PARAM_TOOLS = new Set([
+  'connectors.read_drive_file',
+  'connectors.read_doc',
+  'connectors.read_sheet',
+  'connectors.find_and_read_doc',
+  'connectors.sheets_agent',
+  'connectors.docs_agent',
+]);
+
+export function autoResolveFileArgs(toolName: string, args: any, messages: any[], userText: string): any {
+  if (!FILE_ID_PARAM_TOOLS.has(toolName) || !args || typeof args !== 'object') return args;
+
+  const hasExplicitId = Boolean(
+    args.file_id || args.file_url || args.document_url || args.spreadsheet_url || args.spreadsheet_name || args.doc_name
+  );
+  if (hasExplicitId) return args;
+
+  const candidates = collectRecentDriveFiles(messages);
+  if (candidates.length === 0) return args;
+
+  const matched = matchFileByText(candidates, userText) || (candidates.length === 1 ? candidates[0] : candidates[candidates.length - 1]);
+  if (!matched) return args;
+
+  const patched: Record<string, unknown> = { ...args };
+  patched.file_id = matched.id;
+  if (toolName === 'connectors.read_sheet' || toolName === 'connectors.sheets_agent') {
+    patched.spreadsheet_name = patched.spreadsheet_name || matched.name;
+  }
+  if (toolName === 'connectors.find_and_read_doc' || toolName === 'connectors.docs_agent') {
+    patched.doc_name = patched.doc_name || matched.name;
+  }
+  return patched;
+}
+
 function latestGmailSearchMessageId(messages: any[]): string | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -377,6 +442,9 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
         // If the top-level has exactly one key whose value is an object containing the
         // expected fields, unwrap one level so the tool still works.
         parsedArgs = unwrapNestedArgs(parsedArgs, tool.inputSchema as any);
+
+        // The user shouldn't be asked for file IDs — if a recent search receipt has them, use it.
+        parsedArgs = autoResolveFileArgs(toolCall.function.name, parsedArgs, messages, latestUserText);
 
         const validation = tool.inputSchema.safeParse(parsedArgs);
         if (!validation.success) {

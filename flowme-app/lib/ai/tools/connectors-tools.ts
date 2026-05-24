@@ -37,6 +37,9 @@ const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const GOOGLE_SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
 const GOOGLE_SLIDES_MIME = 'application/vnd.google-apps.presentation';
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLS_MIME = 'application/vnd.ms-excel';
+
 const TEXT_DOWNLOAD_MIME_TYPES = new Set([
   'application/json',
   'application/xml',
@@ -50,6 +53,8 @@ const TEXT_DOWNLOAD_MIME_TYPES = new Set([
   'text/html',
   'text/xml',
 ]);
+
+const SPREADSHEET_BINARY_MIME_TYPES = new Set([XLSX_MIME, XLS_MIME]);
 
 function configOf(row: ConnectorRow | null | undefined): ConnectorConfig {
   return row?.config || {};
@@ -346,6 +351,51 @@ async function getConnectorLinkedAccountIdForTool(
   return { connector, linkedAccountId };
 }
 
+async function readSpreadsheetBinaryAsCsv(
+  drive: ReturnType<typeof google.drive>,
+  fileId: string,
+): Promise<string> {
+  const { default: ExcelJS } = await import('exceljs');
+  const res = await drive.files.get(
+    { fileId, alt: 'media' },
+    { responseType: 'arraybuffer' },
+  );
+  const buffer = Buffer.isBuffer(res.data)
+    ? res.data
+    : res.data instanceof ArrayBuffer
+      ? Buffer.from(res.data)
+      : Buffer.from(res.data as any);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  const sections: string[] = [];
+  workbook.eachSheet((worksheet) => {
+    const rows: string[] = [];
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
+      const cells: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        const value = cell.value;
+        let text = '';
+        if (value == null) text = '';
+        else if (typeof value === 'object' && 'text' in (value as any)) text = String((value as any).text ?? '');
+        else if (typeof value === 'object' && 'result' in (value as any)) text = String((value as any).result ?? '');
+        else if (typeof value === 'object' && value instanceof Date) text = value.toISOString();
+        else text = String(value);
+        cells.push(text.includes(',') || text.includes('"') || text.includes('\n')
+          ? `"${text.replace(/"/g, '""')}"`
+          : text);
+      });
+      rows.push(cells.join(','));
+    });
+    if (rows.length > 0) {
+      sections.push(`# Sheet: ${worksheet.name}\n${rows.join('\n')}`);
+    }
+  });
+
+  return sections.join('\n\n');
+}
+
 async function readDriveFileText(
   drive: ReturnType<typeof google.drive>,
   fileId: string,
@@ -358,6 +408,18 @@ async function readDriveFileText(
       { responseType: 'arraybuffer' },
     );
     return { readable: true, content: responseDataToText(res.data) };
+  }
+
+  if (mimeType && SPREADSHEET_BINARY_MIME_TYPES.has(mimeType)) {
+    try {
+      const content = await readSpreadsheetBinaryAsCsv(drive, fileId);
+      return { readable: true, content };
+    } catch (e: any) {
+      return {
+        readable: false,
+        error: `Could not parse the spreadsheet contents: ${e?.message || 'unknown error'}.`,
+      };
+    }
   }
 
   if (isTextDownload(mimeType)) {

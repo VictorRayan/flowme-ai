@@ -60,6 +60,10 @@ export async function POST(req: NextRequest) {
     let calendarEventsFailed = 0;
     let calendarRateLimited = false;
     const persistedRoutines = new Set<string>();
+    const bookedSlots: Array<{ startMin: number; endMin: number }> = [];
+
+    const slotConflicts = (startMin: number, endMin: number) =>
+      bookedSlots.some((slot) => startMin < slot.endMin && endMin > slot.startMin);
 
     for (const proposal of proposals) {
       const routineKey = String(proposal.weekly_routine || '').trim().toLowerCase();
@@ -67,13 +71,30 @@ export async function POST(req: NextRequest) {
       persistedRoutines.add(routineKey);
 
       let result: Awaited<ReturnType<typeof persistGoalOperatingPlan>> | null = null;
+      let preferredTime: string | undefined;
+      let durationMinutes: number | undefined;
       try {
-        const preferredTime = typeof proposal.preferred_time === 'string' && /^\d{1,2}:\d{2}$/.test(proposal.preferred_time)
+        preferredTime = typeof proposal.preferred_time === 'string' && /^\d{1,2}:\d{2}$/.test(proposal.preferred_time)
           ? proposal.preferred_time.padStart(5, '0')
           : undefined;
-        const durationMinutes = Number.isFinite(Number(proposal.default_task_duration_minutes))
+        durationMinutes = Number.isFinite(Number(proposal.default_task_duration_minutes))
           ? Math.max(5, Math.min(240, Math.round(Number(proposal.default_task_duration_minutes))))
           : undefined;
+
+        if (preferredTime && durationMinutes) {
+          const [hh, mm] = preferredTime.split(':').map(Number);
+          const startMin = hh * 60 + mm;
+          const endMin = startMin + durationMinutes;
+          if (slotConflicts(startMin, endMin)) {
+            preferredTime = undefined;
+            durationMinutes = undefined;
+            calendarEventsSkipped += 1;
+            console.warn('[Onboarding Complete API] Skipping calendar events for conflicting slot:', proposal.annual_smart_goal);
+          } else {
+            bookedSlots.push({ startMin, endMin });
+          }
+        }
+
         result = await persistGoalOperatingPlan(supabase, user.id, {
           annual_smart_goal: proposal.annual_smart_goal,
           monthly_milestone: proposal.monthly_milestone,

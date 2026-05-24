@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 // ─── System Prompt (language-aware) ───────────────────────────────────
+interface PriorProposal {
+  annual_smart_goal?: string;
+  weekly_routine?: string;
+  preferred_time?: string;
+  default_task_duration_minutes?: number;
+}
+
+function formatPriorProposals(priors: PriorProposal[], lang: string): string {
+  const valid = priors.filter((p) => p?.preferred_time && /^\d{1,2}:\d{2}$/.test(p.preferred_time));
+  if (valid.length === 0) return '';
+  const intro = lang === 'pt'
+    ? 'Metas já aceitas pelo usuário (compromissos JÁ AGENDADOS — evite sobrepor horários):'
+    : 'Goals the user has already accepted (slots ALREADY BOOKED — do not overlap):';
+  const lines = valid.map((p, idx) => {
+    const duration = p.default_task_duration_minutes && Number.isFinite(p.default_task_duration_minutes)
+      ? p.default_task_duration_minutes
+      : 60;
+    const goalLabel = p.annual_smart_goal ? `"${String(p.annual_smart_goal).slice(0, 80)}"` : `goal #${idx + 1}`;
+    return `- ${goalLabel}: starts at ${p.preferred_time}, ${duration} min/day, routine: ${String(p.weekly_routine || '').slice(0, 120)}`;
+  });
+  const rule = lang === 'pt'
+    ? 'REGRA: se o horário que o usuário pedir para esta nova meta colidir com qualquer um dos blocos acima, NÃO PROPONHA — pergunte um horário alternativo, sugerindo o próximo horário livre. Nunca sobreponha eventos sem avisar.'
+    : 'RULE: if the time the user picks for this new goal overlaps any of the booked blocks above, DO NOT PROPOSE — ask for a different time, suggesting the next free slot. Never overlap silently.';
+  return `\n\n## ALREADY BOOKED SLOTS\n${intro}\n${lines.join('\n')}\n${rule}`;
+}
+
 const getSystemPrompt = (lang: string) => `
 You are Balys, a deeply advanced, empathetic, yet highly pragmatic "Silent Advisor" and life management AI.
 Your current task is to help the user break down their raw personal goals during onboarding.
@@ -202,13 +228,14 @@ async function callOpenAI(systemPrompt: string, messages: Array<{ role: string; 
 // ─── Route Handler ───────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const { history, userMessage, lang = 'pt' } = await req.json();
+    const { history, userMessage, lang = 'pt', priorProposals } = await req.json();
 
     if (!userMessage) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    const systemPrompt = getSystemPrompt(lang);
+    const priors: PriorProposal[] = Array.isArray(priorProposals) ? priorProposals.filter(Boolean) : [];
+    const systemPrompt = getSystemPrompt(lang) + formatPriorProposals(priors, lang);
 
     // Build unified message array
     const messages: Array<{ role: string; content: string }> = [];

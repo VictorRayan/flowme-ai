@@ -225,10 +225,16 @@ export default function OnboardingWizard() {
   };
 
   const callAI = async (history: AIMessage[], userMsg: string): Promise<any> => {
+    const priorProposals = acceptedProposals.filter(Boolean).map((p) => ({
+      annual_smart_goal: p.annual_smart_goal,
+      weekly_routine: p.weekly_routine,
+      preferred_time: p.preferred_time,
+      default_task_duration_minutes: p.default_task_duration_minutes,
+    }));
     const res = await fetch('/api/v1/onboarding/assistant', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history, userMessage: userMsg, lang })
+      body: JSON.stringify({ history, userMessage: userMsg, lang, priorProposals })
     });
     const data = await res.json();
     return data;

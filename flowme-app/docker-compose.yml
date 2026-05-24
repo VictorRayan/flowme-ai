@@ -45,6 +45,35 @@ services:
     networks:
       - flowme-proxy
 
+  flowme-cron:
+    container_name: flowme-cron
+    restart: unless-stopped
+    image: curlimages/curl:8.10.1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        LAST_DAILY=""
+        while true; do
+          curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] send-reminders %{http_code}\n" \
+            -H "Authorization: Bearer $$CRON_SECRET" \
+            http://flowme-app:3000/api/cron/send-reminders || true
+          TODAY=$$(date -u +%Y-%m-%d)
+          HOUR=$$(date -u +%H)
+          if [ "$$HOUR" = "04" ] && [ "$$LAST_DAILY" != "$$TODAY" ]; then
+            curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] summarize-stale-threads %{http_code}\n" \
+              -H "Authorization: Bearer $$CRON_SECRET" \
+              http://flowme-app:3000/api/cron/summarize-stale-threads || true
+            LAST_DAILY="$$TODAY"
+          fi
+          sleep 300
+        done
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+    depends_on:
+      - flowme-app
+    networks:
+      - flowme-proxy
+
 networks:
   flowme-proxy:
     external: true

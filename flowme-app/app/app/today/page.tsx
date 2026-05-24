@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Chip, CircularProgress,
   Stack, Typography,
@@ -38,6 +38,12 @@ interface NormalizedTask {
 interface DayUnit {
   date: string; timezone: string; unit_id: string; tasks: NormalizedTask[];
   summary: { total:number; completed:number; skipped:number; moved:number; blocked:number; pending:number };
+}
+
+interface TrailPoint {
+  id: string;
+  x: number;
+  y: number;
 }
 
 /* ── layout constants ──────────────────────────────────────────────────── */
@@ -126,8 +132,65 @@ export default function TodayPage() {
   }, []);
   const lastFetch  = useRef(0);
   const todayRef   = useRef<HTMLDivElement>(null);
+  const trailRef   = useRef<HTMLDivElement>(null);
+  const bubbleRefs = useRef(new Map<string, HTMLDivElement>());
+  const [trailPoints, setTrailPoints] = useState<TrailPoint[]>([]);
+  const [trailSize, setTrailSize] = useState({ width: 0, height: 0 });
   const tz         = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC', []);
   const today      = dayjs().format('YYYY-MM-DD');
+  const orderedTaskIds = useMemo(
+    () => days.flatMap(day => sortTasks(day.tasks).map(task => task.task_id)),
+    [days],
+  );
+
+  const setBubbleRef = useCallback((taskId: string, node: HTMLDivElement | null) => {
+    if (node) bubbleRefs.current.set(taskId, node);
+    else bubbleRefs.current.delete(taskId);
+  }, []);
+
+  const measureTrail = useCallback(() => {
+    const root = trailRef.current;
+    if (!root || orderedTaskIds.length < 2) {
+      setTrailPoints([]);
+      setTrailSize({ width: 0, height: 0 });
+      return;
+    }
+
+    const rootRect = root.getBoundingClientRect();
+    const points = orderedTaskIds
+      .map((id) => {
+        const node = bubbleRefs.current.get(id);
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return {
+          id,
+          x: rect.left - rootRect.left + rect.width / 2,
+          y: rect.top - rootRect.top + rect.height / 2,
+        };
+      })
+      .filter((point): point is TrailPoint => Boolean(point));
+
+    setTrailPoints(points);
+    setTrailSize({ width: root.scrollWidth, height: root.scrollHeight });
+  }, [orderedTaskIds]);
+
+  useLayoutEffect(() => {
+    measureTrail();
+  }, [measureTrail, loading, saving, uiLang]);
+
+  useEffect(() => {
+    const root = trailRef.current;
+    if (!root) return undefined;
+    const resizeObserver = new ResizeObserver(() => measureTrail());
+    resizeObserver.observe(root);
+    window.addEventListener('resize', measureTrail);
+    const raf = requestAnimationFrame(measureTrail);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', measureTrail);
+      cancelAnimationFrame(raf);
+    };
+  }, [measureTrail]);
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
@@ -267,7 +330,8 @@ export default function TodayPage() {
           <CircularProgress size={32} />
         </Box>
       ) : (
-        <Box sx={{ pb: 12 }}>
+        <Box ref={trailRef} sx={{ pb: 12, position: 'relative' }}>
+          <TrailConnectorOverlay points={trailPoints} width={trailSize.width} height={trailSize.height} />
           <BriefingPill userName={briefingUserName} loading={briefingLoading && !briefingSections} onClick={openBriefing} uiLang={uiLang} />
           <BriefingDialog
             open={briefingOpen}
@@ -291,6 +355,7 @@ export default function TodayPage() {
               onUpdate={update}
               onMove={moveTo}
               uiLang={uiLang}
+              setBubbleRef={setBubbleRef}
             />
           ))}
         </Box>
@@ -300,7 +365,7 @@ export default function TodayPage() {
 }
 
 /* ── DaySection: one "unit" like Duolingo ──────────────────────────────── */
-function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }: {
+function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, setBubbleRef }: {
   day: DayUnit;
   isToday: boolean;
   todayRef?: React.RefObject<HTMLDivElement | null>;
@@ -308,6 +373,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }
   onUpdate: (task: NormalizedTask, body: Record<string,unknown>) => void;
   onMove:   (task: NormalizedTask, to: string) => void;
   uiLang: UiLang;
+  setBubbleRef: (taskId: string, node: HTMLDivElement | null) => void;
 }) {
   const sorted = useMemo(() => sortTasks(day.tasks), [day.tasks]);
   const isWeekend = dayjs(day.date).day() === 0 || dayjs(day.date).day() === 6;
@@ -388,9 +454,6 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }
           maxWidth: 480,
           px: 2,
         }}>
-          {/* SVG connector lines between bubble centres */}
-          <ConnectorLines tasks={sorted} containerWidth={480} />
-
           {sorted.map((task, i) => {
             const cx = zx(i);           // centre-x as %
             const cy = i * GAP + 8;     // top of bubble
@@ -407,6 +470,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }
                 onSkip={()=>onUpdate(task,{outcome:'skipped',outcome_reason:'Skipped'})}
                 onMove={()=>onMove(task, tomorrow)}
                 uiLang={uiLang}
+                setBubbleRef={setBubbleRef}
               />
             );
           })}
@@ -416,28 +480,35 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }
   );
 }
 
-/* ── ConnectorLines: SVG lines between consecutive bubble centres ───────── */
-function ConnectorLines({ tasks, containerWidth }: { tasks: NormalizedTask[]; containerWidth: number }) {
-  if (tasks.length < 2) return null;
-  const w = containerWidth;
-  const totalH = tasks.length * GAP + BUBBLE + 32;
+/* ── TrailConnectorOverlay: one continuous path across rendered bubbles ─── */
+function TrailConnectorOverlay({ points, width, height }: { points: TrailPoint[]; width: number; height: number }) {
+  if (points.length < 2 || width <= 0 || height <= 0) return null;
 
   return (
     <svg
-      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: totalH, zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}
-      viewBox={`0 0 ${w} ${totalH}`}
-      preserveAspectRatio="none"
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width,
+        height,
+        zIndex: 1,
+        pointerEvents: 'none',
+        overflow: 'visible',
+      }}
+      viewBox={`0 0 ${width} ${height}`}
     >
-      {tasks.slice(0, -1).map((_, i) => {
-        const x1 = (zx(i) / 100) * w;
-        const y1 = i * GAP + 8 + BUBBLE / 2;
-        const x2 = (zx(i + 1) / 100) * w;
-        const y2 = (i + 1) * GAP + 8 + BUBBLE / 2;
+      {points.slice(0, -1).map((point, i) => {
+        const next = points[i + 1];
+        const x1 = point.x;
+        const y1 = point.y;
+        const x2 = next.x;
+        const y2 = next.y;
         const cy1 = y1 + (y2 - y1) * 0.5;
         const cy2 = y2 - (y2 - y1) * 0.5;
         return (
           <path
-            key={i}
+            key={`${point.id}-${next.id}`}
             d={`M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`}
             fill="none"
             stroke="rgba(148,163,184,0.18)"
@@ -451,10 +522,11 @@ function ConnectorLines({ tasks, containerWidth }: { tasks: NormalizedTask[]; co
 }
 
 /* ── TaskBubble ─────────────────────────────────────────────────────────── */
-function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLang }: {
+function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLang, setBubbleRef }: {
   task: NormalizedTask; cx: number; cy: number;
   saving: boolean; onDone:()=>void; onUndo:()=>void; onSkip:()=>void; onMove:()=>void;
   uiLang: UiLang;
+  setBubbleRef: (taskId: string, node: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const isCalendarEvent = task.source_type === 'calendar_event';
@@ -489,6 +561,7 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
 
       {/* circle */}
       <Box
+        ref={(node: HTMLDivElement | null) => setBubbleRef(task.task_id, node)}
         onClick={()=>setOpen(o=>!o)}
         sx={{
           width:BUBBLE, height:BUBBLE, borderRadius:'50%',

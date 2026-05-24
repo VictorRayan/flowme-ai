@@ -15,6 +15,8 @@ import SkipNextIcon       from '@mui/icons-material/SkipNext';
 import Link               from 'next/link';
 import dayjs              from 'dayjs';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
+import BriefingPill from '@/components/briefings/BriefingPill';
+import BriefingDialog, { type BriefingSections } from '@/components/briefings/BriefingDialog';
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 type TaskOutcome   = 'pending'|'completed'|'skipped'|'moved'|'incomplete'|'blocked'|'deferred';
@@ -88,6 +90,40 @@ export default function TodayPage() {
   const [saving,  setSaving]  = useState<string|null>(null);
   const [error,   setError]   = useState<string|null>(null);
   const [uiLang,  setUiLang]  = useState<UiLang>('en');
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingSections, setBriefingSections] = useState<BriefingSections | null>(null);
+  const [briefingUserName, setBriefingUserName] = useState<string | undefined>(undefined);
+
+  const openBriefing = useCallback(async () => {
+    setBriefingOpen(true);
+    if (briefingSections) return;
+    setBriefingLoading(true);
+    try {
+      const r = await fetch('/api/briefings');
+      if (r.ok) {
+        const j = await r.json();
+        if (j.ok && j.briefing?.sections) setBriefingSections(j.briefing.sections);
+      }
+    } catch {
+      // swallow — dialog will show error state per section
+    } finally {
+      setBriefingLoading(false);
+    }
+  }, [briefingSections]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/profile');
+        if (r.ok) {
+          const j = await r.json();
+          const name = j?.profile?.name || j?.user?.name || j?.user?.email?.split('@')[0];
+          if (name) setBriefingUserName(name);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
   const lastFetch  = useRef(0);
   const todayRef   = useRef<HTMLDivElement>(null);
   const tz         = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC', []);
@@ -232,6 +268,19 @@ export default function TodayPage() {
         </Box>
       ) : (
         <Box sx={{ pb: 12 }}>
+          <BriefingPill userName={briefingUserName} loading={briefingLoading && !briefingSections} onClick={openBriefing} uiLang={uiLang} />
+          <BriefingDialog
+            open={briefingOpen}
+            onClose={() => setBriefingOpen(false)}
+            greetingTitle={(() => {
+              const hour = new Date().getHours();
+              const base = hour < 12 ? (uiLang === 'pt' ? 'Bom dia' : 'Good morning') : hour < 18 ? (uiLang === 'pt' ? 'Boa tarde' : 'Good afternoon') : (uiLang === 'pt' ? 'Boa noite' : 'Good evening');
+              return briefingUserName ? `${base}, ${briefingUserName}` : base;
+            })()}
+            loading={briefingLoading}
+            sections={briefingSections}
+            uiLang={uiLang}
+          />
           {days.map(day => (
             <DaySection
               key={day.date}

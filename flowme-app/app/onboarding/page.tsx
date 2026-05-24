@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Divider } from '@mui/material';
+import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Divider, Chip, Stack, Switch, FormControlLabel } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -45,6 +45,18 @@ const dict = {
     accept_proposal: 'Aceitar sugestão',
     start_typing: 'Comece a digitar seu objetivo...',
     hints: 'Ideias: Saúde (perder 5kg), Financeiro (guardar R$ 5k), Carreira (nova promoção)...',
+
+    topics_title: 'Tópicos do seu interesse',
+    topics_desc: 'Quais assuntos você quer ver no seu resumo de bom dia e boa noite? (até 3)',
+    topics_placeholder: 'Ex: IA, mercado de startups, vôlei',
+    topics_add: 'Adicionar',
+    topics_max: 'Você pode adicionar até 3 tópicos',
+    city_title: 'Sua cidade (pra previsão do tempo)',
+    city_placeholder: 'Ex: São Paulo',
+    delivery_title: 'Como quer receber',
+    delivery_whatsapp: 'WhatsApp',
+    delivery_push: 'Notificação no navegador',
+    delivery_web: 'Sempre disponível no app',
   },
   en: {
     welcome: 'Welcome to Flow-me.',
@@ -77,6 +89,18 @@ const dict = {
     accept_proposal: 'Accept proposal',
     start_typing: 'Start typing your goal...',
     hints: 'Ideas: Health (lose 10lbs), Wealth (save $2k), Career (get promoted)...',
+
+    topics_title: 'Topics you care about',
+    topics_desc: 'What should we cover in your morning and evening briefing? (up to 3)',
+    topics_placeholder: 'e.g. AI, startup funding, basketball',
+    topics_add: 'Add',
+    topics_max: 'You can add up to 3 topics',
+    city_title: 'Your city (for the weather)',
+    city_placeholder: 'e.g. New York',
+    delivery_title: 'How you want it',
+    delivery_whatsapp: 'WhatsApp',
+    delivery_push: 'Browser notification',
+    delivery_web: 'Always available in the app',
   }
 };
 
@@ -104,6 +128,21 @@ export default function OnboardingWizard() {
   // Ritual Times
   const [morningTime, setMorningTime] = React.useState('08:00');
   const [eveningTime, setEveningTime] = React.useState('20:00');
+  const [newsTopics, setNewsTopics] = React.useState<string[]>([]);
+  const [topicDraft, setTopicDraft] = React.useState('');
+  const [briefingCity, setBriefingCity] = React.useState('');
+  const [deliverWhatsApp, setDeliverWhatsApp] = React.useState(true);
+  const [deliverPush, setDeliverPush] = React.useState(false);
+
+  const addTopic = () => {
+    const cleaned = topicDraft.trim();
+    if (!cleaned) return;
+    if (newsTopics.includes(cleaned)) { setTopicDraft(''); return; }
+    if (newsTopics.length >= 3) return;
+    setNewsTopics([...newsTopics, cleaned]);
+    setTopicDraft('');
+  };
+  const removeTopic = (topic: string) => setNewsTopics(newsTopics.filter((t) => t !== topic));
 
   // Auto-scroll ref
   const chatEndRef = React.useRef<HTMLDivElement>(null);
@@ -147,6 +186,38 @@ export default function OnboardingWizard() {
     } catch (e) {
       console.error('Failed to save rhythm settings', e);
     }
+
+    const delivery: string[] = ['web'];
+    if (deliverWhatsApp) delivery.push('whatsapp');
+    if (deliverPush) delivery.push('push');
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    try {
+      await fetch('/api/briefings/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          morning_briefing_time: morningTime,
+          evening_briefing_time: eveningTime,
+          briefing_timezone: timezone,
+          news_topics: newsTopics,
+          briefing_delivery: delivery,
+          daily_routine_enabled: true,
+          briefing_city: briefingCity.trim() || null,
+        }),
+      });
+    } catch (e) {
+      console.error('Failed to save briefing preferences', e);
+    }
+
+    if (deliverPush) {
+      try {
+        const { registerWebPush } = await import('@/lib/web-push/client');
+        await registerWebPush();
+      } catch (e) {
+        console.warn('Web push registration failed', e);
+      }
+    }
+
     router.push('/app/today');
   };
 
@@ -461,7 +532,7 @@ export default function OnboardingWizard() {
               </Box>
 
               {/* Evening Ritual Card */}
-              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 5, width: '100%' }}>
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700 }}>{t.evening_sync}</Typography>
                   <TextField
@@ -476,7 +547,66 @@ export default function OnboardingWizard() {
                 </Typography>
               </Box>
 
-              <Button 
+              {/* City for weather */}
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
+                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1.5 }}>{t.city_title}</Typography>
+                <TextField
+                  fullWidth
+                  value={briefingCity}
+                  onChange={(e) => setBriefingCity(e.target.value)}
+                  placeholder={t.city_placeholder}
+                  sx={{ '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } } }}
+                />
+              </Box>
+
+              {/* News topics chips */}
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
+                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 0.5 }}>{t.topics_title}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.disabled', mb: 2 }}>{t.topics_desc}</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: newsTopics.length > 0 ? 2 : 0 }}>
+                  {newsTopics.map((topic) => (
+                    <Chip key={topic} label={topic} onDelete={() => removeTopic(topic)} sx={{ bgcolor: 'rgba(99,102,241,0.18)', color: '#a5b4fc', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }} />
+                  ))}
+                </Stack>
+                <Stack direction="row" spacing={1}>
+                  <TextField
+                    fullWidth
+                    value={topicDraft}
+                    onChange={(e) => setTopicDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTopic(); } }}
+                    placeholder={t.topics_placeholder}
+                    disabled={newsTopics.length >= 3}
+                    sx={{ '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } } }}
+                  />
+                  <Button variant="outlined" onClick={addTopic} disabled={!topicDraft.trim() || newsTopics.length >= 3} sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: 2, minWidth: 90 }}>
+                    {t.topics_add}
+                  </Button>
+                </Stack>
+                {newsTopics.length >= 3 && (
+                  <Typography variant="caption" sx={{ color: 'text.disabled', mt: 1, display: 'block' }}>{t.topics_max}</Typography>
+                )}
+              </Box>
+
+              {/* Delivery toggles */}
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 5, width: '100%' }}>
+                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1.5 }}>{t.delivery_title}</Typography>
+                <Stack spacing={1}>
+                  <FormControlLabel
+                    control={<Switch checked disabled />}
+                    label={<Typography sx={{ color: 'text.disabled' }}>{t.delivery_web}</Typography>}
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={deliverWhatsApp} onChange={(e) => setDeliverWhatsApp(e.target.checked)} />}
+                    label={<Typography sx={{ color: '#fff' }}>{t.delivery_whatsapp}</Typography>}
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={deliverPush} onChange={(e) => setDeliverPush(e.target.checked)} />}
+                    label={<Typography sx={{ color: '#fff' }}>{t.delivery_push}</Typography>}
+                  />
+                </Stack>
+              </Box>
+
+              <Button
                 fullWidth variant="contained" size="large" onClick={finish}
                 sx={{ py: 2.5, borderRadius: 4, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}
               >

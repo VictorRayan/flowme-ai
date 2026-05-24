@@ -25,6 +25,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       XAI_API_KEY: ${XAI_API_KEY}
       BALYS_ENABLE_GROK_CHAT: ${BALYS_ENABLE_GROK_CHAT}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
       R2_BUCKET_NAME: ${R2_BUCKET_NAME}
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
@@ -55,10 +58,18 @@ services:
     command:
       - |
         LAST_DAILY=""
+        TICK=0
         while true; do
-          curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] send-reminders %{http_code}\n" \
+          # Briefings scheduler — fires on every minute, the endpoint short-circuits if no slot is due.
+          curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] briefings-run %{http_code}\n" \
             -H "Authorization: Bearer $$CRON_SECRET" \
-            http://flowme-app:3000/api/cron/send-reminders || true
+            http://flowme-app:3000/api/briefings/run || true
+          # Reminders every 5 minutes (TICK runs 0..4).
+          if [ "$$TICK" = "0" ]; then
+            curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] send-reminders %{http_code}\n" \
+              -H "Authorization: Bearer $$CRON_SECRET" \
+              http://flowme-app:3000/api/cron/send-reminders || true
+          fi
           TODAY=$$(date -u +%Y-%m-%d)
           HOUR=$$(date -u +%H)
           if [ "$$HOUR" = "04" ] && [ "$$LAST_DAILY" != "$$TODAY" ]; then
@@ -67,7 +78,8 @@ services:
               http://flowme-app:3000/api/cron/summarize-stale-threads || true
             LAST_DAILY="$$TODAY"
           fi
-          sleep 300
+          TICK=$$(( (TICK + 1) % 5 ))
+          sleep 60
         done
     environment:
       CRON_SECRET: ${CRON_SECRET}

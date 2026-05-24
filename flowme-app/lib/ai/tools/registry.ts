@@ -8,6 +8,8 @@ import { memoryAppendToBriefingTool, memoryAppendToPersonTool, memorySaveFactToo
 import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListTool } from './goals-tools';
 import { weatherGetTool } from './weather-tools';
 import { remindersCancelTool, remindersCreateTool, remindersListTool } from './reminders-tools';
+import { webGroundedSearchTool } from './web-tools';
+import { trendsFromTopicsTool } from './trends-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
@@ -43,6 +45,8 @@ export const ALL_TOOLS: Tool[] = [
   memoryAppendToPersonTool,
   memoryAppendToBriefingTool,
   weatherGetTool,
+  webGroundedSearchTool,
+  trendsFromTopicsTool,
 ];
 
 const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
@@ -56,9 +60,11 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   goals: 'goals.',
   reminders: 'reminders.',
   weather: 'weather.',
+  web: 'web.',
+  trends: 'trends.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

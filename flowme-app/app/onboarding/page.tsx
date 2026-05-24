@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Divider, Chip, Stack, Switch, FormControlLabel } from '@mui/material';
+import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Divider, Chip, Stack, Switch, FormControlLabel, Backdrop } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -13,7 +13,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
-import { proposalButtonLabel } from '@/lib/onboarding/proposal-button';
+import { finishButtonLabel, proposalButtonLabel } from '@/lib/onboarding/proposal-button';
 
 const dict = {
   pt: {
@@ -48,6 +48,7 @@ const dict = {
     start_typing: 'Comece a digitar seu objetivo...',
     hints: 'Ideias: Saúde (perder 5kg), Financeiro (guardar R$ 5k), Carreira (nova promoção)...',
 
+    finishing: 'Organizando tudo pra você...',
     topics_title: 'Tópicos do seu interesse',
     topics_desc: 'Quais assuntos você quer ver no seu resumo de bom dia e boa noite? (até 3)',
     topics_placeholder: 'Ex: IA, mercado de startups, vôlei',
@@ -92,6 +93,7 @@ const dict = {
     start_typing: 'Start typing your goal...',
     hints: 'Ideas: Health (lose 10lbs), Wealth (save $2k), Career (get promoted)...',
 
+    finishing: 'Setting everything up for you...',
     topics_title: 'Topics you care about',
     topics_desc: 'What should we cover in your morning and evening briefing? (up to 3)',
     topics_placeholder: 'e.g. AI, startup funding, basketball',
@@ -176,7 +178,11 @@ export default function OnboardingWizard() {
     }
   };
 
+  const [finishing, setFinishing] = React.useState(false);
+
   const finish = async () => {
+    if (finishing) return;
+    setFinishing(true);
     const proposalsToPersist = [...acceptedProposals];
     if (aiProposal?.data && proposalsToPersist.length < goalCount) {
       proposalsToPersist[currentGoalIndex - 1] = aiProposal.data;
@@ -620,15 +626,25 @@ export default function OnboardingWizard() {
               </Box>
 
               <Button
-                fullWidth variant="contained" size="large" onClick={finish}
-                sx={{ py: 2.5, borderRadius: 4, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}
+                fullWidth variant="contained" size="large" onClick={finish} disabled={finishing}
+                startIcon={finishing ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : null}
+                sx={{ py: 2.5, borderRadius: 4, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', '&.Mui-disabled': { background: 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)', color: 'rgba(255,255,255,0.85)' } }}
               >
-                {t.btn_finish}
+                {finishButtonLabel(finishing, t.btn_finish, lang)}
               </Button>
             </Box>
           </Fade>
         )}
       </Container>
+
+      <Backdrop open={finishing} sx={{ zIndex: (theme) => theme.zIndex.modal + 10, bgcolor: 'rgba(5, 5, 5, 0.85)', backdropFilter: 'blur(8px)' }}>
+        <Stack alignItems="center" spacing={2.5}>
+          <CircularProgress size={56} thickness={3.5} sx={{ color: '#a78bfa' }} />
+          <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: 18 }}>
+            {t.finishing}
+          </Typography>
+        </Stack>
+      </Backdrop>
     </Box>
   );
 }

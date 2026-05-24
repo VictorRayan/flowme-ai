@@ -11,3 +11,13 @@ export function proposalButtonLabel(currentGoalIndex: number, goalCount: number,
   const t = COPY[lang] || COPY.pt;
   return safeIndex < safeCount ? t.next : t.finish;
 }
+
+const FINISHING_COPY: Record<OnboardingLang, string> = {
+  pt: 'Organizando tudo pra você...',
+  en: 'Setting everything up for you...',
+};
+
+export function finishButtonLabel(finishing: boolean, idleLabel: string, lang: OnboardingLang): string {
+  if (!finishing) return idleLabel;
+  return FINISHING_COPY[lang] || FINISHING_COPY.pt;
+}

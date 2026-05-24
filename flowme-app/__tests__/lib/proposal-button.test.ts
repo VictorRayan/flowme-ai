@@ -1,4 +1,4 @@
-import { proposalButtonLabel } from '@/lib/onboarding/proposal-button';
+import { finishButtonLabel, proposalButtonLabel } from '@/lib/onboarding/proposal-button';
 
 describe('proposalButtonLabel', () => {
   it('uses "Começar minha jornada" when there is a single goal', () => {
@@ -27,5 +27,17 @@ describe('proposalButtonLabel', () => {
   it('treats invalid counts as a single-goal flow', () => {
     expect(proposalButtonLabel(1, 0, 'pt')).toBe('Começar minha jornada');
     expect(proposalButtonLabel(0, 0, 'en')).toBe('Start my journey');
+  });
+});
+
+describe('finishButtonLabel', () => {
+  it('returns the idle label when not finishing', () => {
+    expect(finishButtonLabel(false, 'Começar minha jornada', 'pt')).toBe('Começar minha jornada');
+    expect(finishButtonLabel(false, 'Start my journey', 'en')).toBe('Start my journey');
+  });
+
+  it('swaps in a localized finishing label while persisting', () => {
+    expect(finishButtonLabel(true, 'Começar minha jornada', 'pt')).toBe('Organizando tudo pra você...');
+    expect(finishButtonLabel(true, 'Start my journey', 'en')).toBe('Setting everything up for you...');
   });
 });

@@ -18,6 +18,13 @@ export const remindersCreateTool = defineTool({
 
 WHEN TO USE: user says "me lembre...", "remind me...", "avise-me...", or asks for a reminder attached to a calendar event.
 
+REQUIRED INFORMATION — NEVER CALL THIS TOOL UNTIL YOU HAVE ALL OF IT:
+- **message**: a short, clear notification body (e.g. "Escovar os dentes"). Infer it from the user's request when obvious ("me lembre de escovar os dentes" → "Escovar os dentes"). If you cannot infer it confidently, ASK the user before calling this tool.
+- **scheduled_for**: a full ISO 8601 datetime with the user's timezone offset. You MUST resolve relative phrases ("amanhã", "tomorrow", "next Monday", "daqui 2 horas") using the "Current local date/time" provided in your system prompt, in the user's timezone. If only the date is given but no time of day, ASK the user what time (e.g. "Que horas amanhã?"). NEVER guess a default time.
+- **timezone**: pass the IANA timezone you used to resolve scheduled_for (e.g. "America/Sao_Paulo"). When unsure, use the timezone provided in the system prompt's "Current local date/time" line.
+
+DO NOT call this tool with placeholder, empty, or undefined values. If anything is missing, ask the user one short clarifying question and stop.
+
 CONTRACT:
 - For an event reminder, create or find the Google Calendar event first, then call this tool with source.type="calendar_event", source.provider="google_calendar", source.id=calendar event_id, source.title, and source.start_at.
 - For standalone reminders, omit source.

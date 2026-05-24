@@ -22,6 +22,7 @@ import ChatIcon from '@mui/icons-material/Chat';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import HistoryIcon from '@mui/icons-material/History';
 import NoteIcon from '@mui/icons-material/Note';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EventIcon from '@mui/icons-material/Event';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditNoteIcon from '@mui/icons-material/EditNote';
@@ -245,6 +246,7 @@ function pendingActionIcon(action: CommandAction): React.ReactElement | undefine
   if (action === 'docs') return <DescriptionIcon sx={iconSx} />;
   if (action === 'sheets') return <GridOnIcon sx={iconSx} />;
   if (action === 'note') return <EditNoteIcon sx={iconSx} />;
+  if (action === 'reminder') return <NotificationsActiveIcon sx={iconSx} />;
   return undefined;
 }
 

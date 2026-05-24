@@ -367,7 +367,7 @@ async function readSpreadsheetBinaryAsCsv(
       : Buffer.from(res.data as any);
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(buffer as any);
 
   const sections: string[] = [];
   workbook.eachSheet((worksheet) => {

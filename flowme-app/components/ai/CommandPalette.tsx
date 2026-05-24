@@ -14,6 +14,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import DescriptionIcon from '@mui/icons-material/Description';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import FolderIcon from '@mui/icons-material/Folder';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { type UiLang } from '@/lib/i18n';
 import dayjs from 'dayjs';
 
@@ -25,7 +26,8 @@ export type CommandAction =
   | 'gmail'
   | 'drive'
   | 'docs'
-  | 'sheets';
+  | 'sheets'
+  | 'reminder';
 
 export interface ContextItem {
   kind: 'note' | 'event' | 'action';
@@ -139,6 +141,15 @@ function getActions(uiLang: UiLang): ActionDef[] {
       directive: 'Use connectors.list to find an authorized Google Sheets connector. Use connectors.search_docs to list or search spreadsheets. After selecting the relevant spreadsheet internally, use connectors.sheets_agent with mode="analyze" for financial insights or mode="edit" for formulas/edits. Use connectors.read_sheet for simple range reads. Extract insights from actual rows and the economist agent receipts.',
       action: 'sheets',
       aliases: ['/sheets', '/planilhas', '/planilha', 'sheets', 'sheet', 'planilha', 'planilhas'],
+    },
+    {
+      id: 'reminder',
+      command: pt ? '/lembrete' : '/reminder',
+      label: pt ? '/lembrete' : '/reminder',
+      subtitle: pt ? 'Criar um lembrete passo a passo' : 'Create a reminder step by step',
+      directive: 'The user wants to create a reminder. Gather information before calling reminders.create. Required: a short message (what to remind), an exact date AND time of day in the user\'s timezone. If the user typed text after /lembrete or /reminder, treat it as initial intent and extract whatever message/date/time you can. For each missing field, ask ONE short question (e.g. "Que horas amanhã?", "Qual a mensagem do lembrete?"). Resolve relative dates ("amanhã", "tomorrow", "daqui 2 horas") using the Current local date/time line and the user\'s timezone. Never default times silently and never call reminders.create with missing/undefined fields. Once all info is confirmed, call reminders.create with channel_preference="default".',
+      action: 'reminder',
+      aliases: ['/reminder', '/lembrete', '/lembrar', 'lembrete', 'reminder', 'remind'],
     },
   ];
 }

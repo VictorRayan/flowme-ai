@@ -147,6 +147,21 @@ describe('buildGoalOperatingPlan', () => {
     expect(sameDayTasks).toHaveLength(1);
   });
 
+  it('leaves start_at and end_at null when the user did not pick a time', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Aprender ingles ate dezembro de 2026',
+      monthly_milestone: 'Concluir unidade 1 ate o fim do mes',
+      weekly_routine: 'Estudar uma hora todo dia',
+      start_date: '2026-05-23',
+    });
+
+    expect(plan.active_tasks.length).toBeGreaterThan(0);
+    for (const task of plan.active_tasks) {
+      expect(task.start_at).toBeNull();
+      expect(task.end_at).toBeNull();
+    }
+  });
+
   it('dedupes identical routine task titles instead of stacking them', () => {
     const plan = buildGoalOperatingPlan({
       annual_smart_goal: 'Estudar ingles para fluencia em dezembro',

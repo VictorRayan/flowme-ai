@@ -56,10 +56,16 @@ export async function POST(req: NextRequest) {
 
     const createdPlans = [];
     let calendarEventsCreated = 0;
+    let calendarEventsSkipped = 0;
     let calendarEventsFailed = 0;
     let calendarRateLimited = false;
+    const persistedRoutines = new Set<string>();
 
     for (const proposal of proposals) {
+      const routineKey = String(proposal.weekly_routine || '').trim().toLowerCase();
+      if (persistedRoutines.has(routineKey)) continue;
+      persistedRoutines.add(routineKey);
+
       let result: Awaited<ReturnType<typeof persistGoalOperatingPlan>> | null = null;
       try {
         result = await persistGoalOperatingPlan(supabase, user.id, {
@@ -78,14 +84,16 @@ export async function POST(req: NextRequest) {
       if (!calendarAccountId || calendarRateLimited) continue;
 
       for (const task of result.plan.active_tasks) {
-        const startAt = task.start_at || `${task.scheduled_date}T09:00:00.000Z`;
-        const endAt = task.end_at || addMinutesIso(startAt, task.duration_minutes || 30);
+        if (!task.start_at || !task.end_at) {
+          calendarEventsSkipped += 1;
+          continue;
+        }
         try {
           await createCalendarEvent(calendarAccountId, {
             title: task.title,
             description: task.description,
-            startAt,
-            endAt,
+            startAt: task.start_at,
+            endAt: task.end_at,
           });
           calendarEventsCreated += 1;
           await sleep(250);
@@ -105,6 +113,7 @@ export async function POST(req: NextRequest) {
       success: true,
       created_plan_count: createdPlans.length,
       calendar_events_created: calendarEventsCreated,
+      calendar_events_skipped: calendarEventsSkipped,
       calendar_events_failed: calendarEventsFailed,
       calendar_rate_limited: calendarRateLimited,
     });
@@ -115,6 +124,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function addMinutesIso(startIso: string, minutes: number): string {
-  return new Date(new Date(startIso).getTime() + minutes * 60000).toISOString();
-}

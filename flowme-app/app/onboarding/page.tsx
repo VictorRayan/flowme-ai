@@ -13,6 +13,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
+import { proposalButtonLabel } from '@/lib/onboarding/proposal-button';
 
 const dict = {
   pt: {
@@ -488,11 +489,11 @@ export default function OnboardingWizard() {
               </Paper>
 
               {aiProposal && !isLoading && (
-                <Button 
+                <Button
                   fullWidth variant="contained" size="large" onClick={acceptCurrentProposal}
                   sx={{ py: 2, borderRadius: 3, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', mb: 2 }}
                 >
-                  {aiProposal.buttonText}
+                  {proposalButtonLabel(currentGoalIndex, goalCount, lang)}
                 </Button>
               )}
               <Box sx={{ display: 'flex', gap: 2 }}>

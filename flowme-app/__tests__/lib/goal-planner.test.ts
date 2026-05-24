@@ -177,6 +177,39 @@ describe('buildGoalOperatingPlan', () => {
     expect(mon?.end_at).toMatch(/T10:00:00/);
   });
 
+  it('describes a single-activity day in the description', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Aprender Clean Architecture ate dezembro de 2026',
+      monthly_milestone: 'Concluir um curso ate o fim do mes',
+      weekly_routine: 'Estudar Clean Architecture as 9h durante 1 hora todo dia',
+      start_date: '2026-05-25',
+    });
+
+    const mon = plan.active_tasks.find((t) => t.scheduled_date === '2026-05-25');
+    expect(mon).toBeDefined();
+    expect(mon?.description).toContain('Atividade do dia:');
+    expect(mon?.description).toContain('Clean Architecture');
+  });
+
+  it('numbers multi-activity days inside a single event description', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Treinar para a maratona em dezembro',
+      monthly_milestone: 'Concluir o primeiro mes do plano',
+      weekly_routine: 'Correr 30 min;\nAlongamento 15 min;\nLeitura 20 min',
+      preferred_time: '06:00',
+      start_date: '2026-05-25',
+    });
+
+    const tasksOnMon = plan.active_tasks.filter((t) => t.scheduled_date === '2026-05-25');
+    expect(tasksOnMon).toHaveLength(1);
+    const day = tasksOnMon[0];
+    expect(day.description).toMatch(/Atividades do dia/);
+    expect(day.description).toMatch(/1 — Correr/);
+    expect(day.description).toMatch(/2 — Alongamento/);
+    expect(day.description).toMatch(/3 — Leitura/);
+    expect(day.duration_minutes).toBe(30 + 15 + 20);
+  });
+
   it('dedupes identical routine task titles instead of stacking them', () => {
     const plan = buildGoalOperatingPlan({
       annual_smart_goal: 'Estudar ingles para fluencia em dezembro',

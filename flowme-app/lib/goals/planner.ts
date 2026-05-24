@@ -204,32 +204,50 @@ function createExecutionWindowTasks({
     const dayOfWeek = new Date(`${scheduledDate}T00:00:00.000Z`).getUTCDay();
     if (!cadence.daysOfWeek.includes(dayOfWeek)) continue;
     planDay += 1;
-    let priorDurationMin = 0;
-    routineTasks.forEach((task, taskIndex) => {
-      const { startAt, endAt } = buildTaskTimes(scheduledDate, preferredTime, task.durationMinutes, taskIndex, priorDurationMin);
-      priorDurationMin += task.durationMinutes;
-      tasks.push({
-        client_id: `task-${planDay}-${taskIndex + 1}`,
-        title: task.title,
-        description: `Execution task from the weekly routine: ${task.title}`,
-        scheduled_date: scheduledDate,
-        start_at: startAt,
-        end_at: endAt,
-        duration_minutes: task.durationMinutes,
-        category: planDay === 1 ? 'non_negotiable' : 'negotiable',
-        priority: planDay === 1 ? 3 : 2,
-        priority_source: 'balys',
-        priority_reason: planDay === 1
-          ? 'First-day kickoff task for the accepted goal plan.'
-          : 'Full-period execution event for the accepted goal plan.',
-        source_type: 'goal_task',
-        plan_day: planDay,
-        sort_order: dayOffset * 10 + taskIndex,
-        needs_time_confirmation: !preferredTime,
-      });
+    if (routineTasks.length === 0) continue;
+
+    const totalDuration = routineTasks.reduce((sum, task) => sum + task.durationMinutes, 0);
+    const { startAt, endAt } = buildTaskTimes(scheduledDate, preferredTime, totalDuration, 0, 0);
+    const title = routineTasks.length === 1 ? routineTasks[0].title : composeDayTitle(routineTasks);
+    const description = composeDayDescription(routineTasks);
+
+    tasks.push({
+      client_id: `task-${planDay}`,
+      title,
+      description,
+      scheduled_date: scheduledDate,
+      start_at: startAt,
+      end_at: endAt,
+      duration_minutes: totalDuration,
+      category: planDay === 1 ? 'non_negotiable' : 'negotiable',
+      priority: planDay === 1 ? 3 : 2,
+      priority_source: 'balys',
+      priority_reason: planDay === 1
+        ? 'First-day kickoff task for the accepted goal plan.'
+        : 'Full-period execution event for the accepted goal plan.',
+      source_type: 'goal_task',
+      plan_day: planDay,
+      sort_order: dayOffset * 10,
+      needs_time_confirmation: !preferredTime,
     });
   }
   return tasks;
+}
+
+function composeDayTitle(routineTasks: Array<{ title: string }>): string {
+  const first = routineTasks[0]?.title || 'Execução do plano';
+  return first.length > 60 ? `${first.slice(0, 57)}…` : first;
+}
+
+function composeDayDescription(routineTasks: Array<{ title: string; durationMinutes: number }>): string {
+  if (routineTasks.length === 1) {
+    const onlyTask = routineTasks[0];
+    return `Atividade do dia: ${onlyTask.title}.`;
+  }
+  const numbered = routineTasks
+    .map((task, idx) => `${idx + 1} — ${task.title} (${task.durationMinutes} min)`)
+    .join('\n');
+  return `Atividades do dia:\n${numbered}`;
 }
 
 interface Cadence {

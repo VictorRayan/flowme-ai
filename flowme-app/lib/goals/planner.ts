@@ -236,7 +236,7 @@ function createExecutionWindowTasks({
 
 function composeDayTitle(routineTasks: Array<{ title: string }>): string {
   const first = routineTasks[0]?.title || 'Execução do plano';
-  return first.length > 60 ? `${first.slice(0, 57)}…` : first;
+  return summarizeTitle(first);
 }
 
 function composeDayDescription(routineTasks: Array<{ title: string; durationMinutes: number }>): string {
@@ -446,7 +446,41 @@ function cleanTaskTitle(value: string, index: number): string {
     .replace(/\b\d{1,3}\s*(min|mins|minute|minutes|minuto|minutos|h|hr|hrs|hour|hours|hora|horas)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
-  return cleaned || `Goal task ${index + 1}`;
+  return summarizeTitle(cleaned) || `Goal task ${index + 1}`;
+}
+
+// Convert verbose routine prose into a short, keyword-style event title that
+// stays under MAX_TITLE_LEN. Picks the meaningful action phrase ("para estudar
+// Clean Architecture" → "Estudar Clean Architecture") when possible and falls
+// back to truncation with an ellipsis.
+const MAX_TITLE_LEN = 50;
+
+export function summarizeTitle(input: string): string {
+  if (!input) return '';
+  let text = input
+    .replace(/\s+/g, ' ')
+    .replace(/\b(\d{1,2}):(\d{2})\b/g, '')
+    .replace(/[ ,;.]+,/g, ',')
+    .replace(/^[ ,;.\-–—]+|[ ,;.\-–—]+$/g, '')
+    .trim();
+
+  const paraMatch = text.match(/\bpara\s+([a-záàâãéêíóôõúüç]+(?:ar|er|ir)\b[^,.;\n]*)/i);
+  if (paraMatch && paraMatch[1].trim().length >= 6) {
+    text = paraMatch[1].trim();
+  } else {
+    const forMatch = text.match(/\bfor\s+([a-zA-Z]+ing\b[^,.;\n]*)/i);
+    if (forMatch && forMatch[1].trim().length >= 6) text = forMatch[1].trim();
+  }
+
+  text = text.split(/[,;.\n]/)[0].trim();
+  text = text.replace(/^[ ,;.\-–—]+|[ ,;.\-–—]+$/g, '').trim();
+  if (text.length > 0) text = text.charAt(0).toUpperCase() + text.slice(1);
+
+  if (text.length <= MAX_TITLE_LEN) return text;
+  const truncated = text.slice(0, MAX_TITLE_LEN - 1);
+  const lastSpace = truncated.lastIndexOf(' ');
+  const cut = lastSpace > MAX_TITLE_LEN - 15 ? truncated.slice(0, lastSpace) : truncated;
+  return `${cut.replace(/[ ,;.\-–—]+$/g, '')}…`;
 }
 
 function normalizeDuration(value?: number): number {

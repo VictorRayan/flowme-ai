@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, FormControl, InputLabel, Select, MenuItem, Alert, CircularProgress, FormControlLabel, Switch, Autocomplete, Chip, Box, Typography } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, FormControl, InputLabel, Select, MenuItem, Alert, CircularProgress, FormControlLabel, Switch, Autocomplete, Chip, Box, Typography, IconButton, Tooltip } from '@mui/material';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from 'dayjs';
 import { CalendarEvent } from './types';
@@ -435,13 +436,51 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
           ) : null}
 
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="contained" disabled={loading} startIcon={loading ? <CircularProgress size={20} /> : undefined}>
-            {isEditing ? 'Save' : 'Create'}
-          </Button>
+        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+          <Box>
+            {isEditing && existingEvent?.linked_account_id && existingEvent?.provider_event_id && (
+              <Tooltip title="Excluir evento">
+                <IconButton
+                  onClick={async () => {
+                    if (!confirm('Excluir este evento da sua agenda?\n\nIsso remove o evento do Google Calendar. Suas metas e planos continuam ativos no Flowme — você pode reagendá-los depois ou pedir ao Balys.')) return;
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      const res = await fetch('/api/calendar/delete-event', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          event_id: existingEvent.provider_event_id,
+                          linked_account_id: existingEvent.linked_account_id,
+                        }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Falha ao excluir evento');
+                      onSuccess();
+                      onClose();
+                    } catch (err: any) {
+                      setError(err.message || 'Falha ao excluir evento');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                  color="error"
+                  aria-label="Excluir evento"
+                >
+                  <DeleteOutlineIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+          <Box>
+            <Button onClick={onClose} disabled={loading} sx={{ mr: 1 }}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="contained" disabled={loading} startIcon={loading ? <CircularProgress size={20} /> : undefined}>
+              {isEditing ? 'Salvar' : 'Criar'}
+            </Button>
+          </Box>
         </DialogActions>
       </form>
     </Dialog>

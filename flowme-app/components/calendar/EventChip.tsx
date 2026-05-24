@@ -58,6 +58,9 @@ export default function EventChip({ event, onClick, draggable }: EventChipProps)
         gap: 0.5,
         cursor: 'pointer',
         overflow: 'hidden',
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
         transition: 'background-color 100ms ease, box-shadow 100ms ease, transform 80ms ease',
         '&:hover': {
           filter: 'brightness(1.15)',
@@ -105,6 +108,8 @@ export default function EventChip({ event, onClick, draggable }: EventChipProps)
           lineHeight: 1.3,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
+          minWidth: 0,
+          flex: 1,
         }}
       >
         {event.title}

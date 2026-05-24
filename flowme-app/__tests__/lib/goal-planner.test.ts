@@ -1,4 +1,4 @@
-import { buildGoalOperatingPlan } from '@/lib/goals/planner';
+import { buildGoalOperatingPlan, summarizeTitle } from '@/lib/goals/planner';
 
 describe('buildGoalOperatingPlan', () => {
   it('creates yearly, monthly, and weekly goal records from an accepted proposal', () => {
@@ -221,5 +221,27 @@ describe('buildGoalOperatingPlan', () => {
 
     const dayTasks = plan.active_tasks.filter((t) => t.scheduled_date === '2026-05-23');
     expect(dayTasks).toHaveLength(1);
+  });
+});
+
+describe('summarizeTitle', () => {
+  it('extracts the meaningful action after "para"', () => {
+    const verbose = 'Dedicar por dia, de segunda a domingo, às 21:00, para estudar Clean Architecture, trabalhando em cursos, projetos práticos e revisões.';
+    expect(summarizeTitle(verbose)).toBe('Estudar Clean Architecture');
+  });
+
+  it('truncates with ellipsis when no action phrase is found', () => {
+    const verbose = 'Bloco de execucao da semana com foco em entregar uma versao mobile estavel do produto Flowme antes do fim do mes que vem';
+    const out = summarizeTitle(verbose);
+    expect(out.length).toBeLessThanOrEqual(50);
+    expect(out.endsWith('…')).toBe(true);
+  });
+
+  it('keeps a short input untouched', () => {
+    expect(summarizeTitle('Treinar para a maratona')).toBe('Treinar para a maratona');
+  });
+
+  it('falls back to "for" patterns in English', () => {
+    expect(summarizeTitle('Block out time daily for studying calculus and physics')).toBe('Studying calculus and physics');
   });
 });

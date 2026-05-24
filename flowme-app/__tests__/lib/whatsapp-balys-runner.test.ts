@@ -66,6 +66,7 @@ jest.mock('@/lib/ai/prepare-messages', () => ({
 
 jest.mock('@/lib/ai/threads', () => ({
   ensureThread: jest.fn().mockResolvedValue({ id: 'thread-1' }),
+  getThreadMessages: jest.fn().mockResolvedValue([]),
   persistMessage: jest.fn().mockResolvedValue({ id: 'message-1' }),
 }));
 
@@ -75,7 +76,8 @@ jest.mock('@/lib/whatsapp/evolution-client', () => ({
 }));
 
 import { handleWhatsAppMessage } from '@/lib/whatsapp/balys-runner';
-import { persistMessage } from '@/lib/ai/threads';
+import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
+import { getThreadMessages, persistMessage } from '@/lib/ai/threads';
 
 describe('handleWhatsAppMessage', () => {
   beforeEach(() => {
@@ -105,6 +107,52 @@ describe('handleWhatsAppMessage', () => {
           mimeType: 'audio/ogg; codecs=opus',
         }),
       ],
+    }));
+  });
+
+  it('loads prior WhatsApp thread messages before calling Balys', async () => {
+    (getThreadMessages as jest.Mock).mockResolvedValueOnce([
+      {
+        role: 'user',
+        content: 'O que tem na minha caixa de entrada hoje?',
+      },
+      {
+        role: 'assistant',
+        content: 'Você tem uma mensagem de Tom from LOVO.',
+        thinking: [{
+          tool: 'gmail.search_messages',
+          status: 'ok',
+          receipt: {
+            messages: [{
+              id: 'msg-1',
+              threadId: 'thread-1',
+              subject: 'Your free Genny trial ends today',
+              from: 'Tom from LOVO',
+              date: 'today',
+              snippet: 'Your trial ends today',
+            }],
+            count: 1,
+          },
+        }],
+      },
+    ]);
+
+    await handleWhatsAppMessage({
+      senderJid: '5511999999999@s.whatsapp.net',
+      messageId: 'text-1',
+      messageType: 'conversation',
+      text: 'O que tem no conteúdo do email?',
+      hasMedia: false,
+      pushName: 'Victor',
+    });
+
+    expect(runBalysAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+      messages: expect.arrayContaining([
+        expect.objectContaining({ role: 'assistant', content: 'Você tem uma mensagem de Tom from LOVO.' }),
+        expect.objectContaining({ role: 'user', content: 'O que tem no conteúdo do email?' }),
+      ]),
+      requiredFirstTool: undefined,
+      context: expect.objectContaining({ preferredConnectorType: 'gmail' }),
     }));
   });
 });

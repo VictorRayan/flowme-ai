@@ -13,6 +13,7 @@ import { loadProfile, renderProfileForPrompt, callProfileUpdater, persistProfile
 import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/facts';
 import { summarizeAndPersistThread, SUMMARIZE_EVERY_N_USER_TURNS } from '@/lib/ai/memory/recall';
 import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/ai/threads';
+import { hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
 
 const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
 type ConnectorIntent = {
@@ -52,6 +53,78 @@ function computeAgentMaxSteps(route: ReturnType<typeof routeBalysRequest>, conne
   }
   if (route.needsTools) return Math.max(routedBudget, 16);
   return routedBudget;
+}
+
+function isBroadListRequest(text: string): boolean {
+  return /\b(list|show|what.*(here|have)|which|recent)\b/i.test(text)
+    || /\b(lista|listar|mostra|mostrar|quais|que.*(tem|tenho)|o que chegou|caixa de entrada|recentes?)\b/i.test(text);
+}
+
+function isReadFollowUp(text: string): boolean {
+  return /\b(read|open|what.*in|content|body|summari[sz]e|explain)\b/i.test(text)
+    || /\b(ler|leia|abre|abrir|conte[uú]do|corpo|o que tem|resume|resumir|explica|analisa|analisar)\b/i.test(text);
+}
+
+function requiredFirstToolForConnector(
+  route: ReturnType<typeof routeBalysRequest>,
+  connectorIntent: ConnectorIntent | null,
+  latestText: string,
+  messages: any[],
+): string | undefined {
+  const action = connectorIntent?.action;
+  if (action === 'gmail') {
+    if (isReadFollowUp(latestText) && hasRecentConnectorContext(messages, (item) => item.tool === 'gmail.search_messages')) {
+      return undefined;
+    }
+    return 'gmail.search_messages';
+  }
+  if (action === 'docs') {
+    if (isReadFollowUp(latestText) && inferRecentConnectorType(messages) === 'google_docs') return 'connectors.find_and_read_doc';
+    return isBroadListRequest(latestText) ? 'connectors.search_docs' : 'connectors.find_and_read_doc';
+  }
+  if (action === 'sheets') {
+    if ((isReadFollowUp(latestText) || /\b(mostra|mostrar|ver|veja)\b/i.test(latestText)) && inferRecentConnectorType(messages) === 'google_sheets') {
+      return 'connectors.sheets_agent';
+    }
+    return isBroadListRequest(latestText) ? 'connectors.search_docs' : 'connectors.sheets_agent';
+  }
+  if (action === 'drive') {
+    if (isReadFollowUp(latestText) && inferRecentConnectorType(messages) === 'google_drive') return 'connectors.read_drive_file';
+    return 'connectors.search_docs';
+  }
+  if (!action && isReadFollowUp(latestText)) {
+    const recentType = inferRecentConnectorType(messages);
+    if (recentType === 'google_sheets') return 'connectors.sheets_agent';
+    if (recentType === 'google_docs') return 'connectors.find_and_read_doc';
+    if (recentType === 'google_drive') return 'connectors.read_drive_file';
+  }
+  if (route.toolDomain === 'gmail' && isReadFollowUp(latestText) && hasRecentConnectorContext(messages, (item) => item.tool === 'gmail.search_messages')) {
+    return undefined;
+  }
+  return undefined;
+}
+
+function preferredConnectorType(connectorIntent: ConnectorIntent | null, messages?: any[]): 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | undefined {
+  if (connectorIntent?.action === 'gmail') return 'gmail';
+  if (connectorIntent?.action === 'docs') return 'google_docs';
+  if (connectorIntent?.action === 'sheets') return 'google_sheets';
+  if (connectorIntent?.action === 'drive') return 'google_drive';
+  if (messages) return inferRecentConnectorType(messages);
+  return undefined;
+}
+
+function userSafeLoopErrorMessage(error: any): string {
+  const raw = error?.message || String(error);
+  if (/429|rate limit|quota|insufficient_quota/i.test(raw)) {
+    return 'Balys encontrou um limite temporário do provedor de IA. Tenta de novo em instantes.';
+  }
+  if (/503|unavailable|overloaded/i.test(raw)) {
+    return 'Balys conseguiu acessar a ferramenta, mas o provedor de IA ficou indisponível na hora de montar a resposta. Tenta de novo em instantes.';
+  }
+  if (/401|incorrect api key|unauthorized/i.test(raw)) {
+    return 'Balys encontrou um problema de configuração do provedor de IA.';
+  }
+  return 'Tive um problema interno ao concluir a resposta. Tenta de novo em instantes.';
 }
 
 function sanitizeHeaderValue(value: string): string {
@@ -143,6 +216,7 @@ export async function POST(request: NextRequest) {
     const parsedConnectorIntent: ConnectorIntent | null = connectorIntent && typeof connectorIntent === 'object'
       ? connectorIntent
       : null;
+    const connectorMemoryPrompt = renderConnectorContextForPrompt(messages);
     const connectorIntentPrompt = parsedConnectorIntent?.action
       ? [
           `Structured command intent: ${parsedConnectorIntent.label || parsedConnectorIntent.action}.`,
@@ -161,7 +235,7 @@ export async function POST(request: NextRequest) {
             : '',
         ].filter(Boolean).join(' ')
       : '';
-    const effectiveSystemAddendum = [typeof systemAddendum === 'string' ? systemAddendum : '', connectorIntentPrompt].filter(s => s.trim()).join('\n\n');
+    const effectiveSystemAddendum = [typeof systemAddendum === 'string' ? systemAddendum : '', connectorIntentPrompt, connectorMemoryPrompt].filter(s => s.trim()).join('\n\n');
 
     const systemPromptFull = buildBalysSystemPrompt({
       nowSection: buildNowSystemPrompt({
@@ -203,6 +277,7 @@ export async function POST(request: NextRequest) {
 
         let assistantFinalText = '';
         let finalTarget: { provider: string; model: string } = skillTarget;
+        const thinkingForPersistence: any[] = [];
         const rawThreadIdHeader = request.headers.get('x-thread-id');
         const threadIdForTools = rawThreadIdHeader || 'default-thread';
         // Only persist when we have a real thread id (UUID-shaped) and the user is authenticated.
@@ -210,11 +285,20 @@ export async function POST(request: NextRequest) {
 
         try {
           let toolCallObserved = false;
+          const latestTextForTools = typeof rawUserInput === 'string' ? rawUserInput : transcribedUserText;
+          const requiredFirstTool = requiredFirstToolForConnector(route, parsedConnectorIntent, latestTextForTools, messages);
+          const preExecuteFirstTool = Boolean(
+            requiredFirstTool
+            && ['gmail.search_messages', 'connectors.search_docs'].includes(requiredFirstTool)
+            && isBroadListRequest(latestTextForTools)
+          );
           const fallbackResult = await runBalysAgentLoopWithFallbacks(
             {
               messages: [{ role: 'system', content: systemPromptFull }, ...loopMessages],
               tools: ALL_TOOLS,
               maxSteps: computeAgentMaxSteps(route, parsedConnectorIntent),
+              requiredFirstTool,
+              preExecuteFirstTool,
               provider: skillTarget.provider,
               model: skillTarget.model,
               context: {
@@ -223,6 +307,7 @@ export async function POST(request: NextRequest) {
                 nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
                 timezone: typeof timezone === 'string' ? timezone : 'UTC',
                 threadId: threadIdForTools,
+                preferredConnectorType: preferredConnectorType(parsedConnectorIntent, messages),
                 userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
                   ? { lat: userLocation.lat, lon: userLocation.lon, name: userLocation.name }
                   : undefined,
@@ -231,6 +316,26 @@ export async function POST(request: NextRequest) {
               onProgress: (event) => {
                 if (event.type === 'tool_call_start' || event.type === 'tool_call_end') {
                   toolCallObserved = true;
+                }
+                if (event.type === 'tool_call_start') {
+                  thinkingForPersistence.push({
+                    call_id: event.call_id,
+                    tool: event.tool,
+                    args: event.args,
+                    status: 'running',
+                  });
+                }
+                if (event.type === 'tool_call_end') {
+                  const idx = thinkingForPersistence.findIndex((step) => step.call_id === event.call_id);
+                  const update = {
+                    call_id: event.call_id,
+                    tool: event.tool,
+                    status: event.ok ? 'ok' : 'failed',
+                    receipt: event.receipt,
+                    error: event.error,
+                  };
+                  if (idx >= 0) thinkingForPersistence[idx] = { ...thinkingForPersistence[idx], ...update };
+                  else thinkingForPersistence.push(update);
                 }
                 send(event);
               },
@@ -254,15 +359,17 @@ export async function POST(request: NextRequest) {
 
           const finalText = loopResult.content && loopResult.content.trim()
             ? loopResult.content
-            : 'I finished but had nothing to add. If you expected an answer, try rephrasing.';
+            : requiredFirstTool
+              ? 'Tive um problema ao acessar essa conexão agora. Tenta de novo em instantes.'
+              : 'I finished but had nothing to add. If you expected an answer, try rephrasing.';
           assistantFinalText = finalText;
           send({ type: 'text', text: finalText });
           send({ type: 'done' });
         } catch (loopError: any) {
           console.error('[balys-debug] Agent loop FAILED:', loopError);
-          const errMsg = loopError?.message || String(loopError);
+          const errMsg = userSafeLoopErrorMessage(loopError);
           send({ type: 'error', message: errMsg });
-          send({ type: 'text', text: `Tive um problema interno: ${errMsg}. Tenta de novo, e se persistir me avisa o que você pediu.` });
+          send({ type: 'text', text: errMsg });
           send({ type: 'done' });
         }
 
@@ -329,6 +436,7 @@ export async function POST(request: NextRequest) {
               thread_id: threadIdForTools,
               role: 'assistant',
               content: assistantFinalText,
+              thinking: thinkingForPersistence.length > 0 ? thinkingForPersistence : undefined,
             });
           }
         } catch (e) {

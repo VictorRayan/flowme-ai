@@ -14,6 +14,8 @@ export type AgentLoopOptions = {
   messages: Array<{ role: 'user' | 'assistant' | 'system' | 'tool'; content: string | any; name?: string; tool_call_id?: string; tool_calls?: any[] }>;
   tools: Tool[];
   maxSteps: number;
+  requiredFirstTool?: string;
+  preExecuteFirstTool?: boolean;
   provider: 'openai' | 'gemini' | 'deepseek' | string;
   model: string;
   context: ToolContext;
@@ -82,10 +84,111 @@ function unwrapNestedArgs(args: any, schema: z.ZodTypeAny): any {
   return args;
 }
 
+function truncateText(value: string, max = 900): string {
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max).trim()}...` : text;
+}
+
+function parseToolPayload(message: any): any | null {
+  if (message?.role !== 'tool' || typeof message.content !== 'string') return null;
+  try {
+    const parsed = JSON.parse(message.content);
+    return typeof parsed?.ok === 'boolean' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function latestGmailSearchMessageId(messages: any[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.name !== 'gmail.search_messages') continue;
+    const payload = parseToolPayload(message);
+    const emails = payload?.receipt?.messages || payload?.data?.messages || [];
+    if (Array.isArray(emails) && typeof emails[0]?.id === 'string') return emails[0].id;
+  }
+  return null;
+}
+
+function buildFallbackContentFromToolMessages(messages: any[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const payload = parseToolPayload(message);
+    if (!payload) continue;
+    if (payload.ok === false) {
+      const error = String(payload.error || '');
+      if (/Connector needs connection/i.test(error)) {
+        return 'Essa conexão ainda não está conectada. Abra Connectors e clique em Connect account para essa fonte.';
+      }
+      if (/needs refresh|Reconnect account/i.test(error)) {
+        return 'A conexão com o Google precisa ser renovada. Abra Connectors e clique em Reconnect account para essa fonte.';
+      }
+      continue;
+    }
+
+    if (message.name === 'gmail.read_message') {
+      const email = payload.data?.message;
+      if (!email) continue;
+      const body = truncateText(email.body_text || email.snippet || '', 1200);
+      return [
+        `Li o email "${email.subject || 'sem assunto'}" de ${email.from || 'remetente desconhecido'}.`,
+        body ? `Conteúdo principal: ${body}` : 'O Gmail abriu a mensagem, mas ela não trouxe texto legível no corpo.',
+      ].join('\n\n');
+    }
+
+    if (message.name === 'gmail.search_messages') {
+      const emails = payload.receipt?.messages || payload.data?.messages || [];
+      if (!Array.isArray(emails) || emails.length === 0) continue;
+      return [
+        'Encontrei estes emails:',
+        ...emails.slice(0, 10).map((email: any) => `* ${email.from || 'Remetente desconhecido'} — ${email.subject || 'sem assunto'}`),
+      ].join('\n');
+    }
+
+    if (message.name === 'connectors.search_docs') {
+      const files = payload.receipt?.files || payload.data?.files || [];
+      if (!Array.isArray(files) || files.length === 0) continue;
+      return [
+        'Encontrei estes arquivos:',
+        ...files.slice(0, 10).map((file: any) => `* ${file.name || 'Sem nome'}`),
+      ].join('\n');
+    }
+
+    if (message.name === 'connectors.read_doc' || message.name === 'connectors.find_and_read_doc') {
+      const receipt = payload.receipt || {};
+      const content = truncateText(receipt.content || payload.data?.content || '', 1200);
+      return [
+        `Li o documento "${receipt.title || payload.data?.title || 'sem título'}".`,
+        content ? `Resumo rápido do conteúdo: ${content}` : 'O documento abriu, mas não trouxe texto legível.',
+      ].join('\n\n');
+    }
+
+    if (message.name === 'connectors.sheets_agent') {
+      const receipt = payload.receipt || {};
+      const insights = Array.isArray(receipt.insights)
+        ? receipt.insights.slice(0, 3).map((item: any) => `* ${item.title || 'Insight'}: ${item.evidence || item.recommendation || ''}`.trim())
+        : [];
+      return [receipt.summary || 'Analisei a planilha.', ...insights].filter(Boolean).join('\n');
+    }
+
+    if (message.name === 'connectors.read_drive_file') {
+      const receipt = payload.receipt || {};
+      const content = truncateText(receipt.content || '', 1200);
+      return [
+        `Li o arquivo "${receipt.title || 'sem título'}".`,
+        content ? `Conteúdo principal: ${content}` : 'O arquivo abriu, mas não trouxe texto legível.',
+      ].join('\n\n');
+    }
+  }
+  return null;
+}
+
 export async function runBalysAgentLoop(options: AgentLoopOptions) {
   let steps = 0;
   const messages = [...options.messages];
   const availableTools = mapToolsToOpenAI(options.tools);
+  const toolSignatureCounts = new Map<string, number>();
+  const latestUserText = [...messages].reverse().find((message) => message.role === 'user' && typeof message.content === 'string')?.content || '';
 
   // Initialize OpenAI (we use OpenAI SDK as the universal interface for LLMs)
   // Gemini provides an OpenAI compatible endpoint. Deepseek does as well.
@@ -103,22 +206,118 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
   const openai = new OpenAI({ apiKey, baseURL });
 
   const maxSteps = Math.max(1, options.maxSteps);
+  const preExecutableFirstTools = new Set(['gmail.search_messages', 'connectors.search_docs']);
 
   const emit = (event: AgentProgressEvent) => {
     try { options.onProgress?.(event); } catch (e) { console.error('[agent-loop] onProgress threw', e); }
   };
 
+  const executeToolCall = async (toolName: string, parsedArgs: any, callId: string): Promise<void> => {
+    const tool = getToolByName(toolName);
+    if (!tool) {
+      messages.push({
+        role: 'tool',
+        tool_call_id: callId,
+        name: toolName,
+        content: JSON.stringify({ error: `Tool ${toolName} not found or not allowed in this context.` })
+      });
+      emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: false, error: 'tool not found' });
+      return;
+    }
+
+    emit({ type: 'tool_call_start', tool: toolName, args: parsedArgs, call_id: callId });
+
+    let status: 'success' | 'error' = 'success';
+    let resultJson: any = null;
+    let errorMessage: string | null = null;
+    let receiptJson: any = null;
+
+    try {
+      const result = await tool.call(parsedArgs, {
+        ...options.context,
+        onProgress: options.onProgress as any,
+      });
+      if (result.ok) {
+        resultJson = result.data || result.receipt || { success: true };
+        receiptJson = result.receipt || null;
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: callId,
+          name: toolName,
+          content: JSON.stringify({ ok: true, receipt: receiptJson, data: result.data })
+        });
+        emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: true, receipt: receiptJson });
+      } else {
+        status = 'error';
+        errorMessage = result.error || 'Unknown error';
+        messages.push({
+          role: 'tool',
+          tool_call_id: callId,
+          name: toolName,
+          content: JSON.stringify({ ok: false, error: errorMessage })
+        });
+        emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: false, error: errorMessage });
+      }
+    } catch (e: any) {
+      status = 'error';
+      errorMessage = e.message;
+      messages.push({
+        role: 'tool',
+        tool_call_id: callId,
+        name: toolName,
+        content: JSON.stringify({ ok: false, error: errorMessage })
+      });
+      emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: false, error: errorMessage || 'exception' });
+    }
+
+    await options.context.supabase
+      .from('ai_tool_runs')
+      .insert({
+        user_id: options.context.user.id,
+        thread_id: options.threadId,
+        tool_name: tool.name,
+        input_json: parsedArgs,
+        status,
+        result_json: resultJson,
+        receipt_json: receiptJson,
+        error_message: errorMessage,
+        verified_at: status === 'success' ? new Date().toISOString() : null
+      });
+  };
+
+  let preExecutedFirstTool = false;
+  if (options.preExecuteFirstTool && options.requiredFirstTool && preExecutableFirstTools.has(options.requiredFirstTool)) {
+    preExecutedFirstTool = true;
+    await executeToolCall(options.requiredFirstTool, {}, `pre-${options.requiredFirstTool}-${Date.now()}`);
+    const fallbackContent = buildFallbackContentFromToolMessages(messages);
+    if (fallbackContent) {
+      return { content: fallbackContent, messages, steps };
+    }
+  }
+
   while (steps < maxSteps) {
     steps++;
     emit({ type: 'step_start', step: steps });
 
-    const response = await openai.chat.completions.create({
-      model: options.model,
-      messages: messages as any,
-      tools: availableTools.length > 0 ? availableTools : undefined,
-      tool_choice: availableTools.length > 0 ? 'auto' : 'none',
-      temperature: 0.2,
-    });
+    let response: OpenAI.Chat.Completions.ChatCompletion;
+    try {
+      response = await openai.chat.completions.create({
+        model: options.model,
+        messages: messages as any,
+        tools: availableTools.length > 0 ? availableTools : undefined,
+        tool_choice: options.requiredFirstTool && steps === 1 && !preExecutedFirstTool
+          ? { type: 'function', function: { name: options.requiredFirstTool } }
+          : availableTools.length > 0 ? 'auto' : 'none',
+        temperature: 0.2,
+      });
+    } catch (error) {
+      const fallbackContent = buildFallbackContentFromToolMessages(messages);
+      if (fallbackContent) {
+        return { content: fallbackContent, messages, steps };
+      }
+      throw error;
+    }
 
     const choice = response.choices[0];
     const message = choice.message;
@@ -197,67 +396,28 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
         }
         parsedArgs = validation.data;
 
-        emit({ type: 'tool_call_start', tool: toolCall.function.name, args: parsedArgs, call_id: toolCall.id });
-
-        // Execute Tool
-        let status: 'success' | 'error' = 'success';
-        let resultJson: any = null;
-        let errorMessage: string | null = null;
-        let receiptJson: any = null;
-
-        try {
-          const result = await tool.call(parsedArgs, {
-            ...options.context,
-            onProgress: options.onProgress as any,
-          });
-          if (result.ok) {
-            resultJson = result.data || result.receipt || { success: true };
-            receiptJson = result.receipt || null;
-
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-              content: JSON.stringify({ ok: true, receipt: receiptJson, data: result.data })
-            });
-            emit({ type: 'tool_call_end', tool: toolCall.function.name, call_id: toolCall.id, ok: true, receipt: receiptJson });
-          } else {
-            status = 'error';
-            errorMessage = result.error || 'Unknown error';
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-              content: JSON.stringify({ ok: false, error: errorMessage })
-            });
-            emit({ type: 'tool_call_end', tool: toolCall.function.name, call_id: toolCall.id, ok: false, error: errorMessage });
+        const signature = `${toolCall.function.name}:${JSON.stringify(parsedArgs)}`;
+        const repeatedCount = (toolSignatureCounts.get(signature) || 0) + 1;
+        toolSignatureCounts.set(signature, repeatedCount);
+        if (repeatedCount > 2) {
+          if (
+            toolCall.function.name === 'gmail.search_messages'
+            && /\b(read|open|latest|newest|summari[sz]e|leia|ler|mais recente|conte[uú]do|resume|resuma)\b/i.test(latestUserText)
+          ) {
+            const messageId = latestGmailSearchMessageId(messages);
+            if (messageId) {
+              await executeToolCall('gmail.read_message', { message_id: messageId }, `auto-read-${Date.now()}`);
+              const readFallbackContent = buildFallbackContentFromToolMessages(messages);
+              if (readFallbackContent) return { content: readFallbackContent, messages, steps };
+            }
           }
-        } catch (e: any) {
-          status = 'error';
-          errorMessage = e.message;
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: toolCall.function.name,
-            content: JSON.stringify({ ok: false, error: errorMessage })
-          });
-          emit({ type: 'tool_call_end', tool: toolCall.function.name, call_id: toolCall.id, ok: false, error: errorMessage || 'exception' });
+          const fallbackContent = buildFallbackContentFromToolMessages(messages);
+          if (fallbackContent) {
+            return { content: fallbackContent, messages, steps };
+          }
         }
 
-        // Log to ai_tool_runs (The Operation Ledger)
-        await options.context.supabase
-          .from('ai_tool_runs')
-          .insert({
-            user_id: options.context.user.id,
-            thread_id: options.threadId,
-            tool_name: tool.name,
-            input_json: parsedArgs,
-            status,
-            result_json: resultJson,
-            receipt_json: receiptJson,
-            error_message: errorMessage,
-            verified_at: status === 'success' ? new Date().toISOString() : null
-          });
+        await executeToolCall(toolCall.function.name, parsedArgs, toolCall.id);
       }
     }
   }

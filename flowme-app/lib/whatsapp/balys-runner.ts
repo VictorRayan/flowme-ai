@@ -8,7 +8,8 @@ import { ALL_TOOLS, getActiveToolDomains } from '@/lib/ai/tools/registry';
 import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
 import { loadProfile, renderProfileForPrompt } from '@/lib/ai/memory/profile';
 import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/facts';
-import { ensureThread, persistMessage } from '@/lib/ai/threads';
+import { ensureThread, getThreadMessages, persistMessage } from '@/lib/ai/threads';
+import { hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
 import { prepareMessagesWithAttachments } from '@/lib/ai/prepare-messages';
 import { jidToPhone, sendText } from './evolution-client';
 
@@ -96,6 +97,44 @@ function stripMarkdown(text: string): string {
 
 const WHATSAPP_ADDENDUM = `You are replying via WhatsApp. Keep responses concise and conversational — no markdown headers, no code fences, plain text only. Use *bold* for emphasis if needed (WhatsApp renders it). If the user sends an image or audio, process and respond naturally.`;
 
+function isReadFollowUp(text: string): boolean {
+  return /\b(read|open|what.*in|content|body|summari[sz]e|explain)\b/i.test(text)
+    || /\b(ler|leia|abre|abrir|conte[uú]do|corpo|o que tem|resume|resumir|explica|analisa|analisar)\b/i.test(text);
+}
+
+function isBroadListRequest(text: string): boolean {
+  return /\b(list|show|what.*(here|have)|which|recent)\b/i.test(text)
+    || /\b(lista|listar|mostra|mostrar|quais|que.*(tem|tenho)|o que chegou|caixa de entrada|recentes?)\b/i.test(text);
+}
+
+function requiredFirstToolForWhatsApp(text: string, messages: any[]): string | undefined {
+  if (/\b(gmail|email|e-mail|mail|caixa de entrada)\b/i.test(text)) {
+    if (isReadFollowUp(text) && hasRecentConnectorContext(messages, (item) => item.tool === 'gmail.search_messages')) {
+      return undefined;
+    }
+    return 'gmail.search_messages';
+  }
+  if (isReadFollowUp(text)) {
+    const recentType = inferRecentConnectorType(messages);
+    if (recentType === 'google_sheets') return 'connectors.sheets_agent';
+    if (recentType === 'google_docs') return 'connectors.find_and_read_doc';
+    if (recentType === 'google_drive') return 'connectors.read_drive_file';
+  }
+  if (/\b(docs?|documentos?)\b/i.test(text)) return 'connectors.search_docs';
+  if (/\b(sheets?|planilhas?)\b/i.test(text)) return 'connectors.search_docs';
+  if (/\bdrive|arquivos?\b/i.test(text)) return 'connectors.search_docs';
+  return undefined;
+}
+
+function preferredConnectorTypeForWhatsApp(text: string, messages: any[], requiredFirstTool?: string) {
+  if (/\b(gmail|email|e-mail|mail|caixa de entrada)\b/i.test(text)) return 'gmail';
+  if (/\b(docs?|documentos?)\b/i.test(text)) return 'google_docs';
+  if (/\b(sheets?|planilhas?)\b/i.test(text)) return 'google_sheets';
+  if (/\bdrive|arquivos?\b/i.test(text)) return 'google_drive';
+  if (requiredFirstTool?.startsWith('connectors.')) return inferRecentConnectorType(messages);
+  return undefined;
+}
+
 export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): Promise<void> {
   const supabase = makeServiceClient();
   const phone    = jidToPhone(incoming.senderJid);
@@ -147,6 +186,13 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
 
   const threadId = threadIdForJid(user.id, incoming.senderJid);
   const nowIso   = new Date().toISOString();
+  const persistedHistory = (await getThreadMessages(supabase as any, user.id, threadId).catch(() => []))
+    .slice(-18)
+    .map((message: any) => ({
+      role: message.role,
+      content: message.content || '',
+      thinking: Array.isArray(message.thinking) ? message.thinking : undefined,
+    }));
 
   const [notesMap, userProfile, topFacts] = await Promise.all([
     buildNotesGraphMap(authContext).catch(() => ''),
@@ -166,16 +212,19 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
     content: userText,
     ...(mediaAttachment ? { attachments: [mediaAttachment] } : {}),
   };
+  const routeMessages = [...persistedHistory, userMessage];
 
   const route = routeBalysRequest({
-    messages: [userMessage],
+    messages: routeMessages,
     rawUserInput: userText,
     systemAddendum: WHATSAPP_ADDENDUM,
   });
+  const connectorMemoryPrompt = renderConnectorContextForPrompt(routeMessages);
+  const effectiveAddendum = [WHATSAPP_ADDENDUM, connectorMemoryPrompt].filter((part) => part.trim()).join('\n\n');
 
   const systemPrompt = buildBalysSystemPrompt({
     nowSection: buildNowSystemPrompt({ timezone: 'UTC', clientNowIso: nowIso }),
-    systemAddendum: WHATSAPP_ADDENDUM,
+    systemAddendum: effectiveAddendum,
     notesMap: typeof notesMap === 'string' ? notesMap : undefined,
     toolsAvailable: getActiveToolDomains(),
     profileBlock,
@@ -185,7 +234,7 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
   const skillTarget = route.executionPlan === 'direct_tool' ? route.executor : route.planner;
 
   // Images go inline as vision content; audio goes through the existing transcription path
-  const loopMessages: any[] = [];
+  const loopMessages: any[] = persistedHistory.map((message) => ({ role: message.role, content: message.content }));
   if (mediaAttachment?.type === 'image') {
     loopMessages.push({
       role: 'user',
@@ -199,11 +248,19 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
   }
 
   let replyText = '';
+  const thinkingForPersistence: any[] = [];
   try {
+    const requiredFirstTool = requiredFirstToolForWhatsApp(userText, routeMessages);
     const result = await runBalysAgentLoop({
       messages: [{ role: 'system', content: systemPrompt }, ...loopMessages],
       tools: ALL_TOOLS,
-      maxSteps: route.gates?.maxAutoToolCalls || 5,
+      maxSteps: requiredFirstTool ? Math.max(route.gates?.maxAutoToolCalls || 5, 16) : route.gates?.maxAutoToolCalls || 5,
+      requiredFirstTool,
+      preExecuteFirstTool: Boolean(
+        requiredFirstTool
+        && ['gmail.search_messages', 'connectors.search_docs'].includes(requiredFirstTool)
+        && isBroadListRequest(userText)
+      ),
       provider: skillTarget.provider,
       model: skillTarget.model,
       context: {
@@ -212,8 +269,31 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
         nowIso,
         timezone: 'UTC',
         threadId,
+        preferredConnectorType: preferredConnectorTypeForWhatsApp(userText, routeMessages, requiredFirstTool),
       },
       threadId,
+      onProgress: (event) => {
+        if (event.type === 'tool_call_start') {
+          thinkingForPersistence.push({
+            call_id: event.call_id,
+            tool: event.tool,
+            args: event.args,
+            status: 'running',
+          });
+        }
+        if (event.type === 'tool_call_end') {
+          const idx = thinkingForPersistence.findIndex((step) => step.call_id === event.call_id);
+          const update = {
+            call_id: event.call_id,
+            tool: event.tool,
+            status: event.ok ? 'ok' : 'failed',
+            receipt: event.receipt,
+            error: event.error,
+          };
+          if (idx >= 0) thinkingForPersistence[idx] = { ...thinkingForPersistence[idx], ...update };
+          else thinkingForPersistence.push(update);
+        }
+      },
     });
     replyText = (result.content || '').trim() || 'Done! Let me know if you need anything else.';
   } catch (e: any) {
@@ -240,7 +320,12 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
       ...(originalMediaAttachment ? { attachments: [originalMediaAttachment] } : {}),
       ...(originalMediaAttachment?.type === 'audio' ? { transcript: userText } : {}),
     });
-    await persistMessage(supabase as any, user.id, { thread_id: threadId, role: 'assistant', content: replyText });
+    await persistMessage(supabase as any, user.id, {
+      thread_id: threadId,
+      role: 'assistant',
+      content: replyText,
+      thinking: thinkingForPersistence.length > 0 ? thinkingForPersistence : undefined,
+    });
   } catch (e) {
     console.error('[whatsapp-balys] persist failed (non-fatal):', e);
   }

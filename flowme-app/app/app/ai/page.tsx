@@ -213,6 +213,30 @@ function isWhatsAppThread(thread: Pick<Thread, 'title'> | null | undefined): boo
   return (thread?.title || '').trim().toLowerCase() === 'whatsapp';
 }
 
+function mapPersistedMessage(m: any): Message {
+  return {
+    role: m.role,
+    content: m.content || '',
+    attachments: Array.isArray(m.attachments)
+      ? m.attachments.map((a: any) => ({ ...a, dataUrl: '' }))
+      : undefined,
+    selectedAction: m.selected_action || undefined,
+    transcript: m.transcript || undefined,
+    thinking: Array.isArray(m.thinking) ? m.thinking : undefined,
+  };
+}
+
+function stripThreadAttachmentData(t: Thread[]): Thread[] {
+  return t.map(thread => ({
+    ...thread,
+    messages: thread.messages.map(msg =>
+      msg.attachments?.length
+        ? { ...msg, attachments: msg.attachments.map(att => ({ ...att, dataUrl: '' })) }
+        : msg
+    ),
+  }));
+}
+
 function pendingActionIcon(action: CommandAction): React.ReactElement | undefined {
   const iconSx = { fontSize: '14px !important' };
   if (action === 'weather') return <WbSunnyIcon sx={iconSx} />;
@@ -285,6 +309,19 @@ export default function AIPage() {
 
   const activeThread = threads.find(t => t.id === activeThreadId) || null;
   const activeIsWhatsAppThread = isWhatsAppThread(activeThread);
+  const refreshThreadMessages = useCallback(async (threadId: string) => {
+    if (!UUID_RE.test(threadId)) return;
+    const res = await fetch(`/api/threads/${threadId}`);
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    if (!data?.ok || !Array.isArray(data.messages) || data.messages.length === 0) return;
+    const msgs: Message[] = data.messages.map(mapPersistedMessage);
+    setThreads((prev) => {
+      const updated = prev.map((t) => t.id === threadId ? { ...t, messages: msgs } : t);
+      try { localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripThreadAttachmentData(updated))); } catch {}
+      return updated;
+    });
+  }, []);
 
   // Hydrate threads: prefer server, fall back to localStorage cache, run one-shot backfill if needed.
   useEffect(() => {
@@ -393,39 +430,31 @@ export default function AIPage() {
     const active = threads.find((t) => t.id === activeThreadId);
     if (!active || !UUID_RE.test(activeThreadId)) return;
 
-    let cancelled = false;
-    fetch(`/api/threads/${activeThreadId}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (cancelled || !data?.ok || !Array.isArray(data.messages)) return;
-        const msgs: Message[] = data.messages.map((m: any) => ({
-          role: m.role,
-          content: m.content || '',
-          attachments: Array.isArray(m.attachments)
-            ? m.attachments.map((a: any) => ({ ...a, dataUrl: '' }))
-            : undefined,
-          selectedAction: m.selected_action || undefined,
-          transcript: m.transcript || undefined,
-        }));
-        if (msgs.length === 0) return;
-        setThreads((prev) => prev.map((t) => t.id === activeThreadId ? { ...t, messages: msgs } : t));
-      })
-      .catch(() => { /* ignore */ });
-    return () => { cancelled = true; };
-  }, [activeThreadId]); // eslint-disable-line react-hooks/exhaustive-deps
+    refreshThreadMessages(activeThreadId).catch(() => { /* ignore */ });
+  }, [activeThreadId, refreshThreadMessages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!activeThreadId || !activeIsWhatsAppThread || !UUID_RE.test(activeThreadId)) return;
+    let stopped = false;
+    const poll = () => {
+      if (stopped || document.visibilityState === 'hidden') return;
+      refreshThreadMessages(activeThreadId).catch(() => { /* ignore */ });
+    };
+    const interval = window.setInterval(poll, 4000);
+    const onVisibility = () => poll();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [activeThreadId, activeIsWhatsAppThread, refreshThreadMessages]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeThread?.messages, loading]);
 
   const persistThreads = (t: Thread[]) => {
     // Strip attachment dataUrls (base64) before persisting — they blow the localStorage quota
-    const stripped = t.map(thread => ({
-      ...thread,
-      messages: thread.messages.map(msg =>
-        msg.attachments?.length
-          ? { ...msg, attachments: msg.attachments.map(att => ({ ...att, dataUrl: '' })) }
-          : msg
-      ),
-    }));
+    const stripped = stripThreadAttachmentData(t);
     try {
       localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripped));
     } catch {

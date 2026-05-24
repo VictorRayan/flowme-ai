@@ -75,7 +75,7 @@ export async function scoreThreadContext(
     apiKey,
     baseURL: useGemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/' : undefined,
   });
-  const model = useGemini ? 'gemini-2.0-flash' : 'gpt-4o-mini';
+  const model = useGemini ? 'gemini-2.5-flash' : 'gpt-4o-mini';
 
   const prompt = buildScorerPrompt(messages);
 

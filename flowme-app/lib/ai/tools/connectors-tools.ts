@@ -248,6 +248,7 @@ async function getConnectorRowWithFallback(
   context: ToolContext,
   connectorId?: string,
   preferredType?: ConnectorType,
+  strictPreferred = false,
 ): Promise<ConnectorRow | null> {
   if (connectorId) {
     const connector = await getConnectorRow(context, connectorId);
@@ -258,6 +259,7 @@ async function getConnectorRowWithFallback(
   if (preferredType) {
     const preferred = await findConnectorByType(context, preferredType);
     if (preferred) return preferred;
+    if (strictPreferred) return null;
   }
   for (const type of ['google_sheets', 'google_docs', 'google_drive'] as ConnectorType[]) {
     const c = await findConnectorByType(context, type);
@@ -527,11 +529,17 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
   isReadOnly: true,
   inputSchema: z.object({
     connector_id: z.string().optional().describe('The connector id from connectors.list.'),
+    connector_type: z.enum(['google_drive', 'google_docs', 'google_sheets']).optional().describe('Preferred connector type for discovery. Use google_docs for Docs, google_sheets for Sheets, and google_drive for broad Drive.'),
     query: z.string().optional().default('').describe('Plain text search query for file names and content. Omit to list recent files.'),
     max_results: z.number().optional().default(10),
   }),
   call: async (args, context) => {
-    const connector = await getConnectorRowWithFallback(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(
+      context,
+      args.connector_id,
+      args.connector_type || (context.preferredConnectorType && context.preferredConnectorType !== 'gmail' ? context.preferredConnectorType : undefined),
+      Boolean(args.connector_type || (context.preferredConnectorType && context.preferredConnectorType !== 'gmail')),
+    );
     const searchQuery = args.query ?? '';
     const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
@@ -557,7 +565,7 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
         size: f.size,
       }));
 
-      return { ok: true, receipt: { files, count: files.length } };
+      return { ok: true, receipt: { files, count: files.length, connector_type: connector?.type } };
     } catch (e: any) {
       const msg = e?.response?.data?.error?.message || e?.message || 'Failed to search Drive';
       return { ok: false, error: `Google Drive: ${msg}` };
@@ -1014,7 +1022,7 @@ RETURNS receipt: { messages[], count }. Each message: { id, threadId, snippet, s
 ASK THE USER FIRST IF: the query is broad enough to be sensitive ("all emails from my boss"), or they asked you to do something AFTER finding the email (reply, forward) — confirm before drafting.`,
   isReadOnly: true,
   inputSchema: z.object({
-    query: z.string().describe('Gmail search expression. Supports operators (from:, to:, subject:, is:unread, has:attachment, after:YYYY/MM/DD, label:…) and free-text. Translate relative dates to absolute.'),
+    query: z.string().optional().default('in:inbox').describe('Gmail search expression. Supports operators (from:, to:, subject:, is:unread, has:attachment, after:YYYY/MM/DD, label:…) and free-text. Translate relative dates to absolute. Defaults to in:inbox.'),
     max_results: z.number().optional().default(10).describe('Cap on returned messages. Default 10. Keep small — each result triggers a metadata fetch.'),
   }),
   call: async (args, context) => {
@@ -1099,7 +1107,24 @@ RETURNS receipt: { message }. The message includes subject, from, to, date, body
       }
 
       const message = await readEmailMessage(accountId, messageId, context);
-      return { ok: true, receipt: { message, resolved_from: resolvedFrom } };
+      return {
+        ok: true,
+        data: { message },
+        receipt: {
+          message: {
+            id: message.id,
+            threadId: message.threadId,
+            subject: message.subject,
+            from: message.from,
+            to: message.to,
+            date: message.date,
+            snippet: message.snippet,
+            body_text_length: message.body_text?.length || 0,
+            attachment_count: message.attachments?.length || 0,
+          },
+          resolved_from: resolvedFrom,
+        },
+      };
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
       const errCode = e?.response?.data?.error?.code || e?.code;

@@ -142,20 +142,35 @@ export async function persistMessage(
           .map((a) => ({ type: a.type, name: a.name, mimeType: a.mimeType }))
       : null;
 
-    const { data, error } = await supabase
+    const insert: Record<string, unknown> = {
+      thread_id: input.thread_id,
+      user_id: userId,
+      role: input.role,
+      content: input.content || '',
+      attachments: attachmentsMeta && attachmentsMeta.length > 0 ? attachmentsMeta : null,
+      selected_action: input.selected_action || null,
+      transcript: input.transcript || null,
+      thinking: input.thinking || null,
+    };
+
+    const insertMessage = async (payload: Record<string, unknown>) => supabase
       .from('thread_messages')
-      .insert({
-        thread_id: input.thread_id,
-        user_id: userId,
-        role: input.role,
-        content: input.content || '',
-        attachments: attachmentsMeta && attachmentsMeta.length > 0 ? attachmentsMeta : null,
-        selected_action: input.selected_action || null,
-        transcript: input.transcript || null,
-        thinking: input.thinking || null,
-      })
+      .insert(payload)
       .select('*')
       .single();
+
+    let { data, error } = await insertMessage(insert);
+    if (error?.code === 'PGRST204' && typeof error.message === 'string') {
+      const fallback = { ...insert };
+      if (error.message.includes("'selected_action'")) delete fallback.selected_action;
+      if (error.message.includes("'transcript'")) delete fallback.transcript;
+      if (error.message.includes("'thinking'")) delete fallback.thinking;
+      if (Object.keys(fallback).length !== Object.keys(insert).length) {
+        const retried = await insertMessage(fallback);
+        data = retried.data;
+        error = retried.error;
+      }
+    }
     if (error) {
       console.error('[threads.persistMessage] insert error:', error);
       return null;

@@ -231,10 +231,11 @@ export default function OnboardingWizard() {
       preferred_time: p.preferred_time,
       default_task_duration_minutes: p.default_task_duration_minutes,
     }));
+    const timezone = (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
     const res = await fetch('/api/v1/onboarding/assistant', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history, userMessage: userMsg, lang, priorProposals })
+      body: JSON.stringify({ history, userMessage: userMsg, lang, priorProposals, timezone })
     });
     const data = await res.json();
     return data;

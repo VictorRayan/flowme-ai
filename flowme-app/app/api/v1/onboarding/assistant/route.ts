@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { requireAuth } from '@/lib/api/auth';
+import { getCalendarAvailabilityText } from '@/lib/onboarding/calendar-availability';
 
 // ─── System Prompt (language-aware) ───────────────────────────────────
 interface PriorProposal {
@@ -228,14 +230,29 @@ async function callOpenAI(systemPrompt: string, messages: Array<{ role: string; 
 // ─── Route Handler ───────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const { history, userMessage, lang = 'pt', priorProposals } = await req.json();
+    const { history, userMessage, lang = 'pt', priorProposals, timezone } = await req.json();
 
     if (!userMessage) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
     const priors: PriorProposal[] = Array.isArray(priorProposals) ? priorProposals.filter(Boolean) : [];
-    const systemPrompt = getSystemPrompt(lang) + formatPriorProposals(priors, lang);
+    let availabilityBlock = '';
+    try {
+      const auth = await requireAuth(req).catch(() => null);
+      if (auth) {
+        availabilityBlock = await getCalendarAvailabilityText(
+          auth.supabase as any,
+          auth.user.id,
+          typeof timezone === 'string' && timezone ? timezone : 'UTC',
+          lang === 'en' ? 'en' : 'pt',
+          14,
+        );
+      }
+    } catch (err) {
+      console.warn('[onboarding/assistant] availability lookup failed (non-fatal):', err);
+    }
+    const systemPrompt = getSystemPrompt(lang) + availabilityBlock + formatPriorProposals(priors, lang);
 
     // Build unified message array
     const messages: Array<{ role: string; content: string }> = [];

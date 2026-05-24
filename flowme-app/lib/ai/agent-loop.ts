@@ -351,6 +351,7 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
       });
   };
 
+  let emptyResponseNudged = false;
   let preExecutedFirstTool = false;
   if (options.preExecuteFirstTool && options.requiredFirstTool && preExecutableFirstTools.has(options.requiredFirstTool)) {
     preExecutedFirstTool = true;
@@ -395,7 +396,18 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
     }
 
     if (choice.finish_reason !== 'tool_calls' && !message.tool_calls) {
-      // Loop finished, no more tools to call
+      const emptyContent = typeof message.content !== 'string' || !message.content.trim();
+      if (emptyContent && !emptyResponseNudged) {
+        // Gemini sometimes returns empty text + no tool call on follow-up turns
+        // where it should chain prior context (e.g. user just supplied missing info).
+        // Nudge it once before surfacing the empty-content fallback.
+        emptyResponseNudged = true;
+        messages.push({
+          role: 'system',
+          content: 'Your previous response was empty. Re-read the full conversation history. If the user has now supplied missing information for a pending action you proposed earlier, call the appropriate tool with everything available. Otherwise, respond in natural language. Never return empty.',
+        });
+        continue;
+      }
       return {
         content: message.content,
         messages,

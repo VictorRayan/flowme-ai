@@ -164,6 +164,38 @@ describe('runBalysAgentLoop', () => {
     expect(patched).toMatchObject({ file_id: 'only-file-id', spreadsheet_name: 'Some Sheet.xlsx' });
   });
 
+  it('retries once with a nudge when the model returns an empty response', async () => {
+    mockCompletionsCreate
+      .mockResolvedValueOnce({
+        choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '' } }],
+      })
+      .mockResolvedValueOnce({
+        choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'Reminder created for 10 AM.' } }],
+      });
+
+    const result = await runBalysAgentLoop({
+      messages: [
+        { role: 'user', content: 'consegue me lembrar amanha de escovar os dentes?' },
+        { role: 'assistant', content: 'Claro! Para que horas amanhã?' },
+        { role: 'user', content: '10 da manhã' },
+      ],
+      tools: [],
+      maxSteps: 4,
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      context: {
+        supabase: { from: jest.fn() },
+        user: { id: 'user-1' },
+        timezone: 'America/Sao_Paulo',
+        nowIso: '2026-05-24T20:00:00.000Z',
+      } as any,
+      threadId: 'thread-1',
+    });
+
+    expect(result.content).toBe('Reminder created for 10 AM.');
+    expect(mockCompletionsCreate).toHaveBeenCalledTimes(2);
+  });
+
   it('respects an explicit file_id and does not overwrite it', () => {
     const messages = [
       {

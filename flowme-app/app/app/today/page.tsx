@@ -281,24 +281,18 @@ export default function TodayPage() {
             sections={briefingSections}
             uiLang={uiLang}
           />
-          {days.map((day, idx) => {
-            const hasPrevTrail = days.slice(0, idx).some((d) => d.tasks.length > 0);
-            const hasNextTrail = days.slice(idx + 1).some((d) => d.tasks.length > 0);
-            return (
-              <DaySection
-                key={day.date}
-                day={day}
-                isToday={day.date === today}
-                todayRef={day.date === today ? todayRef : undefined}
-                saving={saving}
-                onUpdate={update}
-                onMove={moveTo}
-                uiLang={uiLang}
-                hasPrevTrail={hasPrevTrail}
-                hasNextTrail={hasNextTrail}
-              />
-            );
-          })}
+          {days.map(day => (
+            <DaySection
+              key={day.date}
+              day={day}
+              isToday={day.date === today}
+              todayRef={day.date === today ? todayRef : undefined}
+              saving={saving}
+              onUpdate={update}
+              onMove={moveTo}
+              uiLang={uiLang}
+            />
+          ))}
         </Box>
       )}
     </Box>
@@ -306,7 +300,7 @@ export default function TodayPage() {
 }
 
 /* ── DaySection: one "unit" like Duolingo ──────────────────────────────── */
-function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, hasPrevTrail, hasNextTrail }: {
+function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang }: {
   day: DayUnit;
   isToday: boolean;
   todayRef?: React.RefObject<HTMLDivElement | null>;
@@ -314,8 +308,6 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, 
   onUpdate: (task: NormalizedTask, body: Record<string,unknown>) => void;
   onMove:   (task: NormalizedTask, to: string) => void;
   uiLang: UiLang;
-  hasPrevTrail?: boolean;
-  hasNextTrail?: boolean;
 }) {
   const sorted = useMemo(() => sortTasks(day.tasks), [day.tasks]);
   const isWeekend = dayjs(day.date).day() === 0 || dayjs(day.date).day() === 6;
@@ -397,7 +389,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, 
           px: 2,
         }}>
           {/* SVG connector lines between bubble centres */}
-          <ConnectorLines tasks={sorted} containerWidth={480} hasPrevTrail={hasPrevTrail} hasNextTrail={hasNextTrail} />
+          <ConnectorLines tasks={sorted} containerWidth={480} />
 
           {sorted.map((task, i) => {
             const cx = zx(i);           // centre-x as %
@@ -425,35 +417,17 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, 
 }
 
 /* ── ConnectorLines: SVG lines between consecutive bubble centres ───────── */
-function ConnectorLines({ tasks, containerWidth, hasPrevTrail, hasNextTrail }: { tasks: NormalizedTask[]; containerWidth: number; hasPrevTrail?: boolean; hasNextTrail?: boolean }) {
-  if (tasks.length === 0) return null;
+function ConnectorLines({ tasks, containerWidth }: { tasks: NormalizedTask[]; containerWidth: number }) {
+  if (tasks.length < 2) return null;
   const w = containerWidth;
   const totalH = tasks.length * GAP + BUBBLE + 32;
-  const TRAIL_EXT = 90;
-
-  const firstX = (zx(0) / 100) * w;
-  const firstY = 0 + 8 + BUBBLE / 2;
-  const lastIdx = tasks.length - 1;
-  const lastX = (zx(lastIdx) / 100) * w;
-  const lastY = lastIdx * GAP + 8 + BUBBLE / 2;
-  const stroke = 'rgba(148,163,184,0.18)';
 
   return (
     <svg
-      style={{ position: 'absolute', top: -TRAIL_EXT, left: 0, width: '100%', height: totalH + TRAIL_EXT * 2, zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}
-      viewBox={`0 ${-TRAIL_EXT} ${w} ${totalH + TRAIL_EXT * 2}`}
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: totalH, zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}
+      viewBox={`0 0 ${w} ${totalH}`}
       preserveAspectRatio="none"
     >
-      {hasPrevTrail && (
-        <path
-          d={`M ${firstX} ${-TRAIL_EXT} C ${firstX} ${-TRAIL_EXT / 2}, ${firstX} ${firstY - TRAIL_EXT / 2}, ${firstX} ${firstY}`}
-          fill="none"
-          stroke={stroke}
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      )}
-
       {tasks.slice(0, -1).map((_, i) => {
         const x1 = (zx(i) / 100) * w;
         const y1 = i * GAP + 8 + BUBBLE / 2;
@@ -466,22 +440,12 @@ function ConnectorLines({ tasks, containerWidth, hasPrevTrail, hasNextTrail }: {
             key={i}
             d={`M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`}
             fill="none"
-            stroke={stroke}
+            stroke="rgba(148,163,184,0.18)"
             strokeWidth="2"
             strokeLinecap="round"
           />
         );
       })}
-
-      {hasNextTrail && (
-        <path
-          d={`M ${lastX} ${lastY} C ${lastX} ${lastY + TRAIL_EXT / 2}, ${lastX} ${totalH + TRAIL_EXT / 2}, ${lastX} ${totalH + TRAIL_EXT}`}
-          fill="none"
-          stroke={stroke}
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      )}
     </svg>
   );
 }

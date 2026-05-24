@@ -94,6 +94,56 @@ describe('goals tools', () => {
     }), context);
   });
 
+  it('ignores connector linked accounts (docs/sheets) when picking a calendar', async () => {
+    const context = makeContext();
+    const originalFrom = context.supabase.from;
+    context.supabase.from = (table: string) => {
+      const builder = originalFrom(table);
+      if (table === 'linked_accounts') {
+        builder.then = (resolve: Function, reject: Function) =>
+          Promise.resolve({
+            data: [
+              { id: 'docs-1', name: 'Google Docs (google docs)', type: 'work' },
+              { id: 'sheets-1', name: 'Google Sheets (google sheets)', type: 'work' },
+              { id: 'cal-1', name: 'victorrayansouzaramos@gmail.com', type: 'personal' },
+            ],
+            error: null,
+          }).then(resolve as any, reject as any);
+      }
+      return builder;
+    };
+
+    const result = await goalsCreateOperatingPlanTool.call({
+      annual_smart_goal: 'Reach R$ 20k monthly revenue by December 2026',
+      monthly_milestone: 'Close one consulting client this month',
+      weekly_routine: 'Prospect for 20 minutes daily',
+    }, context);
+
+    expect(result.ok).toBe(true);
+    expect(createCalendarEvent).toHaveBeenCalledWith('cal-1', expect.anything(), expect.anything());
+  });
+
+  it('accepts preferred_time in flexible formats and normalizes to HH:MM', () => {
+    const cases: Array<[string, string]> = [
+      ['2pm', '14:00'],
+      ['14h', '14:00'],
+      ['14', '14:00'],
+      ['14h30', '14:30'],
+      ['9:30 am', '09:30'],
+      ['14:00', '14:00'],
+    ];
+    for (const [input, expected] of cases) {
+      const parsed = goalsCreateOperatingPlanTool.inputSchema.safeParse({
+        annual_smart_goal: 'Reach R$ 20k monthly revenue by December 2026',
+        monthly_milestone: 'Close one consulting client this month',
+        weekly_routine: 'Prospect for 20 minutes daily',
+        preferred_time: input,
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.preferred_time).toBe(expected);
+    }
+  });
+
   it('creates a short-term action plan with Google Calendar events', async () => {
     const context = makeContext();
     const result = await goalsCreateShortActionPlanTool.call({

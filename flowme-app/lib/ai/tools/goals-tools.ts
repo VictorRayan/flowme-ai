@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-calendar';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 const goalTimeframeSchema = z.enum(['yearly', 'monthly', 'weekly']);
 const goalStatusSchema = z.enum(['not_started', 'in_progress', 'completed', 'cancelled']);
@@ -49,26 +50,50 @@ async function resolveGoogleCalendarAccount(
     .order('created_at', { ascending: true });
 
   if (error || !Array.isArray(data) || data.length === 0) {
-    return { ok: false, error: 'No active Google Calendar account connected. Connect Google Calendar before creating plans or tasks.' };
+    return { ok: false, error: 'No active Google Calendar account connected. Ask the user to connect Google Calendar before creating plans or tasks.' };
   }
 
-  const accounts = data as GoogleAccount[];
+  const accounts = (data as GoogleAccount[]).filter((account) => isCalendarLinkedAccountName(account.name));
+  if (accounts.length === 0) {
+    return { ok: false, error: 'No Google Calendar account is connected. Connectors like Google Docs or Sheets cannot be used to schedule events. Ask the user to connect Google Calendar.' };
+  }
+
   const wanted = String(accountNickname || '').trim().toLowerCase();
   if (wanted) {
-    const match = accounts.find(account =>
-      String(account.name || '').trim().toLowerCase() === wanted ||
-      String(account.type || '').trim().toLowerCase() === wanted ||
-      String(account.name || '').trim().toLowerCase().includes(wanted)
-    );
+    const match = accounts.find((account) => {
+      const name = String(account.name || '').trim().toLowerCase();
+      const localPart = name.includes('@') ? name.split('@')[0] : name;
+      return name === wanted || localPart === wanted || name.includes(wanted) || wanted.includes(name);
+    });
     if (match) return { ok: true, account: match };
-    return { ok: false, error: `I could not find a Google Calendar account called "${accountNickname}". Available account nicknames: ${accounts.map(account => account.name).join(', ')}.` };
+    return { ok: false, error: `I could not find a Google Calendar account matching "${accountNickname}". Calendar accounts available: ${accounts.map((account) => account.name).join(', ')}. Tell the user the calendar nickname you tried and ask which to use; do not expose technical IDs.` };
   }
 
   if (accounts.length > 1) {
-    return { ok: false, error: `Which calendar account should I use? Available account nicknames: ${accounts.map(account => account.name).join(', ')}.` };
+    return { ok: false, error: `The user has more than one Google Calendar connected. Ask the user which calendar account to use — accept either the email or the nickname. Calendar accounts available: ${accounts.map((account) => account.name).join(', ')}.` };
   }
 
   return { ok: true, account: accounts[0] };
+}
+
+function normalizePreferredTime(input: unknown): unknown {
+  if (typeof input !== 'string') return input;
+  const text = input.trim().toLowerCase();
+  if (!text) return undefined;
+  const hhmm = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm) return `${hhmm[1].padStart(2, '0')}:${hhmm[2]}`;
+  const compact = text.match(/^(\d{1,2})h(\d{2})$/);
+  if (compact) return `${compact[1].padStart(2, '0')}:${compact[2]}`;
+  const hourOnly = text.match(/^(\d{1,2})h?$/);
+  if (hourOnly) return `${hourOnly[1].padStart(2, '0')}:00`;
+  const ampm = text.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  if (ampm) {
+    let hour = parseInt(ampm[1], 10);
+    if (ampm[3] === 'pm' && hour < 12) hour += 12;
+    if (ampm[3] === 'am' && hour === 12) hour = 0;
+    return `${String(hour).padStart(2, '0')}:${ampm[2] || '00'}`;
+  }
+  return input;
 }
 
 function timezoneOffset(date: string, timezone: string): string {
@@ -245,6 +270,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
       annual_smart_goal:  raw.annual_smart_goal  ?? raw.goal             ?? raw.annual_goal     ?? raw.yearly_goal   ?? raw.smart_goal ?? undefined,
       monthly_milestone:  raw.monthly_milestone   ?? raw.monthly_goal     ?? raw.milestone       ?? raw.monthly       ?? undefined,
       weekly_routine:     raw.weekly_routine      ?? raw.routine          ?? raw.weekly_schedule ?? raw.weekly        ?? undefined,
+      preferred_time:     normalizePreferredTime(raw.preferred_time ?? raw.time ?? raw.start_time ?? undefined),
     };
   }, z.object({
     annual_smart_goal:           z.string().min(8).max(1000).describe('The full yearly SMART goal as a plain string. Example: "Reach R$10.000 monthly revenue by December 2026". REQUIRED. Pass directly — do NOT nest inside another object.'),

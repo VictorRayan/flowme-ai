@@ -66,12 +66,31 @@ You must ALWAYS return your response as a strict JSON object with this exact sch
 Do NOT wrap the JSON in markdown code blocks. Just return the raw JSON object.
 `;
 
+// Tolerant parser: if the model returned prose instead of JSON, salvage the
+// text as a clarifying response so the onboarding does not freeze.
+export function parseAssistantPayload(rawText: string): any | null {
+  if (!rawText) return null;
+  const cleaned = rawText.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const braceStart = cleaned.indexOf('{');
+    const braceEnd = cleaned.lastIndexOf('}');
+    if (braceStart >= 0 && braceEnd > braceStart) {
+      const candidate = cleaned.slice(braceStart, braceEnd + 1);
+      try { return JSON.parse(candidate); } catch { /* fall through */ }
+    }
+    const prose = cleaned.replace(/^[`"'\s]+|[`"'\s]+$/g, '');
+    if (!prose) return null;
+    return { response: prose, type: 'clarification' };
+  }
+}
+
 // ─── Gemini via REST API (Primary) ────────────────────────────────────
 async function callGemini(systemPrompt: string, messages: Array<{ role: string; content: string }>): Promise<any> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('No GEMINI_API_KEY');
 
-  // Build Gemini contents array
   const contents = messages.map(msg => ({
     role: msg.role === 'user' ? 'user' : 'model',
     parts: [{ text: msg.content }],
@@ -80,11 +99,13 @@ async function callGemini(systemPrompt: string, messages: Array<{ role: string; 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: { temperature: 0.7 },
+    generationConfig: {
+      temperature: 0.7,
+      responseMimeType: 'application/json',
+    },
   };
 
-  // Try multiple Gemini model names in priority order
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro'];
+  const models = ['gemini-2.5-flash', 'gemini-2.5-pro'];
 
   for (const model of models) {
     try {
@@ -104,9 +125,8 @@ async function callGemini(systemPrompt: string, messages: Array<{ role: string; 
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
       if (!rawText) continue;
 
-      // Parse JSON (strip markdown fences if any)
-      const jsonStr = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      return JSON.parse(jsonStr);
+      const parsed = parseAssistantPayload(rawText);
+      if (parsed && parsed.response) return parsed;
     } catch (err) {
       console.warn(`Gemini model ${model} error:`, err);
       continue;
@@ -114,6 +134,31 @@ async function callGemini(systemPrompt: string, messages: Array<{ role: string; 
   }
 
   throw new Error('All Gemini models failed');
+}
+
+// ─── Grok (xAI) fallback when OpenAI quota is unavailable ────────────
+async function callGrok(systemPrompt: string, messages: Array<{ role: string; content: string }>): Promise<any> {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) throw new Error('No XAI_API_KEY');
+
+  const openai = new OpenAI({ apiKey, baseURL: 'https://api.x.ai/v1' });
+  const grokMessages = [
+    { role: 'system' as const, content: systemPrompt },
+    ...messages.map((msg) => ({
+      role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: msg.content,
+    })),
+  ];
+
+  const completion = await openai.chat.completions.create({
+    model: 'grok-4-fast',
+    temperature: 0.7,
+    response_format: { type: 'json_object' },
+    messages: grokMessages,
+  });
+
+  const outputText = completion.choices[0]?.message?.content || '';
+  return parseAssistantPayload(outputText) || { response: '', type: 'silent_fail' };
 }
 
 // ─── OpenAI (Fallback) ───────────────────────────────────────────────
@@ -139,7 +184,7 @@ async function callOpenAI(systemPrompt: string, messages: Array<{ role: string; 
   });
 
   const outputText = completion.choices[0]?.message?.content || '{}';
-  return JSON.parse(outputText);
+  return parseAssistantPayload(outputText) || { response: '', type: 'silent_fail' };
 }
 
 // ─── Route Handler ───────────────────────────────────────────────────
@@ -183,7 +228,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Try OpenAI (fallback)
+    // 3. Try Grok (xAI) when configured — useful when OpenAI quota is dry
+    if ((!result || !result.response) && process.env.XAI_API_KEY) {
+      try {
+        result = await callGrok(systemPrompt, messages);
+      } catch (grokErr) {
+        console.warn('Grok also failed:', grokErr);
+      }
+    }
+
+    // 4. Try OpenAI (last fallback)
     if (!result || !result.response) {
       try {
         result = await callOpenAI(systemPrompt, messages);

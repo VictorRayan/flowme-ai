@@ -13,7 +13,7 @@ import { loadProfile, renderProfileForPrompt, callProfileUpdater, persistProfile
 import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/facts';
 import { summarizeAndPersistThread, SUMMARIZE_EVERY_N_USER_TURNS } from '@/lib/ai/memory/recall';
 import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/ai/threads';
-import { hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
+import { extractConnectorContextItems, hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
 
 const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
 type ConnectorIntent = {
@@ -65,6 +65,23 @@ function isReadFollowUp(text: string): boolean {
     || /\b(ler|leia|abre|abrir|conte[uú]do|corpo|o que tem|resume|resumir|explica|analisa|analisar)\b/i.test(text);
 }
 
+function userReferencesNewFile(text: string, messages: any[]): boolean {
+  if (/\b(this|that|it|esse|essa|esta|este|isso|aquele|aquela|o primeiro|a primeira|essa planilha|esse documento|aquele arquivo)\b/i.test(text)) {
+    return false;
+  }
+  const items = extractConnectorContextItems(messages);
+  const names = items.flatMap((item) => [item.data.name, item.data.spreadsheet_title, item.data.title])
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.toLowerCase());
+  if (names.length === 0) return false;
+  const haystack = text.toLowerCase();
+  const mentionsRecent = names.some((name) => {
+    if (haystack.includes(name)) return true;
+    return name.split(/\s+/).filter((token) => token.length >= 4).some((token) => haystack.includes(token));
+  });
+  return !mentionsRecent;
+}
+
 function requiredFirstToolForConnector(
   route: ReturnType<typeof routeBalysRequest>,
   connectorIntent: ConnectorIntent | null,
@@ -79,21 +96,28 @@ function requiredFirstToolForConnector(
     return 'gmail.search_messages';
   }
   if (action === 'docs') {
-    if (isReadFollowUp(latestText) && inferRecentConnectorType(messages) === 'google_docs') return 'connectors.find_and_read_doc';
-    return isBroadListRequest(latestText) ? 'connectors.search_docs' : 'connectors.find_and_read_doc';
+    if (isReadFollowUp(latestText) && inferRecentConnectorType(messages) === 'google_docs' && !userReferencesNewFile(latestText, messages)) {
+      return 'connectors.find_and_read_doc';
+    }
+    return 'connectors.search_docs';
   }
   if (action === 'sheets') {
-    if ((isReadFollowUp(latestText) || /\b(mostra|mostrar|ver|veja)\b/i.test(latestText)) && inferRecentConnectorType(messages) === 'google_sheets') {
+    if ((isReadFollowUp(latestText) || /\b(mostra|mostrar|ver|veja)\b/i.test(latestText))
+      && inferRecentConnectorType(messages) === 'google_sheets'
+      && !userReferencesNewFile(latestText, messages)) {
       return 'connectors.sheets_agent';
     }
-    return isBroadListRequest(latestText) ? 'connectors.search_docs' : 'connectors.sheets_agent';
+    return 'connectors.search_docs';
   }
   if (action === 'drive') {
-    if (isReadFollowUp(latestText) && inferRecentConnectorType(messages) === 'google_drive') return 'connectors.read_drive_file';
+    if (isReadFollowUp(latestText) && inferRecentConnectorType(messages) === 'google_drive' && !userReferencesNewFile(latestText, messages)) {
+      return 'connectors.read_drive_file';
+    }
     return 'connectors.search_docs';
   }
   if (!action && isReadFollowUp(latestText)) {
     const recentType = inferRecentConnectorType(messages);
+    if (userReferencesNewFile(latestText, messages)) return 'connectors.search_docs';
     if (recentType === 'google_sheets') return 'connectors.sheets_agent';
     if (recentType === 'google_docs') return 'connectors.find_and_read_doc';
     if (recentType === 'google_drive') return 'connectors.read_drive_file';

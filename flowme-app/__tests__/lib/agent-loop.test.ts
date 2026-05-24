@@ -88,4 +88,45 @@ describe('runBalysAgentLoop', () => {
       tool_choice: { type: 'function', function: { name: 'gmail.search_messages' } },
     }));
   });
+
+  it('breaks out of validation-failure loops after three identical bad calls', async () => {
+    mockCompletionsCreate.mockResolvedValue({
+      choices: [{
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{
+            id: 'call-loop',
+            type: 'function',
+            function: { name: 'connectors.sheets_agent', arguments: '{}' },
+          }],
+        },
+      }],
+    });
+
+    const result = await runBalysAgentLoop({
+      messages: [{ role: 'user', content: 'analise a planilha' }],
+      tools: [{
+        name: 'connectors.sheets_agent',
+        description: 'Sheets analyst',
+        inputSchema: z.object({ task: z.string().min(5) }),
+        isReadOnly: false,
+        call: jest.fn(),
+      }],
+      maxSteps: 30,
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      context: {
+        supabase: { from: jest.fn() },
+        user: { id: 'user-1' },
+        timezone: 'UTC',
+        nowIso: '2026-05-21T00:00:00.000Z',
+      } as any,
+      threadId: 'thread-1',
+    });
+
+    expect(result.content).toContain('reformular');
+    expect(mockCompletionsCreate.mock.calls.length).toBeLessThanOrEqual(4);
+  });
 });

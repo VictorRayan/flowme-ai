@@ -392,6 +392,16 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
             content: JSON.stringify({ ok: false, error: errorMessage })
           });
           emit({ type: 'tool_call_end', tool: toolCall.function.name, call_id: toolCall.id, ok: false, error: errorMessage });
+          // Without this counter, a model that keeps calling a tool with invalid args
+          // would loop forever because the success-side dedup below is never reached.
+          const failSig = `${toolCall.function.name}:invalid:${JSON.stringify(parsedArgs)}`;
+          const failCount = (toolSignatureCounts.get(failSig) || 0) + 1;
+          toolSignatureCounts.set(failSig, failCount);
+          if (failCount > 2) {
+            const fallbackContent = buildFallbackContentFromToolMessages(messages)
+              || 'Não consegui montar a chamada certa pra essa ferramenta. Tenta reformular dizendo o que quer fazer e qual arquivo.';
+            return { content: fallbackContent, messages, steps };
+          }
           continue;
         }
         parsedArgs = validation.data;

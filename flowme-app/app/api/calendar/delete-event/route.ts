@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
 import { deleteCalendarEvent } from '@/lib/google/google-calendar';
 
 export async function DELETE(req: NextRequest) {
@@ -30,7 +31,22 @@ export async function DELETE(req: NextRequest) {
 
     await deleteCalendarEvent(linked_account_id, event_id);
 
-    return apiSuccess({ provider_event_id: event_id });
+    let goalEventImpact = null;
+    try {
+      goalEventImpact = await markGoalCalendarEventDeleted(supabase, user.id, {
+        linkedAccountId: linked_account_id,
+        providerEventId: event_id,
+        deletionSource: 'calendar_ui',
+        deletionNote: 'Deleted from Calendar view',
+      });
+    } catch (trackingError) {
+      console.error('DELETE /api/calendar/delete-event goal-event tracking failed:', trackingError);
+    }
+
+    return apiSuccess({
+      provider_event_id: event_id,
+      goal_event_impact: goalEventImpact,
+    });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
 

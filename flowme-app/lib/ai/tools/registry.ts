@@ -5,7 +5,7 @@ import { notesCreateTool, notesListTool, notesEditTool } from './notes-tools';
 import { councilConveneTool } from './council-tools';
 import { peopleSearchTool } from './people-tools';
 import { memoryAppendToBriefingTool, memoryAppendToPersonTool, memorySaveFactTool, memoryRecallThreadsTool } from './memory-tools';
-import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListTool } from './goals-tools';
+import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListDeletedCalendarEventsTool, goalsListTool } from './goals-tools';
 import { weatherGetTool } from './weather-tools';
 import { remindersCancelTool, remindersCreateTool, remindersListTool } from './reminders-tools';
 import { webGroundedSearchTool } from './web-tools';
@@ -35,6 +35,7 @@ export const ALL_TOOLS: Tool[] = [
   councilConveneTool,
   peopleSearchTool,
   goalsListTool,
+  goalsListDeletedCalendarEventsTool,
   goalsCreateOperatingPlanTool,
   goalsCreateShortActionPlanTool,
   remindersCreateTool,

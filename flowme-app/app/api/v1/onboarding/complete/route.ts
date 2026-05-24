@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent } from '@/lib/google/google-calendar';
 
@@ -118,12 +119,25 @@ export async function POST(req: NextRequest) {
           continue;
         }
         try {
-          await createCalendarEvent(calendarAccountId, {
+          const event = await createCalendarEvent(calendarAccountId, {
             title: task.title,
             description: task.description,
             startAt: task.start_at,
             endAt: task.end_at,
           });
+          await recordGoalCalendarEventLinks(supabase, user.id, [{
+            linked_account_id: calendarAccountId,
+            provider_event_id: event.id,
+            action_plan_id: result.persisted.action_plan.id,
+            goal_id: result.persisted.goals.weekly.id,
+            title: task.title,
+            scheduled_date: task.scheduled_date,
+            start_at: task.start_at,
+            end_at: task.end_at,
+            duration_minutes: task.duration_minutes,
+            plan_day: task.plan_day,
+            sort_order: task.sort_order,
+          }]);
           calendarEventsCreated += 1;
           await sleep(250);
         } catch (evErr: any) {
@@ -152,4 +166,3 @@ export async function POST(req: NextRequest) {
     return apiError(ErrorCode.INTERNAL_ERROR, 'Internal Server Error', 500);
   }
 }
-

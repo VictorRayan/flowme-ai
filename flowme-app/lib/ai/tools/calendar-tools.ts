@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
+import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
 import { createCalendarEvent, deleteCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
@@ -447,12 +448,24 @@ ALWAYS ASK THE USER FIRST IF: the cancellation has invitees, the event is recurr
 
     try {
       await deleteCalendarEvent(resolved.account.id, args.event_id, context);
+      let goalEventImpact = null;
+      try {
+        goalEventImpact = await markGoalCalendarEventDeleted(context.supabase, context.user.id, {
+          linkedAccountId: resolved.account.id,
+          providerEventId: args.event_id,
+          deletionSource: 'balys',
+          deletionNote: 'Deleted by Balys calendar.delete_event',
+        });
+      } catch (trackingError) {
+        console.error('[calendar.delete_event] goal-event tracking failed:', trackingError);
+      }
       return {
         ok: true,
         receipt: {
           event_id: args.event_id,
           account_nickname: resolved.account.name,
-          status: 'deleted'
+          status: 'deleted',
+          goal_event_impact: goalEventImpact,
         }
       };
     } catch (e: any) {
@@ -508,7 +521,18 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
       args.event_ids.map(async (event_id) => {
         try {
           await deleteCalendarEvent(resolved.account.id, event_id, context);
-          return { event_id, status: 'deleted' as const };
+          let goal_event_impact = null;
+          try {
+            goal_event_impact = await markGoalCalendarEventDeleted(context.supabase, context.user.id, {
+              linkedAccountId: resolved.account.id,
+              providerEventId: event_id,
+              deletionSource: 'balys',
+              deletionNote: 'Deleted by Balys calendar.delete_events_batch',
+            });
+          } catch (trackingError) {
+            console.error('[calendar.delete_events_batch] goal-event tracking failed:', { event_id, trackingError });
+          }
+          return { event_id, status: 'deleted' as const, goal_event_impact };
         } catch (e: any) {
           const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
           const errCode = e?.response?.data?.error?.code || e?.code;

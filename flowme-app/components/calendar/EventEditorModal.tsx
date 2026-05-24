@@ -442,7 +442,7 @@ export default function EventEditorModal({ open, onClose, onSuccess, linkedAccou
               <Tooltip title="Excluir evento">
                 <IconButton
                   onClick={async () => {
-                    if (!confirm('Excluir este evento da sua agenda?\n\nIsso remove o evento do Google Calendar. Suas metas e planos continuam ativos no Flowme — você pode reagendá-los depois ou pedir ao Balys.')) return;
+                    if (!confirm('Excluir este evento da sua agenda?\n\nSe ele fizer parte de uma meta, o Flowme vai marcar essa hora como removida para o Balys poder replanejar depois. A meta e o plano continuam ativos.')) return;
                     setLoading(true);
                     setError(null);
                     try {

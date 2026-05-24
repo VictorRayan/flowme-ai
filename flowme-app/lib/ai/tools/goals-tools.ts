@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
+import { listDeletedGoalCalendarEvents, recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
@@ -34,6 +35,19 @@ type CalendarOccurrence = {
   start_at?: string | null;
   end_at?: string | null;
   duration_minutes?: number | null;
+  action_plan_id?: string | null;
+  goal_id?: string | null;
+  plan_day?: number | null;
+  sort_order?: number | null;
+};
+
+type CreatedCalendarEventForOccurrence = {
+  title: string;
+  provider_event_id: string;
+  html_link: string;
+  start_at: string;
+  end_at: string;
+  occurrence: CalendarOccurrence;
 };
 
 async function resolveGoogleCalendarAccount(
@@ -136,8 +150,8 @@ async function createCalendarEventsForOccurrences(
   account: GoogleAccount,
   occurrences: CalendarOccurrence[],
   onCreated?: (eventId: string) => void,
-) {
-  const created = [];
+): Promise<CreatedCalendarEventForOccurrence[]> {
+  const created: CreatedCalendarEventForOccurrence[] = [];
   for (const occurrence of occurrences) {
     const times = calendarTimesForOccurrence(occurrence, context.timezone || 'UTC');
     const event = await createCalendarEvent(account.id, {
@@ -153,6 +167,7 @@ async function createCalendarEventsForOccurrences(
       html_link: event.htmlLink,
       start_at: times.startAt,
       end_at: times.endAt,
+      occurrence,
     });
   }
   return created;
@@ -300,6 +315,10 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
         start_at: task.start_at,
         end_at: task.end_at,
         duration_minutes: task.duration_minutes,
+        action_plan_id: result?.persisted.action_plan.id,
+        goal_id: result?.persisted.goals.weekly.id,
+        plan_day: task.plan_day,
+        sort_order: task.sort_order,
       }));
       const calendarEvents = await createCalendarEventsForOccurrences(
         context,
@@ -307,12 +326,26 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
         tasks,
         eventId => createdGoogleEventIds.push(eventId),
       );
+      await recordGoalCalendarEventLinks(context.supabase, context.user.id, calendarEvents.map(event => ({
+        linked_account_id: account.account.id,
+        provider_event_id: event.provider_event_id,
+        action_plan_id: event.occurrence.action_plan_id || result!.persisted.action_plan.id,
+        goal_id: event.occurrence.goal_id || result!.persisted.goals.weekly.id,
+        title: event.title,
+        scheduled_date: event.occurrence.scheduled_date,
+        start_at: event.start_at,
+        end_at: event.end_at,
+        duration_minutes: event.occurrence.duration_minutes || 30,
+        plan_day: event.occurrence.plan_day,
+        sort_order: event.occurrence.sort_order,
+      })));
+      const receiptCalendarEvents = calendarEvents.map(({ occurrence, ...event }) => event);
       return {
         ok: true,
         receipt: {
           goals_created: 3,
           action_plan_created: true,
-          calendar_events_created: calendarEvents.length,
+          calendar_events_created: receiptCalendarEvents.length,
           first_task_date: result.plan.active_tasks[0]?.scheduled_date || null,
           review_date: result.plan.action_plan.review_date,
           cadence_summary: result.plan.future_work_template.cadence_summary,
@@ -323,7 +356,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
             end_at: t.end_at || null,
             title: t.title,
           })),
-          calendar_events: calendarEvents,
+          calendar_events: receiptCalendarEvents,
           warnings: result.plan.warnings,
           summary: `Goal created. ${calendarEvents.length} Google Calendar event(s) scheduled for the first ${result.plan.future_work_template.concrete_window_days} days (${result.plan.future_work_template.cadence_summary}). Action plan renews on ${result.plan.action_plan.review_date}.`,
         },
@@ -336,6 +369,42 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
         await cleanupPersistedGoalOperatingPlan(context.supabase, context.user.id, result.persisted);
       }
       return { ok: false, error: error instanceof Error ? error.message : 'Failed to create goal operating plan' };
+    }
+  },
+});
+
+export const goalsListDeletedCalendarEventsTool = defineTool({
+  name: 'goals.list_deleted_calendar_events',
+  description: `Lists deleted calendar events that were originally created for goals or action plans and may need rescheduling.
+
+WHEN TO USE:
+- The user asks what needs to be replanned after deleting a goal event.
+- The user asks Balys to remanejar/replanejar horas, tasks, or calendar blocks for goals.
+- After calendar.delete_event or calendar.delete_events_batch returns goal_event_impact.needs_replan=true.
+
+CONTRACT:
+- This is read-only. It does not create new events.
+- Use the human-facing title/date/duration in the final response, never IDs.
+- If the user wants to reschedule, list the affected block and ask where to move it unless their instruction is already specific.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    limit: z.number().min(1).max(50).optional().default(20),
+  }),
+  call: async (args, context) => {
+    try {
+      const deletedEvents = await listDeletedGoalCalendarEvents(context.supabase, context.user.id, args.limit);
+      return {
+        ok: true,
+        receipt: {
+          deleted_events: deletedEvents,
+          needs_replan_count: deletedEvents.length,
+          summary: deletedEvents.length === 0
+            ? 'No deleted goal calendar events need replanning.'
+            : `${deletedEvents.length} deleted goal calendar event(s) need a replanning decision.`,
+        },
+      };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Failed to list deleted goal calendar events' };
     }
   },
 });
@@ -457,14 +526,34 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
             start_at: task.start_at || `${scheduledDate}T09:00:00.000Z`,
             end_at: task.end_at || null,
             duration_minutes: duration,
+            action_plan_id: actionPlan.id,
+            goal_id: linkedGoalIds[0] || null,
+            plan_day: index + 1,
+            sort_order: index * 10,
           };
         });
-        calendarEvents = await createCalendarEventsForOccurrences(
+        const createdCalendarEvents = await createCalendarEventsForOccurrences(
           context,
           account.account,
           occurrences,
           eventId => createdGoogleEventIds.push(eventId),
         );
+        await recordGoalCalendarEventLinks(context.supabase, context.user.id, createdCalendarEvents
+          .filter(event => event.occurrence.action_plan_id && event.occurrence.goal_id)
+          .map(event => ({
+            linked_account_id: account.account.id,
+            provider_event_id: event.provider_event_id,
+            action_plan_id: event.occurrence.action_plan_id!,
+            goal_id: event.occurrence.goal_id!,
+            title: event.title,
+            scheduled_date: event.occurrence.scheduled_date,
+            start_at: event.start_at,
+            end_at: event.end_at,
+            duration_minutes: event.occurrence.duration_minutes || 30,
+            plan_day: event.occurrence.plan_day,
+            sort_order: event.occurrence.sort_order,
+          })));
+        calendarEvents = createdCalendarEvents.map(({ occurrence, ...event }) => event);
       }
 
       const flexibleEventCount = taskInputs.filter(task => !task.start_at).length;

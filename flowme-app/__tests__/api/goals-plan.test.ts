@@ -29,7 +29,7 @@ function makeChain() {
     currentTable = table;
     return chain;
   });
-  const methods = ['insert', 'select', 'eq', 'delete'];
+  const methods = ['insert', 'select', 'eq', 'delete', 'upsert'];
   methods.forEach(method => { chain[method] = jest.fn().mockReturnValue(chain); });
   chain.single = jest.fn(() => Promise.resolve({
     data: tableRows[currentTable] || {},

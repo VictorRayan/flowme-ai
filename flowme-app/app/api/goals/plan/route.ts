@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-calendar';
 
@@ -54,9 +55,27 @@ export async function POST(req: NextRequest) {
           html_link: event.htmlLink,
           start_at: startAt,
           end_at: endAt,
+          task,
         });
       }
-      return apiSuccess({ ...result, calendar_events: calendarEvents });
+      const persisted = result!.persisted;
+      await recordGoalCalendarEventLinks(supabase, user.id, calendarEvents.map(event => ({
+        linked_account_id: body.linked_account_id,
+        provider_event_id: event.provider_event_id,
+        action_plan_id: persisted.action_plan.id,
+        goal_id: persisted.goals.weekly.id,
+        title: event.title,
+        scheduled_date: event.task.scheduled_date,
+        start_at: event.start_at,
+        end_at: event.end_at,
+        duration_minutes: event.task.duration_minutes,
+        plan_day: event.task.plan_day,
+        sort_order: event.task.sort_order,
+      })));
+      return apiSuccess({
+        ...result,
+        calendar_events: calendarEvents.map(({ task, ...event }) => event),
+      });
     } catch (err) {
       if (err instanceof Error && isPlanValidationMessage(err.message)) {
         return apiError(ErrorCode.VALIDATION_ERROR, err.message);

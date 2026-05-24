@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireApiKeyAuth } from '@/lib/api/api-key-auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
 import { deleteCalendarEvent } from '@/lib/google/google-calendar';
 
 /**
@@ -42,7 +43,19 @@ export async function DELETE(req: NextRequest) {
 
     await deleteCalendarEvent(linked_account_id, event_id);
 
-    return apiSuccess({ deleted: true, provider_event_id: event_id });
+    let goalEventImpact = null;
+    try {
+      goalEventImpact = await markGoalCalendarEventDeleted(supabase, userId, {
+        linkedAccountId: linked_account_id,
+        providerEventId: event_id,
+        deletionSource: 'api',
+        deletionNote: 'Deleted from external Calendar API',
+      });
+    } catch (trackingError) {
+      console.error('DELETE /api/v1/calendar/delete goal-event tracking failed:', trackingError);
+    }
+
+    return apiSuccess({ deleted: true, provider_event_id: event_id, goal_event_impact: goalEventImpact });
   } catch (err: any) {
     console.error('DELETE /api/v1/calendar/delete error:', err);
     if (err.message === ErrorCode.GOOGLE_AUTH_MISSING) {

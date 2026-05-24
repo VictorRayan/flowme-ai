@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { createCalendarEvent, deleteCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
 
-type Provider = 'openai' | 'gemini';
+type Provider = 'openai' | 'gemini' | 'xai';
 
 type AuthCtx = {
   supabase: any;

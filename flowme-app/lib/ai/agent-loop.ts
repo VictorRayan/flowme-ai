@@ -266,6 +266,9 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
   } else if (options.provider === 'deepseek') {
     apiKey = process.env.DEEPSEEK_API_KEY;
     baseURL = 'https://api.deepseek.com';
+  } else if (options.provider === 'xai') {
+    apiKey = process.env.XAI_API_KEY;
+    baseURL = 'https://api.x.ai/v1';
   }
 
   const openai = new OpenAI({ apiKey, baseURL });

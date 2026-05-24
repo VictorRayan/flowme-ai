@@ -1,4 +1,4 @@
-type Provider = 'openai' | 'gemini';
+type Provider = 'openai' | 'gemini' | 'xai';
 type TaskType = 'calendar' | 'notes' | 'goals' | 'briefing' | 'mixed' | 'council' | 'email';
 type WriteIntent = 'none' | 'read_only' | 'write_notes' | 'write_calendar' | 'write_both' | 'write_email';
 type Tier = 'cheap' | 'mid' | 'strong';
@@ -72,6 +72,12 @@ const GEMINI_STRONG: ModelTarget = { provider: 'gemini', model: 'gemini-2.5-pro'
 const OPENAI_CHEAP: ModelTarget = { provider: 'openai', model: 'gpt-5.4-nano' };
 const OPENAI_MID: ModelTarget = { provider: 'openai', model: 'gpt-5.4-mini' };
 const OPENAI_STRONG: ModelTarget = { provider: 'openai', model: 'gpt-5.4' };
+const GROK_MID: ModelTarget = { provider: 'xai', model: 'grok-4-fast' };
+const GROK_STRONG: ModelTarget = { provider: 'xai', model: 'grok-4' };
+
+export function isGrokChatEnabled(): boolean {
+  return String(process.env.BALYS_ENABLE_GROK_CHAT || '').trim().toLowerCase() === 'true';
+}
 
 const ROUTER_VERSION = 'shadow-antigravity-2026-04-12';
 
@@ -102,7 +108,28 @@ function uniqueTargets(targets: ModelTarget[]): ModelTarget[] {
 }
 
 function hasProviderKey(provider: Provider): boolean {
-  return provider === 'gemini' ? Boolean(process.env.GEMINI_API_KEY) : Boolean(process.env.OPENAI_API_KEY);
+  if (provider === 'gemini') return Boolean(process.env.GEMINI_API_KEY);
+  if (provider === 'xai') return Boolean(process.env.XAI_API_KEY);
+  return Boolean(process.env.OPENAI_API_KEY);
+}
+
+// When the Grok chat flag is on and the xAI key is present, route the
+// strong-tier "non-Gemini" fallback to Grok instead of OpenAI. OpenAI
+// stays in the chain only when neither Grok nor Gemini is available.
+function strongFallback(): ModelTarget {
+  if (isGrokChatEnabled() && hasProviderKey('xai')) return GROK_STRONG;
+  return OPENAI_STRONG;
+}
+
+function midFallback(): ModelTarget {
+  if (isGrokChatEnabled() && hasProviderKey('xai')) return GROK_MID;
+  return OPENAI_MID;
+}
+
+function cheapFallback(): ModelTarget {
+  // Grok does not have a "cheap" tier we want to use for general chat yet —
+  // keep OpenAI for that fallback, but Gemini Flash should already win 99% of the time.
+  return OPENAI_CHEAP;
 }
 
 function isAvailable(target: ModelTarget): boolean {
@@ -327,20 +354,24 @@ function chooseModels(
   scores: ShadowRouterDecision['scores'],
   needsTools: boolean
 ): Pick<ShadowRouterDecision, 'planner' | 'executor' | 'verifier' | 'primary' | 'shadow'> {
+  const strongAlt = strongFallback();
+  const midAlt = midFallback();
+  const cheapAlt = cheapFallback();
+
   const cheapBase = {
-    planner: resolvePreferred(GEMINI_CHEAP, OPENAI_CHEAP),
-    executor: resolvePreferred(GEMINI_CHEAP, OPENAI_CHEAP),
-    verifier: resolvePreferred(GEMINI_CHEAP, OPENAI_CHEAP),
+    planner: resolvePreferred(GEMINI_CHEAP, cheapAlt),
+    executor: resolvePreferred(GEMINI_CHEAP, cheapAlt),
+    verifier: resolvePreferred(GEMINI_CHEAP, cheapAlt),
   };
   const midBase = {
-    planner: resolvePreferred(GEMINI_MID, OPENAI_MID),
-    executor: resolvePreferred(GEMINI_CHEAP, OPENAI_CHEAP),
-    verifier: resolvePreferred(GEMINI_MID, OPENAI_MID),
+    planner: resolvePreferred(GEMINI_MID, midAlt),
+    executor: resolvePreferred(GEMINI_CHEAP, cheapAlt),
+    verifier: resolvePreferred(GEMINI_MID, midAlt),
   };
   const strongBase = {
-    planner: resolvePreferred(GEMINI_STRONG, OPENAI_STRONG),
-    executor: resolvePreferred(GEMINI_MID, OPENAI_MID),
-    verifier: resolvePreferred(GEMINI_STRONG, OPENAI_STRONG),
+    planner: resolvePreferred(GEMINI_STRONG, strongAlt),
+    executor: resolvePreferred(GEMINI_MID, midAlt),
+    verifier: resolvePreferred(GEMINI_STRONG, strongAlt),
   };
 
   const base = tier === 'cheap' ? cheapBase : tier === 'mid' ? midBase : strongBase;
@@ -348,38 +379,42 @@ function chooseModels(
   const executor = { ...base.executor };
   const verifier = { ...base.verifier };
 
-  if (scores.risk >= 0.6 && isAvailable(OPENAI_STRONG)) {
-    verifier.provider = OPENAI_STRONG.provider;
-    verifier.model = OPENAI_STRONG.model;
+  if (scores.risk >= 0.6 && isAvailable(strongAlt)) {
+    verifier.provider = strongAlt.provider;
+    verifier.model = strongAlt.model;
   }
 
-  if (needsTools && scores.workflowLength >= 0.7 && isAvailable(OPENAI_STRONG)) {
-    planner.provider = OPENAI_STRONG.provider;
-    planner.model = OPENAI_STRONG.model;
+  if (needsTools && scores.workflowLength >= 0.7 && isAvailable(strongAlt)) {
+    planner.provider = strongAlt.provider;
+    planner.model = strongAlt.model;
   }
 
   const primary = tier === 'cheap' ? executor : planner;
   const shadow = primary.provider === 'gemini'
-    ? (isAvailable(OPENAI_MID) ? OPENAI_MID : null)
+    ? (isAvailable(midAlt) ? midAlt : null)
     : (isAvailable(GEMINI_MID) ? GEMINI_MID : null);
 
   return { planner, executor, verifier, primary, shadow };
 }
 
 function buildFallbacks(primary: ModelTarget, tier: Tier): Array<{ when: string; target: ModelTarget }> {
+  const strongAlt = strongFallback();
+  const midAlt = midFallback();
+  const cheapAlt = cheapFallback();
+
   const sameTierFallback = tier === 'cheap'
-    ? resolvePreferred(OPENAI_CHEAP, GEMINI_CHEAP)
+    ? resolvePreferred(cheapAlt, GEMINI_CHEAP)
     : tier === 'mid'
-      ? resolvePreferred(OPENAI_MID, GEMINI_MID)
-      : resolvePreferred(OPENAI_STRONG, GEMINI_STRONG);
+      ? resolvePreferred(midAlt, GEMINI_MID)
+      : resolvePreferred(strongAlt, GEMINI_STRONG);
 
   const promotedFallback = tier === 'cheap'
-    ? resolvePreferred(GEMINI_MID, OPENAI_MID)
-    : resolvePreferred(GEMINI_STRONG, OPENAI_STRONG);
+    ? resolvePreferred(GEMINI_MID, midAlt)
+    : resolvePreferred(GEMINI_STRONG, strongAlt);
 
   const finalFallback = tier === 'strong'
-    ? resolvePreferred(OPENAI_STRONG, GEMINI_STRONG)
-    : resolvePreferred(OPENAI_STRONG, GEMINI_STRONG);
+    ? resolvePreferred(strongAlt, GEMINI_STRONG)
+    : resolvePreferred(strongAlt, GEMINI_STRONG);
 
   return uniqueTargets([sameTierFallback, promotedFallback, finalFallback])
     .filter((target) => `${target.provider}:${target.model}` !== `${primary.provider}:${primary.model}`)
@@ -391,7 +426,12 @@ function buildFallbacks(primary: ModelTarget, tier: Tier): Array<{ when: string;
 
 function buildUserFacingLabel(tier: Tier, primary: ModelTarget): string {
   const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
-  return `Shadow Router - ${tierLabel} - ${primary.provider === 'gemini' ? 'Gemini' : 'OpenAI'}`;
+  const providerLabel = primary.provider === 'gemini'
+    ? 'Gemini'
+    : primary.provider === 'xai'
+      ? 'Grok'
+      : 'OpenAI';
+  return `Shadow Router - ${tierLabel} - ${providerLabel}`;
 }
 
 export function routeBalysRequest(input: RouteInput): ShadowRouterDecision {

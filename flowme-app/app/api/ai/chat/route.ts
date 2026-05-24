@@ -38,7 +38,7 @@ async function loadUserAiSettings(supabase: any, userId: string): Promise<{ coun
   }
 }
 
-type Provider = 'openai' | 'gemini';
+type Provider = 'openai' | 'gemini' | 'xai';
 
 type RoutedTarget = {
   provider: Provider;

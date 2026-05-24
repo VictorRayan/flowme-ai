@@ -167,9 +167,48 @@ describe('score bounds', () => {
 describe('output shape', () => {
   it('always returns a provider and model for primary', () => {
     const dec = route('show my calendar');
-    expect(dec.primary.provider).toMatch(/^(openai|gemini)$/);
+    expect(dec.primary.provider).toMatch(/^(openai|gemini|xai)$/);
     expect(typeof dec.primary.model).toBe('string');
     expect(dec.primary.model.length).toBeGreaterThan(0);
+  });
+
+  describe('Grok chat flag', () => {
+    const originalFlag = process.env.BALYS_ENABLE_GROK_CHAT;
+    const originalXai = process.env.XAI_API_KEY;
+    const originalOpenAi = process.env.OPENAI_API_KEY;
+
+    afterEach(() => {
+      process.env.BALYS_ENABLE_GROK_CHAT = originalFlag;
+      process.env.XAI_API_KEY = originalXai;
+      process.env.OPENAI_API_KEY = originalOpenAi;
+    });
+
+    it('keeps OpenAI fallback when the flag is off', () => {
+      process.env.BALYS_ENABLE_GROK_CHAT = 'false';
+      process.env.XAI_API_KEY = 'xai-key';
+      process.env.OPENAI_API_KEY = 'openai-key';
+      const dec = route('replan my entire week, reschedule every meeting, and reorganize all participants for tomorrow');
+      const allTargets = [dec.planner, dec.executor, dec.verifier, ...dec.fallbacks.map((f) => f.target)];
+      expect(allTargets.some((t) => t.provider === 'xai')).toBe(false);
+    });
+
+    it('routes strong-tier fallback to Grok when flag is on and xAI key is present', () => {
+      process.env.BALYS_ENABLE_GROK_CHAT = 'true';
+      process.env.XAI_API_KEY = 'xai-key';
+      process.env.OPENAI_API_KEY = '';
+      const dec = route('replan my entire week, reschedule every meeting, and reorganize all participants for tomorrow');
+      const allTargets = [dec.planner, dec.executor, dec.verifier, ...dec.fallbacks.map((f) => f.target)];
+      expect(allTargets.some((t) => t.provider === 'xai')).toBe(true);
+    });
+
+    it('does not select Grok when the flag is on but xAI key is missing', () => {
+      process.env.BALYS_ENABLE_GROK_CHAT = 'true';
+      process.env.XAI_API_KEY = '';
+      process.env.OPENAI_API_KEY = 'openai-key';
+      const dec = route('replan my entire week, reschedule every meeting, and reorganize all participants for tomorrow');
+      const allTargets = [dec.planner, dec.executor, dec.verifier, ...dec.fallbacks.map((f) => f.target)];
+      expect(allTargets.some((t) => t.provider === 'xai')).toBe(false);
+    });
   });
 
   it('does not select the unavailable Gemini flash-lite model', () => {

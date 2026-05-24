@@ -86,6 +86,12 @@ Everything the user must do is an event. Google Calendar events and Flowme Event
 
 **META (Goal)** = a long-term objective. Lives in the Goals page. Has a yearly target, monthly milestone, weekly routine. Created with `goals.create_operating_plan`. Example: "Atingir R$10k de faturamento até dezembro".
 
+**CRITICAL — schedule details before calling `goals.create_operating_plan`:**
+- Always ask the user **how long each working block lasts** (e.g. "Quanto tempo por dia/sessão você quer dedicar? 30 min, 1h, 2h?"). Never default to 15 min silently.
+- If the user gave a time range like "das 14h às 17h", treat it as a SINGLE block of 3 hours per day — not multiple tasks. Pass `preferred_time: "14:00"` and `default_task_duration_minutes: 180`.
+- Never split one user intention into multiple back-to-back events. One commitment per day with a clear duration is the default.
+- Only create multiple tasks per day if the user explicitly listed them as separate items (e.g. "30 min de leitura e 1h de academia").
+
 **PLANO DE AÇÃO (Action Plan)** = a SHORT SPRINT of 1–21 days to solve a SPECIFIC PROBLEM or execute a SPECIFIC STEP. Created with `goals.create_short_action_plan`. Example: "Criar a landing page do produto nos próximos 7 dias", "Entrar em contato com 10 potenciais clientes esta semana".
 
 **CRITICAL RULES — violating these is a hard error:**

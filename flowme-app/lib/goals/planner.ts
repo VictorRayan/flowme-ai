@@ -78,11 +78,17 @@ export function buildGoalOperatingPlan(input: GoalProposalInput): GoalOperatingP
   const targetDate = input.target_date || endOfYear(startDate);
   const monthlyDue = addDays(startDate, 30);
   const weeklyDue = addDays(startDate, 7);
-  const duration = normalizeDuration(input.default_task_duration_minutes);
+  const interval = extractTimeRange(input.weekly_routine);
+  const explicitPreferred = input.preferred_time && /^\d{2}:\d{2}$/.test(input.preferred_time)
+    ? input.preferred_time
+    : null;
+  const preferredTime = explicitPreferred || interval?.startTime || null;
+  const durationFromInterval = interval?.durationMin;
+  const duration = normalizeDuration(durationFromInterval ?? input.default_task_duration_minutes);
   const annualTitle = cleanTitle(input.annual_smart_goal);
   const monthlyTitle = cleanTitle(input.monthly_milestone);
   const weeklyTitle = cleanTitle(input.weekly_routine);
-  const routineTasks = extractRoutineTasks(input.weekly_routine, duration);
+  const routineTasks = extractRoutineTasks(input.weekly_routine, duration, Boolean(interval));
   const cadence = resolveCadence(input.weekly_routine);
   const warnings: string[] = [];
 
@@ -158,7 +164,7 @@ export function buildGoalOperatingPlan(input: GoalProposalInput): GoalOperatingP
   const activeTasks = createExecutionWindowTasks({
     startDate,
     windowEnd,
-    preferredTime: input.preferred_time || null,
+    preferredTime,
     routineTasks,
     cadence,
   });
@@ -198,8 +204,10 @@ function createExecutionWindowTasks({
     const dayOfWeek = new Date(`${scheduledDate}T00:00:00.000Z`).getUTCDay();
     if (!cadence.daysOfWeek.includes(dayOfWeek)) continue;
     planDay += 1;
+    let priorDurationMin = 0;
     routineTasks.forEach((task, taskIndex) => {
-      const { startAt, endAt } = buildTaskTimes(scheduledDate, preferredTime, task.durationMinutes, taskIndex);
+      const { startAt, endAt } = buildTaskTimes(scheduledDate, preferredTime, task.durationMinutes, taskIndex, priorDurationMin);
+      priorDurationMin += task.durationMinutes;
       tasks.push({
         client_id: `task-${planDay}-${taskIndex + 1}`,
         title: task.title,
@@ -275,20 +283,83 @@ function resolveCadence(text: string): Cadence {
   return { daysOfWeek: ALL_DAYS, summary: 'daily inferred', inferred: true };
 }
 
-function extractRoutineTasks(weeklyRoutine: string, defaultDuration: number): Array<{ title: string; durationMinutes: number; inferredDuration: boolean }> {
+function extractRoutineTasks(weeklyRoutine: string, defaultDuration: number, collapseToSingle: boolean): Array<{ title: string; durationMinutes: number; inferredDuration: boolean }> {
+  if (collapseToSingle) {
+    return [{
+      title: cleanTaskTitle(weeklyRoutine, 0),
+      durationMinutes: defaultDuration,
+      inferredDuration: false,
+    }];
+  }
   const parts = weeklyRoutine
-    .split(/\n|;|\.|,(?=\s*[A-ZÀ-Ú])/)
+    .split(/\n|;/)
     .map(part => part.trim())
     .filter(Boolean);
   const candidates = parts.length > 0 ? parts : [weeklyRoutine.trim()];
-  return candidates.slice(0, 4).map((candidate, index) => {
+  const seen = new Set<string>();
+  const tasks: Array<{ title: string; durationMinutes: number; inferredDuration: boolean }> = [];
+  candidates.slice(0, 4).forEach((candidate, index) => {
+    const cleanedTitle = cleanTaskTitle(candidate, index);
+    const dedupeKey = cleanedTitle.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
     const explicit = extractDuration(candidate);
-    return {
-      title: cleanTaskTitle(candidate, index),
+    tasks.push({
+      title: cleanedTitle,
       durationMinutes: explicit ?? defaultDuration,
       inferredDuration: explicit === null,
-    };
+    });
   });
+  return tasks;
+}
+
+// Detects "14h às 17h", "14:00-17:00", "2pm to 5pm" — returns the start time
+// and the total block duration so we book one calendar event per day, not
+// N stacked 15-min blocks.
+export function extractTimeRange(text: string): { startTime: string; endTime: string; durationMin: number } | null {
+  const normalized = text.toLowerCase();
+  const patterns: RegExp[] = [
+    /\b(\d{1,2})(?::(\d{2}))?\s*h(?:oras?)?\s*(?:[àa]s?|at[ée]|to|-|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*h(?:oras?)?\b/,
+    /\b(\d{1,2}):(\d{2})\s*(?:[àa]s?|at[ée]|to|-|–|—)\s*(\d{1,2}):(\d{2})\b/,
+    /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*(?:to|-|–|—|at[ée])\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/,
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const isAmPmPattern = pattern.source.includes('am|pm');
+    let startHour: number;
+    let startMin: number;
+    let endHour: number;
+    let endMin: number;
+    if (isAmPmPattern) {
+      startHour = parseInt(match[1], 10);
+      startMin = match[2] ? parseInt(match[2], 10) : 0;
+      const startMer = match[3];
+      endHour = parseInt(match[4], 10);
+      endMin = match[5] ? parseInt(match[5], 10) : 0;
+      const endMer = match[6];
+      if (startMer === 'pm' && startHour < 12) startHour += 12;
+      if (startMer === 'am' && startHour === 12) startHour = 0;
+      if (endMer === 'pm' && endHour < 12) endHour += 12;
+      if (endMer === 'am' && endHour === 12) endHour = 0;
+    } else {
+      startHour = parseInt(match[1], 10);
+      startMin = match[2] ? parseInt(match[2], 10) : 0;
+      endHour = parseInt(match[3], 10);
+      endMin = match[4] ? parseInt(match[4], 10) : 0;
+    }
+    if (startHour > 23 || endHour > 23 || startMin > 59 || endMin > 59) continue;
+    const startTotal = startHour * 60 + startMin;
+    const endTotal = endHour * 60 + endMin;
+    const durationMin = endTotal - startTotal;
+    if (durationMin <= 0 || durationMin > 24 * 60) continue;
+    return {
+      startTime: `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
+      endTime: `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`,
+      durationMin,
+    };
+  }
+  return null;
 }
 
 function extractDuration(text: string): number | null {
@@ -300,11 +371,11 @@ function extractDuration(text: string): number | null {
   return unit.startsWith('h') || unit.startsWith('hora') ? amount * 60 : amount;
 }
 
-function buildTaskTimes(date: string, preferredTime: string | null, durationMinutes: number, index: number): { startAt: string | null; endAt: string | null } {
+function buildTaskTimes(date: string, preferredTime: string | null, durationMinutes: number, index: number, priorDurationsMin: number): { startAt: string | null; endAt: string | null } {
   if (!preferredTime || !/^\d{2}:\d{2}$/.test(preferredTime)) return { startAt: null, endAt: null };
   const [hour, minute] = preferredTime.split(':').map(Number);
   const start = new Date(`${date}T00:00:00.000Z`);
-  start.setUTCHours(hour, minute + index * 15, 0, 0);
+  start.setUTCHours(hour, minute + (index > 0 ? priorDurationsMin : 0), 0, 0);
   const end = new Date(start.getTime() + durationMinutes * 60000);
   return { startAt: start.toISOString(), endAt: end.toISOString() };
 }

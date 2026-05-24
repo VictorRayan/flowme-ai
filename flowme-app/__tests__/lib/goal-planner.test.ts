@@ -128,4 +128,35 @@ describe('buildGoalOperatingPlan', () => {
       weekly_routine: 'Practice',
     })).toThrow('annual_smart_goal is required');
   });
+
+  it('books a single per-day block when the routine has a clear time range', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Finalizar o app Flowme até dezembro',
+      monthly_milestone: 'Concluir a v1 mobile no fim do mes',
+      weekly_routine: 'Trabalhar no app das 14h as 17h finais de semana',
+      start_date: '2026-05-23',
+    });
+
+    const sat = plan.active_tasks.find((t) => t.scheduled_date === '2026-05-23');
+    expect(sat).toBeDefined();
+    expect(sat?.duration_minutes).toBe(180);
+    expect(sat?.start_at).toMatch(/T14:00:00/);
+    expect(sat?.end_at).toMatch(/T17:00:00/);
+
+    const sameDayTasks = plan.active_tasks.filter((t) => t.scheduled_date === '2026-05-23');
+    expect(sameDayTasks).toHaveLength(1);
+  });
+
+  it('dedupes identical routine task titles instead of stacking them', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Estudar ingles para fluencia em dezembro',
+      monthly_milestone: 'Concluir unidade 1 ate o fim do mes',
+      weekly_routine: 'Estudar ingles; Estudar ingles; Estudar ingles',
+      preferred_time: '08:00',
+      start_date: '2026-05-23',
+    });
+
+    const dayTasks = plan.active_tasks.filter((t) => t.scheduled_date === '2026-05-23');
+    expect(dayTasks).toHaveLength(1);
+  });
 });

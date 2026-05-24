@@ -12,6 +12,7 @@ import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import { useRouter } from 'next/navigation';
+import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 
 const dict = {
   pt: {
@@ -464,7 +465,9 @@ export default function OnboardingWizard() {
                     borderBottomRightRadius: msg.role === 'user' ? 4 : 12,
                     borderBottomLeftRadius: msg.role === 'model' ? 4 : 12,
                   }}>
-                    <Typography variant="body1" sx={{ fontSize: 16 }}>{msg.content}</Typography>
+                    {msg.role === 'user'
+                      ? <Typography variant="body1" sx={{ fontSize: 16 }}>{msg.content}</Typography>
+                      : <BalysMarkdown text={msg.content} />}
                   </Box>
                 ))}
                 

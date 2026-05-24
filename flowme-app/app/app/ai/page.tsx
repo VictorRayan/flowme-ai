@@ -33,6 +33,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import FolderIcon from '@mui/icons-material/Folder';
 import CommandPalette, { ContextItem, type CommandAction } from '@/components/ai/CommandPalette';
+import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 import { UI, resolveUiLang } from '@/lib/i18n';
 
 // ── Note edit block parsing ───────────────────────────────────────────────────
@@ -1076,10 +1077,18 @@ Rules:
                         borderColor: 'divider',
                         borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                       }}>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                          {displayText}
-                          {msg.role === 'assistant' && msg.content === '' && loading && <CircularProgress size={12} sx={{ ml: 1 }} />}
-                        </Typography>
+                        {isUser
+                          ? (
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                              {displayText}
+                            </Typography>
+                          )
+                          : (
+                            <>
+                              <BalysMarkdown text={displayText || ''} />
+                              {msg.role === 'assistant' && msg.content === '' && loading && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                            </>
+                          )}
                       </Paper>
                     )}
                     {/* Note edit preview cards */}

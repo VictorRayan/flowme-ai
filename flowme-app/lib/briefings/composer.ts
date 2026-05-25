@@ -1,6 +1,6 @@
 import { weatherGetTool } from '@/lib/ai/tools/weather-tools';
 import { calendarListEventsTool } from '@/lib/ai/tools/calendar-tools';
-import { goalsListTool } from '@/lib/ai/tools/goals-tools';
+import { summarizeTitle } from '@/lib/goals/planner';
 import { webGroundedSearchTool } from '@/lib/ai/tools/web-tools';
 import { trendsFromTopicsTool } from '@/lib/ai/tools/trends-tools';
 import type { ToolContext } from '@/lib/ai/tools/Tool';
@@ -66,7 +66,7 @@ async function calendarSection(ctx: ToolContext, slot: 'morning' | 'evening'): P
     if (!result.ok) return fail(result.error || 'Sem dados de agenda');
     const rawEvents: any[] = result.receipt?.events || result.data?.events || result.receipt?.items || [];
     const events: CalendarEventLite[] = rawEvents.slice(0, 5).map((e) => ({
-      title: String(e.title || e.summary || 'Sem título'),
+      title: summarizeTitle(String(e.title || e.summary || 'Sem título')),
       start_at: String(e.start_at || e.start?.dateTime || e.start?.date || now.toISOString()),
       end_at: e.end_at || e.end?.dateTime || e.end?.date || null,
       location: e.location || null,
@@ -79,19 +79,41 @@ async function calendarSection(ctx: ToolContext, slot: 'morning' | 'evening'): P
 
 async function goalSection(ctx: ToolContext): Promise<BriefingSectionResult<GoalSection>> {
   try {
-    const result: any = await withTimeout(goalsListTool.call({ include_action_plans: false, status: 'in_progress' }, ctx), SECTION_TIMEOUT_MS, 'goals');
-    if (!result.ok) return fail(result.error || 'Sem meta ativa');
-    const goals = result.receipt?.goals || [];
-    if (goals.length === 0) return fail('Sem meta ativa');
-    const top = goals[0];
+    const today = dateInTimezone(ctx.nowIso ? new Date(ctx.nowIso) : new Date(), ctx.timezone || 'UTC');
+    const { data, error } = await withTimeout<{ data: any[] | null; error: { message?: string } | null }>(
+      ctx.supabase
+        .from('goal_calendar_events')
+        .select('title, status, start_at, duration_minutes')
+        .eq('user_id', ctx.user.id)
+        .eq('scheduled_date', today)
+        .eq('status', 'active')
+        .order('start_at', { ascending: true })
+        .limit(1),
+      SECTION_TIMEOUT_MS,
+      'goal-calendar-events',
+    );
+    if (error) return fail(error.message || 'Sem meta executável hoje');
+    const event = Array.isArray(data) ? data[0] : null;
+    if (!event) return fail('Sem meta executável hoje');
     return ok({
-      title: String(top.title || 'Meta de hoje'),
-      status: String(top.status || 'in_progress'),
-      progress: typeof top.progress === 'number' ? top.progress : undefined,
+      title: summarizeTitle(String(event.title || 'Meta de hoje')),
+      status: 'in_progress',
     });
   } catch (err: any) {
     return fail(err?.message || 'goals failure');
   }
+}
+
+export function dateInTimezone(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const part of parts) if (part.type !== 'literal') map[part.type] = part.value;
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 async function newsSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<NewsSection>> {

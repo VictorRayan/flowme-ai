@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { composeBriefing } from '@/lib/briefings/composer';
-import { upsertBriefing, markDelivered } from '@/lib/briefings/persist';
+import { upsertBriefing, markDelivered, hasDeliveredChannel } from '@/lib/briefings/persist';
 import { deliverWhatsapp, deliverWebPush } from '@/lib/briefings/deliver';
 import { findDueSlots } from '@/lib/briefings/scheduler';
 
@@ -47,11 +47,11 @@ export async function GET(req: NextRequest) {
       if (!saved) { failed += 1; continue; }
       generated += 1;
 
-      if (slot.user.briefing_delivery.includes('whatsapp')) {
+      if (slot.user.briefing_delivery.includes('whatsapp') && !hasDeliveredChannel(saved, 'whatsapp')) {
         const r = await deliverWhatsapp(admin as any, slot.user.user_id, slot.slot, sections);
         if (r.ok) { await markDelivered(admin as any, saved.id, 'whatsapp'); delivered += 1; }
       }
-      if (slot.user.briefing_delivery.includes('push')) {
+      if (slot.user.briefing_delivery.includes('push') && !hasDeliveredChannel(saved, 'push')) {
         const r = await deliverWebPush(admin as any, slot.user.user_id, slot.slot);
         if (r.ok) { await markDelivered(admin as any, saved.id, 'push'); delivered += 1; }
       }

@@ -78,3 +78,7 @@ export async function markDelivered(
     })
     .eq('id', briefingId);
 }
+
+export function hasDeliveredChannel(row: { channels_delivered?: string[] | null }, channel: string): boolean {
+  return Array.isArray(row.channels_delivered) && row.channels_delivered.includes(channel);
+}

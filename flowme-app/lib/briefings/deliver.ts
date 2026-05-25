@@ -1,4 +1,5 @@
 import { sendText } from '@/lib/whatsapp/evolution-client';
+import { summarizeTitle } from '@/lib/goals/planner';
 import type { BriefingSections, BriefingSlot } from './types';
 
 type SupabaseLike = { from(table: string): any };
@@ -7,8 +8,13 @@ function greeting(slot: BriefingSlot): string {
   return slot === 'morning' ? 'Bom dia' : 'Boa noite';
 }
 
-function summarizeForWhatsapp(slot: BriefingSlot, sections: BriefingSections): string {
+function appTodayUrl(): string {
+  return `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.flow-me.online'}/app/today`;
+}
+
+export function summarizeForWhatsapp(slot: BriefingSlot, sections: BriefingSections): string {
   const lines: string[] = [`*${greeting(slot)}!* Aqui está seu resumo.`];
+  lines.push(`👉 Abrir no app: ${appTodayUrl()}`);
 
   if (sections.weather.ok && sections.weather.data) {
     const w = sections.weather.data;
@@ -19,7 +25,7 @@ function summarizeForWhatsapp(slot: BriefingSlot, sections: BriefingSections): s
     lines.push(`\n📅 *Sua agenda*`);
     for (const event of sections.calendar.data.events.slice(0, 3)) {
       const hm = new Date(event.start_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      lines.push(`• ${hm} — ${event.title}`);
+      lines.push(`• ${hm} — ${summarizeTitle(event.title)}`);
     }
   }
 
@@ -40,7 +46,6 @@ function summarizeForWhatsapp(slot: BriefingSlot, sections: BriefingSections): s
     for (const trend of sections.trends.data.trends.slice(0, 3)) lines.push(`• ${trend.summary}`);
   }
 
-  lines.push(`\nAbra o Flowme: ${process.env.NEXT_PUBLIC_APP_URL || 'https://app.flow-me.online'}/app/today`);
   return lines.join('\n');
 }
 

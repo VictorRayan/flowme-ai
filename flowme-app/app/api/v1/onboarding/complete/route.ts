@@ -113,17 +113,14 @@ export async function POST(req: NextRequest) {
 
       if (!calendarAccountId || calendarRateLimited) continue;
 
-      for (const task of result.plan.active_tasks) {
-        if (!task.start_at || !task.end_at) {
-          calendarEventsSkipped += 1;
-          continue;
-        }
+      for (const task of result.plan.recurring_events) {
         try {
           const event = await createCalendarEvent(calendarAccountId, {
             title: task.title,
             description: task.description,
             startAt: task.start_at,
             endAt: task.end_at,
+            recurrence: task.recurrence,
           });
           await recordGoalCalendarEventLinks(supabase, user.id, [{
             linked_account_id: calendarAccountId,
@@ -135,8 +132,8 @@ export async function POST(req: NextRequest) {
             start_at: task.start_at,
             end_at: task.end_at,
             duration_minutes: task.duration_minutes,
-            plan_day: task.plan_day,
-            sort_order: task.sort_order,
+            plan_day: null,
+            sort_order: 0,
           }]);
           calendarEventsCreated += 1;
           await sleep(250);

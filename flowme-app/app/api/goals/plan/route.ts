@@ -39,14 +39,15 @@ export async function POST(req: NextRequest) {
         execution_window_days: body.execution_window_days,
       });
       const calendarEvents = [];
-      for (const task of result.plan.active_tasks) {
-        const startAt = task.start_at || `${task.scheduled_date}T09:00:00.000Z`;
-        const endAt = task.end_at || addMinutesIso(startAt, task.duration_minutes || 30);
+      for (const task of result.plan.recurring_events) {
+        const startAt = task.start_at;
+        const endAt = task.end_at;
         const event = await createCalendarEvent(body.linked_account_id, {
           title: task.title,
           description: task.description,
           startAt,
           endAt,
+          recurrence: task.recurrence,
         });
         createdGoogleEventIds.push(event.id);
         calendarEvents.push({
@@ -69,8 +70,8 @@ export async function POST(req: NextRequest) {
         start_at: event.start_at,
         end_at: event.end_at,
         duration_minutes: event.task.duration_minutes,
-        plan_day: event.task.plan_day,
-        sort_order: event.task.sort_order,
+        plan_day: null,
+        sort_order: 0,
       })));
       return apiSuccess({
         ...result,
@@ -93,10 +94,6 @@ export async function POST(req: NextRequest) {
     console.error('POST /api/goals/plan error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to create goal operating plan', 500);
   }
-}
-
-function addMinutesIso(startIso: string, minutes: number): string {
-  return new Date(new Date(startIso).getTime() + minutes * 60000).toISOString();
 }
 
 async function rollbackCalendarEvents(linkedAccountId: string, eventIds: string[]) {

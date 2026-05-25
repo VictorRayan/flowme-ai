@@ -35,6 +35,7 @@ type CalendarOccurrence = {
   start_at?: string | null;
   end_at?: string | null;
   duration_minutes?: number | null;
+  recurrence?: string[] | null;
   action_plan_id?: string | null;
   goal_id?: string | null;
   plan_day?: number | null;
@@ -159,6 +160,7 @@ async function createCalendarEventsForOccurrences(
       description: occurrence.description || undefined,
       startAt: times.startAt,
       endAt: times.endAt,
+      recurrence: occurrence.recurrence || undefined,
     }, context);
     onCreated?.(event.id);
     created.push({
@@ -243,12 +245,13 @@ CONTRACT:
 
 export const goalsCreateOperatingPlanTool = defineTool({
   name: 'goals.create_operating_plan',
-  description: `Create a long-term Goal Operating System: persistent yearly/monthly/weekly goal records + a short action plan sprint + calendar events for the first execution window.
+  description: `Create a long-term Goal Operating System: persistent yearly/monthly/weekly goal records + a short action plan sprint + Google Calendar recurring series through the goal target date.
 
 CONCEPTS — understand before calling:
 - GOAL: a long-term objective (yearly/monthly/weekly). Lives in the Goals page. Never expires until the user achieves or cancels it.
 - ACTION PLAN: a short execution sprint (max 21 days) that works toward a goal. When its review_date arrives it should be renewed. It is NOT the goal itself.
-- TASKS / CALENDAR EVENTS: concrete occurrences scheduled on specific dates inside the action plan window, placed on the user's calendar.
+- TASKS: concrete preview occurrences inside the action plan window.
+- CALENDAR EVENTS: recurring Google Calendar series that run from the plan start date through the goal target date.
 
 WHEN TO USE:
 - The user explicitly accepts a goal proposal.
@@ -259,11 +262,12 @@ CONTRACT — cadence rules (CRITICAL — apply exactly):
 - "dias úteis" / "weekdays" → Monday–Friday (1–5) ONLY. Never weekends.
 - Named days ("segunda", "monday", etc.) → only those exact days.
 - No cadence mentioned → infer daily but WARN and ask user to confirm before calling.
-- execution_window_days defaults to 14. Max is 21. For weekend-only goals ~14 days yields ~4 occurrences — correct.
+- execution_window_days defaults to 14. Max is 21. This only controls the concrete preview/action-plan window, not the Google Calendar recurrence length.
 - NEVER schedule tasks on days that don't match the cadence.
+- If different day groups have different times, include both in weekly_routine; the planner will create separate recurring series (for example weekdays at 21:00 and weekends at 10:00).
 
 CALENDAR EVENTS:
-- This tool itself creates one Google Calendar event for each concrete occurrence.
+- This tool itself creates one Google Calendar recurring event series for each unique schedule rule.
 - Do NOT call calendar.create_event again after this tool succeeds; that would duplicate events.
 - If no preferred_time was given, this tool uses a default 09:00 start time in the user's timezone.
 
@@ -295,7 +299,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
     target_date:                 z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('ISO date YYYY-MM-DD for the yearly goal deadline. Defaults to Dec 31 of this year.'),
     preferred_time:              z.string().regex(/^\d{2}:\d{2}$/).optional().describe('Preferred start time for tasks in HH:MM (24h). Optional — if omitted, tasks are flexible.'),
     default_task_duration_minutes: z.number().min(1).max(240).optional().describe('Duration in minutes for each task occurrence. Defaults to 15.'),
-    execution_window_days:       z.number().min(1).max(21).optional().describe('How many calendar days to materialise tasks for. Defaults to 14. Max 21.'),
+    execution_window_days:       z.number().min(1).max(21).optional().describe('How many calendar days to materialise preview tasks for. Defaults to 14. Max 21. Calendar events recur through target_date.'),
     calendar_account_nickname:   z.string().optional().describe('Google Calendar account nickname/name. Required when the user has more than one active Google account.'),
   })),
   call: async (args, context) => {
@@ -308,17 +312,18 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
       accountId = account.account.id;
 
       result = await persistGoalOperatingPlan(context.supabase, context.user.id, args);
-      const tasks = result.plan.active_tasks.map(task => ({
+      const tasks = result.plan.recurring_events.map(task => ({
         title: task.title,
         description: task.description,
         scheduled_date: task.scheduled_date,
         start_at: task.start_at,
         end_at: task.end_at,
         duration_minutes: task.duration_minutes,
+        recurrence: task.recurrence,
         action_plan_id: result?.persisted.action_plan.id,
         goal_id: result?.persisted.goals.weekly.id,
-        plan_day: task.plan_day,
-        sort_order: task.sort_order,
+        plan_day: null,
+        sort_order: 0,
       }));
       const calendarEvents = await createCalendarEventsForOccurrences(
         context,
@@ -346,6 +351,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
           goals_created: 3,
           action_plan_created: true,
           calendar_events_created: receiptCalendarEvents.length,
+          recurring_series_created: receiptCalendarEvents.length,
           first_task_date: result.plan.active_tasks[0]?.scheduled_date || null,
           review_date: result.plan.action_plan.review_date,
           cadence_summary: result.plan.future_work_template.cadence_summary,
@@ -358,7 +364,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
           })),
           calendar_events: receiptCalendarEvents,
           warnings: result.plan.warnings,
-          summary: `Goal created. ${calendarEvents.length} Google Calendar event(s) scheduled for the first ${result.plan.future_work_template.concrete_window_days} days (${result.plan.future_work_template.cadence_summary}). Action plan renews on ${result.plan.action_plan.review_date}.`,
+          summary: `Goal created. ${calendarEvents.length} Google Calendar recurring series scheduled through the goal target date (${result.plan.future_work_template.cadence_summary}). Action plan renews on ${result.plan.action_plan.review_date}.`,
         },
       };
     } catch (error) {

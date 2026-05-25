@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/goals/plan/route';
+import { createCalendarEvent } from '@/lib/google/google-calendar';
 
 const tableRows: Record<string, unknown> = {
   smart_goals: { id: 'goal-1', title: 'Goal', timeframe: 'yearly', status: 'in_progress' },
@@ -65,7 +66,10 @@ describe('POST /api/goals/plan', () => {
     expect(body.plan.goals).toHaveLength(3);
     expect(body.plan.active_tasks).toHaveLength(4);
     expect(body.persisted.action_plan).toBeDefined();
-    expect(body.calendar_events).toHaveLength(4);
+    expect(body.calendar_events).toHaveLength(1);
+    expect(createCalendarEvent).toHaveBeenCalledWith('google-1', expect.objectContaining({
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA;UNTIL=20260505T235959Z'],
+    }));
   });
 
   it('returns validation error for incomplete proposal', async () => {

@@ -6,6 +6,15 @@ jest.mock('@/lib/goals/persist-plan', () => ({
   persistGoalOperatingPlan: jest.fn().mockResolvedValue({
     plan: {
       active_tasks: [{ scheduled_date: '2026-05-02', start_at: null, end_at: null, title: 'Task 1' }],
+      recurring_events: [{
+        scheduled_date: '2026-05-02',
+        start_at: '2026-05-02T09:00:00.000Z',
+        end_at: '2026-05-02T09:20:00.000Z',
+        title: 'Task 1',
+        description: 'Task 1',
+        duration_minutes: 20,
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA;UNTIL=20261231T235959Z'],
+      }],
       action_plan: { review_date: '2026-05-09' },
       future_work_template: {
         cadence_summary: 'daily',
@@ -96,6 +105,7 @@ describe('goals tools', () => {
     expect(result.receipt).toEqual(expect.objectContaining({ goals_created: 3, calendar_events_created: 1 }));
     expect(createCalendarEvent).toHaveBeenCalledWith('google-1', expect.objectContaining({
       title: 'Task 1',
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA;UNTIL=20261231T235959Z'],
     }), context);
     expect(context.supabase.calls).toEqual(expect.arrayContaining([
       expect.objectContaining({ table: 'goal_calendar_events', method: 'upsert' }),

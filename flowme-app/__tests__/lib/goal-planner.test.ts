@@ -38,6 +38,50 @@ describe('buildGoalOperatingPlan', () => {
     expect(plan.goals[0].due_on).toBe('2026-12-31');
   });
 
+  it('creates a recurring calendar series through the goal target date', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Lose 8kg of fat by December 2026',
+      monthly_milestone: 'Lose the first 1kg this month',
+      weekly_routine: 'Walk 30 minutes daily',
+      start_date: '2026-01-01',
+      target_date: '2026-12-31',
+      preferred_time: '07:30',
+      execution_window_days: 14,
+    });
+
+    expect(plan.recurring_events).toHaveLength(1);
+    expect(plan.recurring_events[0]).toEqual(expect.objectContaining({
+      scheduled_date: '2026-01-01',
+      start_at: '2026-01-01T07:30:00.000Z',
+      end_at: '2026-01-01T08:00:00.000Z',
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA;UNTIL=20261231T235959Z'],
+    }));
+  });
+
+  it('creates separate recurring series when weekday and weekend schedules have different times', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Aprender Clean Architecture ate dezembro de 2026',
+      monthly_milestone: 'Concluir um curso ate o fim do mes',
+      weekly_routine: 'Estudar Clean Architecture segunda a sexta às 21:00 por 60 minutos e sábado e domingo às 10:00 por 60 minutos',
+      start_date: '2026-05-01',
+      target_date: '2026-12-31',
+    });
+
+    expect(plan.recurring_events).toHaveLength(2);
+    expect(plan.recurring_events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        scheduled_date: '2026-05-01',
+        start_at: '2026-05-01T21:00:00.000Z',
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261231T235959Z'],
+      }),
+      expect.objectContaining({
+        scheduled_date: '2026-05-02',
+        start_at: '2026-05-02T10:00:00.000Z',
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU,SA;UNTIL=20261231T235959Z'],
+      }),
+    ]));
+  });
+
   it('respects weekend cadence without creating weekday work', () => {
     const plan = buildGoalOperatingPlan({
       annual_smart_goal: 'Build a weekend consulting pipeline by June',

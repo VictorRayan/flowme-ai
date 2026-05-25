@@ -23,8 +23,17 @@ jest.mock('@/lib/goals/persist-plan', () => ({
   persistGoalOperatingPlan: jest.fn().mockResolvedValue({
     plan: {
       active_tasks: [{ title: 'Prospect', description: 'Prospect daily', scheduled_date: '2026-05-19', start_at: null, end_at: null, duration_minutes: 20 }],
+      recurring_events: [{
+        title: 'Prospect',
+        description: 'Prospect daily',
+        scheduled_date: '2026-05-19',
+        start_at: '2026-05-19T09:00:00.000Z',
+        end_at: '2026-05-19T09:20:00.000Z',
+        duration_minutes: 20,
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA;UNTIL=20261231T235959Z'],
+      }],
     },
-    persisted: { goals: {} },
+    persisted: { goals: { weekly: { id: 'goal-weekly' } }, action_plan: { id: 'plan-1' } },
   }),
 }));
 

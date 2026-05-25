@@ -52,10 +52,23 @@ export interface PlannedTaskOccurrence {
   needs_time_confirmation: boolean;
 }
 
+export interface PlannedRecurringEvent {
+  client_id: string;
+  title: string;
+  description: string;
+  scheduled_date: string;
+  start_at: string;
+  end_at: string;
+  duration_minutes: number;
+  days_of_week: number[];
+  recurrence: string[];
+}
+
 export interface GoalOperatingPlan {
   goals: PlannedGoalRecord[];
   action_plan: PlannedActionPlanRecord;
   active_tasks: PlannedTaskOccurrence[];
+  recurring_events: PlannedRecurringEvent[];
   future_work_template: {
     weekly_routine: string;
     recurrence_summary: string;
@@ -168,19 +181,75 @@ export function buildGoalOperatingPlan(input: GoalProposalInput): GoalOperatingP
     routineTasks,
     cadence,
   });
+  const recurringEvents = createRecurringEvents({
+    startDate,
+    targetDate,
+    preferredTime,
+    duration,
+    weeklyRoutine: input.weekly_routine,
+    routineTasks,
+    cadence,
+  });
 
   return {
     goals,
     action_plan: actionPlan,
     active_tasks: activeTasks,
+    recurring_events: recurringEvents,
     future_work_template: {
       weekly_routine: input.weekly_routine.trim(),
-      recurrence_summary: `Tasks materialized for the first ${executionWindowDays} days (${startDate} to ${windowEnd}). Renew the action plan at review_date to continue.`,
+      recurrence_summary: `${recurringEvents.length} recurring calendar series scheduled from ${startDate} to ${targetDate}.`,
       concrete_window_days: executionWindowDays,
       cadence_summary: cadence.summary,
     },
     warnings,
   };
+}
+
+function createRecurringEvents({
+  startDate,
+  targetDate,
+  preferredTime,
+  duration,
+  weeklyRoutine,
+  routineTasks,
+  cadence,
+}: {
+  startDate: string;
+  targetDate: string;
+  preferredTime: string | null;
+  duration: number;
+  weeklyRoutine: string;
+  routineTasks: Array<{ title: string; durationMinutes: number; inferredDuration: boolean }>;
+  cadence: Cadence;
+}): PlannedRecurringEvent[] {
+  const explicitSchedules = extractScheduleRules(weeklyRoutine, preferredTime, duration);
+  const schedules = explicitSchedules.length > 0
+    ? explicitSchedules
+    : [{
+      daysOfWeek: cadence.daysOfWeek,
+      startTime: preferredTime || '09:00',
+      durationMinutes: routineTasks.reduce((sum, task) => sum + task.durationMinutes, 0) || duration,
+      title: routineTasks.length === 1 ? routineTasks[0].title : composeDayTitle(routineTasks),
+    }];
+
+  return schedules.map((schedule, index) => {
+    const scheduledDate = firstMatchingDate(startDate, schedule.daysOfWeek);
+    const { startAt, endAt } = buildTaskTimes(scheduledDate, schedule.startTime, schedule.durationMinutes, 0, 0);
+    const title = summarizeTitle(schedule.title || (routineTasks.length === 1 ? routineTasks[0].title : composeDayTitle(routineTasks)));
+    const description = composeDayDescription(routineTasks);
+    return {
+      client_id: `recurrence-${index + 1}`,
+      title,
+      description,
+      scheduled_date: scheduledDate,
+      start_at: startAt || `${scheduledDate}T09:00:00.000Z`,
+      end_at: endAt || addMinutesIso(`${scheduledDate}T09:00:00.000Z`, schedule.durationMinutes),
+      duration_minutes: schedule.durationMinutes,
+      days_of_week: schedule.daysOfWeek,
+      recurrence: [weeklyRRule(schedule.daysOfWeek, targetDate)],
+    };
+  });
 }
 
 function createExecutionWindowTasks({
@@ -224,7 +293,7 @@ function createExecutionWindowTasks({
       priority_source: 'balys',
       priority_reason: planDay === 1
         ? 'First-day kickoff task for the accepted goal plan.'
-        : 'Full-period execution event for the accepted goal plan.',
+        : 'Execution-window task for the accepted goal plan.',
       source_type: 'goal_task',
       plan_day: planDay,
       sort_order: dayOffset * 10,
@@ -260,7 +329,7 @@ const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
 function resolveCadence(text: string): Cadence {
   const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (/\b(weekends?|finais? de semana|fim de semana)\b/.test(normalized)) {
+  if (/\b(weekends?|finais? de semana|fim de semana|final de semana)\b/.test(normalized)) {
     return { daysOfWeek: [0, 6], summary: 'weekends only', inferred: false };
   }
   if (/\b(weekdays?|dias uteis|segunda a sexta|monday to friday)\b/.test(normalized)) {
@@ -415,6 +484,118 @@ function extractDuration(text: string): number | null {
   return unit.startsWith('h') || unit.startsWith('hora') ? amount * 60 : amount;
 }
 
+type ScheduleRule = {
+  daysOfWeek: number[];
+  startTime: string;
+  durationMinutes: number;
+  title: string;
+};
+
+const DAY_CODES: Record<number, string> = {
+  0: 'SU',
+  1: 'MO',
+  2: 'TU',
+  3: 'WE',
+  4: 'TH',
+  5: 'FR',
+  6: 'SA',
+};
+
+function extractScheduleRules(text: string, fallbackStartTime: string | null, fallbackDuration: number): ScheduleRule[] {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const dayGroup = [
+    'segunda\\s+a\\s+domingo',
+    'segunda\\s+a\\s+sexta',
+    'sabado\\s+e\\s+domingo',
+    'sábado\\s+e\\s+domingo',
+    'finais?\\s+de\\s+semana',
+    'fim\\s+de\\s+semana',
+    'final\\s+de\\s+semana',
+    'dias\\s+uteis',
+    'dias\\s+úteis',
+    'todos\\s+os\\s+dias',
+    'todo\\s+dia',
+    'diariamente',
+    'weekdays?',
+    'weekends?',
+    'daily',
+    'every\\s+day',
+    'monday\\s+to\\s+friday',
+    'monday\\s+through\\s+sunday',
+    'segunda',
+    'terça',
+    'terca',
+    'quarta',
+    'quinta',
+    'sexta',
+    'sabado',
+    'sábado',
+    'domingo',
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+  ].join('|');
+  const time = '(\\d{1,2}(?::\\d{2})?\\s*(?:h|hs|horas?)?(?:\\s*(?:[àa]s?|ate|até|to|-)\\s*\\d{1,2}(?::\\d{2})?\\s*(?:h|hs|horas?)?)?)';
+  const regex = new RegExp(`\\b(${dayGroup})\\b[^\\d]{0,32}(?:às?|as|at)?\\s*${time}`, 'gi');
+  const matches = Array.from(normalized.matchAll(regex));
+  const rules = matches
+    .map((match) => {
+      const daysOfWeek = daysForText(match[1]);
+      const interval = extractTimeRange(match[2]);
+      const startTime = interval?.startTime || normalizeStartTime(match[2]) || fallbackStartTime;
+      if (!startTime || daysOfWeek.length === 0) return null;
+      return {
+        daysOfWeek,
+        startTime,
+        durationMinutes: interval?.durationMin || extractDuration(normalized) || fallbackDuration,
+        title: summarizeTitle(normalized),
+      };
+    })
+    .filter((rule): rule is ScheduleRule => Boolean(rule));
+
+  return dedupeScheduleRules(rules);
+}
+
+function daysForText(value: string): number[] {
+  const normalized = value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/segunda\s+a\s+domingo|todos os dias|todo dia|diariamente|daily|every day|monday through sunday/.test(normalized)) return ALL_DAYS;
+  if (/segunda\s+a\s+sexta|dias uteis|weekday|monday to friday/.test(normalized)) return [1, 2, 3, 4, 5];
+  if (/sabado\s+e\s+domingo|fim de semana|final de semana|finais de semana|weekend/.test(normalized)) return [0, 6];
+  const named = [
+    { day: 0, pattern: /\b(sunday|domingo)\b/ },
+    { day: 1, pattern: /\b(monday|segunda)\b/ },
+    { day: 2, pattern: /\b(tuesday|terca)\b/ },
+    { day: 3, pattern: /\b(wednesday|quarta)\b/ },
+    { day: 4, pattern: /\b(thursday|quinta)\b/ },
+    { day: 5, pattern: /\b(friday|sexta)\b/ },
+    { day: 6, pattern: /\b(saturday|sabado)\b/ },
+  ];
+  return named.filter(({ pattern }) => pattern.test(normalized)).map(({ day }) => day);
+}
+
+function normalizeStartTime(value: string): string | null {
+  const match = value.toLowerCase().match(/(\d{1,2})(?::(\d{2}))?\s*(h|hs|horas?)?/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = match[2] ? Number(match[2]) : 0;
+  if (hour > 23 || minute > 59) return null;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function dedupeScheduleRules(rules: ScheduleRule[]): ScheduleRule[] {
+  const seen = new Set<string>();
+  return rules.filter((rule) => {
+    const key = `${rule.daysOfWeek.join(',')}|${rule.startTime}|${rule.durationMinutes}|${rule.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function buildTaskTimes(date: string, preferredTime: string | null, durationMinutes: number, index: number, priorDurationsMin: number): { startAt: string | null; endAt: string | null } {
   if (!preferredTime || !/^\d{2}:\d{2}$/.test(preferredTime)) return { startAt: null, endAt: null };
   const [hour, minute] = preferredTime.split(':').map(Number);
@@ -422,6 +603,24 @@ function buildTaskTimes(date: string, preferredTime: string | null, durationMinu
   start.setUTCHours(hour, minute + (index > 0 ? priorDurationsMin : 0), 0, 0);
   const end = new Date(start.getTime() + durationMinutes * 60000);
   return { startAt: start.toISOString(), endAt: end.toISOString() };
+}
+
+function firstMatchingDate(startDate: string, daysOfWeek: number[]): string {
+  for (let offset = 0; offset < 7; offset++) {
+    const date = addDays(startDate, offset);
+    const dow = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+    if (daysOfWeek.includes(dow)) return date;
+  }
+  return startDate;
+}
+
+function weeklyRRule(daysOfWeek: number[], targetDate: string): string {
+  const byDay = [...daysOfWeek].sort().map(day => DAY_CODES[day]).join(',');
+  return `RRULE:FREQ=WEEKLY;BYDAY=${byDay};UNTIL=${targetDate.replace(/-/g, '')}T235959Z`;
+}
+
+function addMinutesIso(startIso: string, minutes: number): string {
+  return new Date(new Date(startIso).getTime() + minutes * 60000).toISOString();
 }
 
 function validateProposal(input: GoalProposalInput) {

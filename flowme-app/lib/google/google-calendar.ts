@@ -11,6 +11,7 @@ export interface CreateEventParams {
   participants?: string[];
   location?: string;
   reminders?: { useDefault: boolean; overrides?: Array<{ method: string; minutes: number }> };
+  recurrence?: string[];
 }
 
 export async function getCalendarEvents(linkedAccountId: string, timeMin: string, timeMax: string, authContext?: GoogleTokenAuthContext) {
@@ -61,6 +62,7 @@ export async function createCalendarEvent(linkedAccountId: string, params: Creat
         attendees: params.participants?.map(email => ({ email })),
         location: params.location,
         reminders: params.reminders,
+        recurrence: params.recurrence,
     };
 
     if (params.createMeet) {

@@ -3,6 +3,7 @@ import { buildGoalOperatingPlan, GoalProposalInput } from '@/lib/goals/planner';
 
 const GOAL_FIELDS = 'id, title, timeframe, parent_goal_id, status, starts_on, due_on, target_date, success_criteria';
 const ACTION_PLAN_FIELDS = 'id, title, plan_type, linked_goal_id, linked_goal_ids, status, starts_on, review_date, success_criteria';
+const TASK_FIELDS = 'id, title, category, status, outcome, scheduled_date, start_at, end_at, duration_minutes, linked_goal_id, action_plan_id, plan_day, sort_order';
 export async function persistGoalOperatingPlan(
   supabase: SupabaseClient,
   userId: string,
@@ -12,9 +13,11 @@ export async function persistGoalOperatingPlan(
   const created: {
     goalIds: string[];
     actionPlanId: string | null;
+    taskIds: string[];
   } = {
     goalIds: [],
     actionPlanId: null,
+    taskIds: [],
   };
 
   try {
@@ -55,12 +58,45 @@ export async function persistGoalOperatingPlan(
 
     if (linksError) throw linksError;
 
+    const { data: tasks, error: tasksError } = await supabase
+      .from('action_plan_tasks')
+      .insert(plan.active_tasks.map(task => {
+        const startAt = task.start_at || `${task.scheduled_date}T09:00:00.000Z`;
+        const endAt = task.end_at || addMinutesIso(startAt, task.duration_minutes);
+        return {
+          user_id: userId,
+          title: task.title,
+          description: task.description,
+          start_at: startAt,
+          end_at: endAt,
+          category: task.category,
+          status: 'pending',
+          priority: task.priority,
+          scheduled_date: task.scheduled_date,
+          linked_goal_id: weekly.id,
+          action_plan_id: actionPlan.id,
+          plan_day: task.plan_day,
+          duration_minutes: task.duration_minutes,
+          source_type: task.source_type,
+          source_id: task.client_id,
+          outcome: 'pending',
+          priority_source: task.priority_source,
+          priority_reason: task.priority_reason,
+          is_time_blocked: Boolean(task.start_at && task.end_at),
+          sort_order: task.sort_order,
+        };
+      }))
+      .select(TASK_FIELDS);
+
+    if (tasksError) throw tasksError;
+    created.taskIds = (tasks || []).map((task: { id: string }) => task.id);
+
     return {
       plan,
       persisted: {
         goals: { yearly, monthly, weekly },
         action_plan: actionPlan,
-        tasks: [],
+        tasks: tasks || [],
       },
     };
   } catch (error) {
@@ -115,6 +151,7 @@ export async function cleanupPersistedGoalOperatingPlan(
 ) {
   await cleanupCreatedPlan(supabase, userId, {
     actionPlanId: persisted.action_plan?.id || null,
+    taskIds: [],
     goalIds: [
       persisted.goals?.yearly?.id,
       persisted.goals?.monthly?.id,
@@ -126,7 +163,7 @@ export async function cleanupPersistedGoalOperatingPlan(
 async function cleanupCreatedPlan(
   supabase: SupabaseClient,
   userId: string,
-  created: { goalIds: string[]; actionPlanId: string | null },
+  created: { goalIds: string[]; actionPlanId: string | null; taskIds: string[] },
 ) {
   const cleanupErrors: unknown[] = [];
   const run = async (label: string, operation: unknown) => {
@@ -138,6 +175,12 @@ async function cleanupCreatedPlan(
   };
 
   if (created.actionPlanId) {
+    await run('action_plan_tasks_by_action_plan', supabase
+      .from('action_plan_tasks')
+      .delete()
+      .eq('user_id', userId)
+      .eq('action_plan_id', created.actionPlanId));
+
     await run('action_plan_goal_links', supabase
       .from('action_plan_goal_links')
       .delete()
@@ -162,4 +205,8 @@ async function cleanupCreatedPlan(
   if (cleanupErrors.length > 0) {
     console.error('Goal operating plan cleanup had partial failures:', cleanupErrors);
   }
+}
+
+function addMinutesIso(startIso: string, minutes: number): string {
+  return new Date(new Date(startIso).getTime() + minutes * 60000).toISOString();
 }

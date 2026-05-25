@@ -2,9 +2,16 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
+const TASK_FIELDS = `
+  id, title, description, category, status, priority,
+  linked_goal_id, action_plan_id, plan_day, scheduled_date, start_at, end_at,
+  duration_minutes, source_type, source_id, outcome,
+  priority_source, priority_reason, is_time_blocked, sort_order, created_at, updated_at
+`;
+
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth(req);
+    const { supabase, user } = await requireAuth(req);
     const { searchParams } = new URL(req.url);
 
     const date = searchParams.get('date');           // YYYY-MM-DD — filter by scheduled_date
@@ -14,14 +21,25 @@ export async function GET(req: NextRequest) {
     const planId = searchParams.get('plan_id');
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 200);
 
-    void date;
-    void category;
-    void status;
-    void goalId;
-    void planId;
-    void limit;
+    let query = supabase
+      .from('action_plan_tasks')
+      .select(TASK_FIELDS)
+      .eq('user_id', user.id)
+      .order('scheduled_date', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('start_at', { ascending: true })
+      .limit(limit);
 
-    return apiSuccess({ tasks: [] });
+    if (date) query = query.eq('scheduled_date', date);
+    if (category) query = query.eq('category', category);
+    if (status) query = query.eq('status', status);
+    if (goalId) query = query.eq('linked_goal_id', goalId);
+    if (planId) query = query.eq('action_plan_id', planId);
+
+    const { data, error } = await query;
+    if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+
+    return apiSuccess({ tasks: data || [] });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('GET /api/tasks error:', err);

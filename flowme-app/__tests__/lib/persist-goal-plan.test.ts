@@ -9,6 +9,7 @@ type Operation = {
 function makeSupabaseMock(options: { failActionPlanLinkInsert?: boolean } = {}) {
   const operations: Operation[] = [];
   let goalCounter = 0;
+  let insertedMicroactivities: any[] = [];
 
   const supabase = {
     operations,
@@ -18,6 +19,7 @@ function makeSupabaseMock(options: { failActionPlanLinkInsert?: boolean } = {}) 
         insert(...args: unknown[]) {
           operation = 'insert';
           operations.push({ table, method: 'insert', args });
+          if (table === 'action_plan_tasks') insertedMicroactivities = Array.isArray(args[0]) ? args[0] as any[] : [args[0]];
           return builder;
         },
         delete(...args: unknown[]) {
@@ -57,6 +59,12 @@ function makeSupabaseMock(options: { failActionPlanLinkInsert?: boolean } = {}) 
           if (table === 'action_plan_goal_links' && operation === 'insert' && options.failActionPlanLinkInsert) {
             return Promise.resolve({ data: null, error: new Error('link insert failed') }).then(resolve as any, reject as any);
           }
+          if (table === 'action_plan_tasks' && operation === 'insert') {
+            return Promise.resolve({
+              data: insertedMicroactivities.map((task, index) => ({ ...task, id: `task-${index + 1}` })),
+              error: null,
+            }).then(resolve as any, reject as any);
+          }
           return Promise.resolve({ data: [], error: null }).then(resolve as any, reject as any);
         },
       };
@@ -82,10 +90,17 @@ describe('persistGoalOperatingPlan', () => {
 
     expect(result.persisted.goals.yearly.id).toBe('goal-1');
     expect(result.persisted.action_plan.id).toBe('plan-1');
-    expect(result.persisted.tasks).toHaveLength(0);
+    expect(result.persisted.tasks).toHaveLength(result.plan.active_tasks.length);
+    expect(result.persisted.tasks[0]).toEqual(expect.objectContaining({
+      title: expect.stringContaining('Prospect'),
+      linked_goal_id: 'goal-3',
+      action_plan_id: 'plan-1',
+      source_type: 'goal_task',
+      outcome: 'pending',
+    }));
     expect(result.plan.active_tasks.length).toBeGreaterThan(0);
-    expect(supabase.operations).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ table: 'microactivities', method: 'insert' }),
+    expect(supabase.operations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'action_plan_tasks', method: 'insert' }),
     ]));
   });
 
@@ -95,6 +110,8 @@ describe('persistGoalOperatingPlan', () => {
     await expect(persistGoalOperatingPlan(supabase as any, 'user-1', VALID_INPUT)).rejects.toThrow('link insert failed');
 
     expect(supabase.operations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'action_plan_tasks', method: 'delete' }),
+      expect.objectContaining({ table: 'action_plan_tasks', method: 'eq', args: ['action_plan_id', 'plan-1'] }),
       expect.objectContaining({ table: 'action_plan_goal_links', method: 'delete' }),
       expect.objectContaining({ table: 'action_plans', method: 'delete' }),
       expect.objectContaining({ table: 'smart_goals', method: 'delete' }),

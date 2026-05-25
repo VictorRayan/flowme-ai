@@ -59,6 +59,9 @@ const dict = {
     delivery_title: 'Como quer receber',
     delivery_whatsapp: 'WhatsApp',
     delivery_push: 'Notificação no navegador',
+    delivery_push_hint: 'Vamos pedir permissão ao seu navegador.',
+    delivery_push_denied: 'Você bloqueou a permissão. Habilite nas configurações do navegador e tente de novo.',
+    delivery_push_unsupported: 'Seu navegador não suporta notificações push.',
     delivery_web: 'Sempre disponível no app',
   },
   en: {
@@ -104,6 +107,9 @@ const dict = {
     delivery_title: 'How you want it',
     delivery_whatsapp: 'WhatsApp',
     delivery_push: 'Browser notification',
+    delivery_push_hint: "We'll ask your browser for permission.",
+    delivery_push_denied: 'You blocked permission. Enable it in your browser settings and try again.',
+    delivery_push_unsupported: 'Your browser does not support push notifications.',
     delivery_web: 'Always available in the app',
   }
 };
@@ -139,6 +145,31 @@ export default function OnboardingWizard() {
   const [briefingCity, setBriefingCity] = React.useState('');
   const [deliverWhatsApp, setDeliverWhatsApp] = React.useState(true);
   const [deliverPush, setDeliverPush] = React.useState(false);
+  const [pushError, setPushError] = React.useState<'denied' | 'unsupported' | null>(null);
+
+  const handleDeliverPushToggle = async (checked: boolean) => {
+    setPushError(null);
+    if (!checked) {
+      setDeliverPush(false);
+      return;
+    }
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPushError('unsupported');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setDeliverPush(true);
+      } else {
+        setDeliverPush(false);
+        setPushError('denied');
+      }
+    } catch {
+      setDeliverPush(false);
+      setPushError('unsupported');
+    }
+  };
 
   const addTopic = () => {
     const cleaned = topicDraft.trim();
@@ -618,10 +649,19 @@ export default function OnboardingWizard() {
                     control={<Switch checked={deliverWhatsApp} onChange={(e) => setDeliverWhatsApp(e.target.checked)} />}
                     label={<Typography sx={{ color: '#fff' }}>{t.delivery_whatsapp}</Typography>}
                   />
-                  <FormControlLabel
-                    control={<Switch checked={deliverPush} onChange={(e) => setDeliverPush(e.target.checked)} />}
-                    label={<Typography sx={{ color: '#fff' }}>{t.delivery_push}</Typography>}
-                  />
+                  <Box>
+                    <FormControlLabel
+                      control={<Switch checked={deliverPush} onChange={(e) => handleDeliverPushToggle(e.target.checked)} />}
+                      label={<Typography sx={{ color: '#fff' }}>{t.delivery_push}</Typography>}
+                    />
+                    <Typography sx={{ display: 'block', color: pushError ? '#f87171' : 'text.disabled', fontSize: 12, ml: 6, mt: -0.5 }}>
+                      {pushError === 'denied'
+                        ? t.delivery_push_denied
+                        : pushError === 'unsupported'
+                          ? t.delivery_push_unsupported
+                          : t.delivery_push_hint}
+                    </Typography>
+                  </Box>
                 </Stack>
               </Box>
 

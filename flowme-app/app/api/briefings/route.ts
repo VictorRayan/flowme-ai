@@ -4,6 +4,7 @@ import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import { composeBriefing } from '@/lib/briefings/composer';
 import { getBriefing, upsertBriefing } from '@/lib/briefings/persist';
 import type { BriefingSlot } from '@/lib/briefings/types';
+import type { BriefingSections } from '@/lib/briefings/types';
 
 function todayInTimezone(timezone: string): string {
   try {
@@ -26,6 +27,18 @@ function inferSlot(timezone: string): BriefingSlot {
   }
 }
 
+function hasNewsItems(sections: BriefingSections | null | undefined): boolean {
+  return Boolean(sections?.news?.ok && sections.news.data?.by_topic?.some((topic) => topic.items.length > 0));
+}
+
+function hasTrendItems(sections: BriefingSections | null | undefined): boolean {
+  return Boolean(sections?.trends?.ok && sections.trends.data?.trends?.length);
+}
+
+function shouldReuseBriefing(sections: BriefingSections | null | undefined): boolean {
+  return hasNewsItems(sections) && hasTrendItems(sections);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
@@ -45,7 +58,7 @@ export async function GET(req: NextRequest) {
 
     if (!force) {
       const existing = await getBriefing(supabase as any, user.id, slot, date);
-      if (existing) return apiSuccess({ briefing: existing });
+      if (existing && shouldReuseBriefing(existing.sections)) return apiSuccess({ briefing: existing });
     }
 
     const sections = await composeBriefing({

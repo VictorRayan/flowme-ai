@@ -1,6 +1,7 @@
 import { composeBriefing, dateInTimezone } from '@/lib/briefings/composer';
 import { summarizeForWhatsapp } from '@/lib/briefings/deliver';
 import { hasDeliveredChannel } from '@/lib/briefings/persist';
+import { webGroundedSearchTool } from '@/lib/ai/tools/web-tools';
 
 jest.mock('@/lib/ai/tools/weather-tools', () => ({
   weatherGetTool: { call: jest.fn().mockResolvedValue({ ok: true, receipt: { temperature_c: 17, condition: 'Clima', city: 'São Paulo' } }) },
@@ -45,6 +46,10 @@ function makeSupabase(goalRows: unknown[]) {
 }
 
 describe('briefings', () => {
+  beforeEach(() => {
+    (webGroundedSearchTool.call as jest.Mock).mockResolvedValue({ ok: false, error: 'no news' });
+  });
+
   it('does not redeliver a channel already marked on a briefing row', () => {
     expect(hasDeliveredChannel({ channels_delivered: ['whatsapp'] }, 'whatsapp')).toBe(true);
     expect(hasDeliveredChannel({ channels_delivered: ['whatsapp'] }, 'push')).toBe(false);
@@ -87,6 +92,32 @@ describe('briefings', () => {
     expect(sections.goal.ok).toBe(true);
     expect(sections.goal.data?.title).toBe('Estudar Clean Architecture');
     expect(sections.calendar.data?.events[0].title).toBe('Estudar Clean Architecture');
+  });
+
+  it('uses default topics and web fallback when explicit news topics are missing', async () => {
+    (webGroundedSearchTool.call as jest.Mock).mockResolvedValue({
+      ok: true,
+      receipt: {
+        answer: 'Resumo atual sobre o tema com sinais relevantes para o dia.',
+        citations: [{ title: 'Fonte relevante', url: 'https://example.com/news' }],
+      },
+    });
+
+    const sections = await composeBriefing({
+      supabase: makeSupabase([{ title: 'Estudar Clean Architecture', status: 'active', start_at: '2026-05-25T21:00:00.000Z' }]) as any,
+      user: { id: 'user-1' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-25T12:00:00.000Z',
+    } as any, {
+      slot: 'evening',
+      news_topics: [],
+      city: 'São Paulo',
+    });
+
+    expect(sections.news.ok).toBe(true);
+    expect(sections.news.data?.by_topic[0].topic).toBe('inteligência artificial');
+    expect(sections.trends.ok).toBe(true);
+    expect(sections.trends.data?.trends[0].topic).toBe('inteligência artificial');
   });
 
   it('formats the local date in the requested timezone', () => {

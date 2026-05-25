@@ -17,6 +17,7 @@ import type {
 } from './types';
 
 const SECTION_TIMEOUT_MS = 8000;
+export const DEFAULT_BRIEFING_TOPICS = ['inteligência artificial', 'produtividade', 'tecnologia'];
 
 function ok<T>(data: T): BriefingSectionResult<T> {
   return { ok: true, data };
@@ -117,9 +118,9 @@ export function dateInTimezone(date: Date, timezone: string): string {
 }
 
 async function newsSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<NewsSection>> {
-  if (topics.length === 0) return fail('Sem tópicos configurados');
+  const activeTopics = normalizeTopics(topics);
   try {
-    const queries = topics.slice(0, 3).map((t) => `Notícias recentes sobre ${t}`);
+    const queries = activeTopics.map((t) => `Notícias recentes sobre ${t}`);
     const results = await Promise.allSettled(
       queries.map((q) => withTimeout(webGroundedSearchTool.call({ query: q }, ctx), SECTION_TIMEOUT_MS, `news:${q}`)),
     );
@@ -131,13 +132,15 @@ async function newsSection(ctx: ToolContext, topics: string[]): Promise<Briefing
       const value: any = settled.value;
       const answer = String(value.receipt?.answer || '');
       const citations: any[] = value.receipt?.citations || [];
-      const items: NewsItem[] = citations.slice(0, 3).map((c) => ({
-        title: String(c.title || 'Notícia'),
-        summary: answer.slice(0, 220),
-        url: c.url || null,
-        source: hostname(c.url),
-      }));
-      return { topic: topics[idx], items };
+      const items: NewsItem[] = citations.length > 0
+        ? citations.slice(0, 3).map((c) => ({
+          title: String(c.title || 'Notícia'),
+          summary: answer.slice(0, 220),
+          url: c.url || null,
+          source: hostname(c.url),
+        }))
+        : answer ? [{ title: activeTopics[idx], summary: answer.slice(0, 260), url: null, source: null }] : [];
+      return { topic: activeTopics[idx], items };
     });
 
     const anyHit = by_topic.some((t) => t.items.length > 0);
@@ -149,18 +152,50 @@ async function newsSection(ctx: ToolContext, topics: string[]): Promise<Briefing
 }
 
 async function trendsSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<TrendsSection>> {
-  if (topics.length === 0) return fail('Sem tópicos configurados');
+  const activeTopics = normalizeTopics(topics);
   try {
     const result: any = await withTimeout(
-      trendsFromTopicsTool.call({ topics: topics.slice(0, 3) }, ctx),
+      trendsFromTopicsTool.call({ topics: activeTopics }, ctx),
       SECTION_TIMEOUT_MS,
       'trends',
     );
-    if (!result.ok) return fail(result.error || 'Sem trends agora');
-    return ok({ trends: result.receipt?.trends || [] });
+    if (result.ok && Array.isArray(result.receipt?.trends) && result.receipt.trends.length > 0) {
+      return ok({ trends: result.receipt.trends });
+    }
+    return await trendsFallbackSection(ctx, activeTopics);
   } catch (err: any) {
-    return fail(err?.message || 'trends failure');
+    try {
+      return await trendsFallbackSection(ctx, activeTopics);
+    } catch {
+      return fail(err?.message || 'trends failure');
+    }
   }
+}
+
+function normalizeTopics(topics: string[]): string[] {
+  const cleaned = topics.map(topic => topic.trim()).filter(Boolean).slice(0, 3);
+  return cleaned.length > 0 ? cleaned : DEFAULT_BRIEFING_TOPICS;
+}
+
+async function trendsFallbackSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<TrendsSection>> {
+  const results = await Promise.allSettled(
+    topics.map((topic) => withTimeout(
+      webGroundedSearchTool.call({ query: `O que está em alta agora no X/Twitter e redes sociais sobre ${topic}` }, ctx),
+      SECTION_TIMEOUT_MS,
+      `trends-fallback:${topic}`,
+    )),
+  );
+  const trends = results.flatMap((settled, idx) => {
+    if (settled.status !== 'fulfilled' || !(settled.value as any).ok) return [];
+    const answer = String((settled.value as any).receipt?.answer || '').trim();
+    if (!answer) return [];
+    return [{
+      topic: topics[idx],
+      summary: answer.slice(0, 220),
+      signals: [],
+    }];
+  });
+  return trends.length > 0 ? ok({ trends }) : fail('Sem trends agora');
 }
 
 function hostname(url: any): string | null {

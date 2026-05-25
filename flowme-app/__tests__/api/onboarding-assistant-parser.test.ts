@@ -1,4 +1,4 @@
-import { parseAssistantPayload } from '@/app/api/v1/onboarding/assistant/route';
+import { enforceSchedulingConfirmation, parseAssistantPayload } from '@/app/api/v1/onboarding/assistant/route';
 
 describe('parseAssistantPayload', () => {
   it('parses clean JSON', () => {
@@ -27,5 +27,50 @@ describe('parseAssistantPayload', () => {
   it('returns null for empty input', () => {
     expect(parseAssistantPayload('')).toBeNull();
     expect(parseAssistantPayload('   ')).toBeNull();
+  });
+});
+
+describe('enforceSchedulingConfirmation', () => {
+  it('turns a proposal without a confirmed time into a clarification', () => {
+    const result = enforceSchedulingConfirmation({
+      response: 'Fechamos.',
+      type: 'proposal',
+      proposalData: {
+        annual_smart_goal: 'Perder 8kg até dezembro',
+        monthly_milestone: 'Perder 1kg no mês',
+        weekly_routine: 'Caminhar todos os dias',
+      },
+    }, 'pt', [{ role: 'user', content: 'quero caminhar todo dia' }]);
+
+    expect(result.type).toBe('clarification');
+    expect(result.response).toContain('horário exato');
+  });
+
+  it('keeps a proposal when the routine includes an exact schedule', () => {
+    const result = enforceSchedulingConfirmation({
+      response: 'Fechamos.',
+      type: 'proposal',
+      proposalData: {
+        annual_smart_goal: 'Aprender inglês até dezembro',
+        monthly_milestone: 'Concluir unidade 1',
+        weekly_routine: 'Estudar inglês às 21:00 por 60 minutos todos os dias',
+      },
+    }, 'pt', [{ role: 'user', content: 'às 21h' }]);
+
+    expect(result.type).toBe('proposal');
+  });
+
+  it('allows proposals without time only when the user explicitly schedules later', () => {
+    const result = enforceSchedulingConfirmation({
+      response: 'Fechamos.',
+      type: 'proposal',
+      proposalData: {
+        annual_smart_goal: 'Ler 12 livros até dezembro',
+        monthly_milestone: 'Ler o primeiro livro',
+        weekly_routine: 'Ler diariamente',
+      },
+    }, 'pt', [{ role: 'user', content: 'vamos marcar os horários depois' }]);
+
+    expect(result.type).toBe('proposal');
   });
 });

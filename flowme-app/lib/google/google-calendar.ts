@@ -12,6 +12,7 @@ export interface CreateEventParams {
   location?: string;
   reminders?: { useDefault: boolean; overrides?: Array<{ method: string; minutes: number }> };
   recurrence?: string[];
+  timeZone?: string;
 }
 
 export async function getCalendarEvents(linkedAccountId: string, timeMin: string, timeMax: string, authContext?: GoogleTokenAuthContext) {
@@ -54,11 +55,14 @@ export async function createCalendarEvent(linkedAccountId: string, params: Creat
     const auth = await getValidGoogleToken(linkedAccountId, authContext);
     const calendar = google.calendar({ version: 'v3', auth });
 
+    const start = buildGoogleEventTime(params.startAt, params.timeZone);
+    const end = buildGoogleEventTime(params.endAt, params.timeZone);
+
     const event: calendar_v3.Schema$Event = {
         summary: params.title,
         description: params.description,
-        start: { dateTime: params.startAt },
-        end: { dateTime: params.endAt },
+        start,
+        end,
         attendees: params.participants?.map(email => ({ email })),
         location: params.location,
         reminders: params.reminders,
@@ -93,6 +97,14 @@ export async function createCalendarEvent(linkedAccountId: string, params: Creat
     }
     throw err;
   }
+}
+
+function buildGoogleEventTime(dateTime: string, timeZone?: string): calendar_v3.Schema$EventDateTime {
+  if (!timeZone) return { dateTime };
+  return {
+    dateTime: dateTime.replace(/(?:\.000)?Z$/i, ''),
+    timeZone,
+  };
 }
 
 export async function updateCalendarEvent(linkedAccountId: string, eventId: string, params: Partial<CreateEventParams>, authContext?: GoogleTokenAuthContext) {

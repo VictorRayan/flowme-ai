@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Divider, Chip, Stack, Switch, FormControlLabel, Backdrop } from '@mui/material';
+import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Chip, Stack, Switch, FormControlLabel, Backdrop, Alert } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -49,6 +49,7 @@ const dict = {
     hints: 'Ideias: Saúde (perder 5kg), Financeiro (guardar R$ 5k), Carreira (nova promoção)...',
 
     finishing: 'Organizando tudo pra você...',
+    finish_failed: 'Não consegui criar seus eventos no Google Calendar. Reconecte sua agenda e tente de novo.',
     topics_title: 'Tópicos do seu interesse',
     topics_desc: 'Quais assuntos você quer ver no seu resumo de bom dia e boa noite? (até 3)',
     topics_placeholder: 'Ex: IA, mercado de startups, vôlei',
@@ -97,6 +98,7 @@ const dict = {
     hints: 'Ideas: Health (lose 10lbs), Wealth (save $2k), Career (get promoted)...',
 
     finishing: 'Setting everything up for you...',
+    finish_failed: 'I could not create your Google Calendar events. Reconnect your calendar and try again.',
     topics_title: 'Topics you care about',
     topics_desc: 'What should we cover in your morning and evening briefing? (up to 3)',
     topics_placeholder: 'e.g. AI, startup funding, basketball',
@@ -146,6 +148,7 @@ export default function OnboardingWizard() {
   const [deliverWhatsApp, setDeliverWhatsApp] = React.useState(true);
   const [deliverPush, setDeliverPush] = React.useState(false);
   const [pushError, setPushError] = React.useState<'denied' | 'unsupported' | null>(null);
+  const [finishError, setFinishError] = React.useState<string | null>(null);
 
   const handleDeliverPushToggle = async (checked: boolean) => {
     setPushError(null);
@@ -214,24 +217,34 @@ export default function OnboardingWizard() {
   const finish = async () => {
     if (finishing) return;
     setFinishing(true);
+    setFinishError(null);
     const proposalsToPersist = [...acceptedProposals];
     if (aiProposal?.data && proposalsToPersist.length < goalCount) {
       proposalsToPersist[currentGoalIndex - 1] = aiProposal.data;
     }
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     try {
-      await fetch('/api/v1/onboarding/complete', {
+      const res = await fetch('/api/v1/onboarding/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ morningTime, eveningTime, goalProposals: proposalsToPersist.filter(Boolean) })
+        body: JSON.stringify({ morningTime, eveningTime, goalProposals: proposalsToPersist.filter(Boolean), timezone })
       });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setFinishError(data?.error?.message || t.finish_failed);
+        setFinishing(false);
+        return;
+      }
     } catch (e) {
       console.error('Failed to save rhythm settings', e);
+      setFinishError(t.finish_failed);
+      setFinishing(false);
+      return;
     }
 
     const delivery: string[] = ['web'];
     if (deliverWhatsApp) delivery.push('whatsapp');
     if (deliverPush) delivery.push('push');
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     try {
       await fetch('/api/briefings/preferences', {
         method: 'PATCH',
@@ -672,6 +685,11 @@ export default function OnboardingWizard() {
               >
                 {finishButtonLabel(finishing, t.btn_finish, lang)}
               </Button>
+              {finishError && (
+                <Alert severity="error" sx={{ width: '100%', mt: 2, bgcolor: 'rgba(127,29,29,0.35)', color: '#fecaca', border: '1px solid rgba(248,113,113,0.25)' }}>
+                  {finishError}
+                </Alert>
+              )}
             </Box>
           </Fade>
         )}

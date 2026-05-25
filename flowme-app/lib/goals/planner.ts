@@ -450,7 +450,7 @@ export function extractTimeRange(text: string): { startTime: string; endTime: st
 
   // Fallback: a single start time paired with an explicit duration that
   // appears as "durante/por/for X (minutes|hours)" or "X (minutes|hours) por dia".
-  const startMatch = normalized.match(/\b(?:[àa]s?\s+)?(\d{1,2})(?::(\d{2}))?\s*(h|hs|h(?:oras?)?|am|pm)\b/);
+  const startMatch = normalized.match(/\b(?:[àa]s?\s+|at\s+)?(\d{1,2})(?::(\d{2}))?\s*(h|hs|h(?:oras?)?|am|pm)?\b/);
   const durationMatch = normalized.match(/\b(?:durante|por|for|de)\s+(\d{1,3})\s*(min|mins|minute|minutes|minuto|minutos|h|hr|hrs|hour|hours|hora|horas)\b/);
   const durationMin = durationMatch
     ? (durationMatch[2].toLowerCase().startsWith('h') ? Number(durationMatch[1]) * 60 : Number(durationMatch[1]))
@@ -458,7 +458,7 @@ export function extractTimeRange(text: string): { startTime: string; endTime: st
   if (startMatch && durationMin !== null && durationMin > 0) {
     let startHour = parseInt(startMatch[1], 10);
     const startMin = startMatch[2] ? parseInt(startMatch[2], 10) : 0;
-    const suffix = startMatch[3];
+    const suffix = startMatch[3] || '';
     if (suffix === 'pm' && startHour < 12) startHour += 12;
     if (suffix === 'am' && startHour === 12) startHour = 0;
     if (startHour > 23 || startMin > 59) return null;

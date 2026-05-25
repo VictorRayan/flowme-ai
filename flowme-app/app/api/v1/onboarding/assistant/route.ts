@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { requireAuth } from '@/lib/api/auth';
 import { getCalendarAvailabilityText } from '@/lib/onboarding/calendar-availability';
+import { extractTimeRange } from '@/lib/goals/planner';
 
 // ─── System Prompt (language-aware) ───────────────────────────────────
 interface PriorProposal {
@@ -124,6 +125,46 @@ export function parseAssistantPayload(rawText: string): any | null {
     if (!prose) return null;
     return { response: prose, type: 'clarification' };
   }
+}
+
+function userChoseToScheduleLater(messages: Array<{ role: string; content: string }>): boolean {
+  const lastUser = [...messages].reverse().find((msg) => msg.role === 'user')?.content || '';
+  const normalized = lastUser.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /\b(depois|mais tarde|sem horario agora|marcar depois|agendar depois|schedule later|later|not now)\b/.test(normalized);
+}
+
+export function enforceSchedulingConfirmation(
+  result: any,
+  lang: string,
+  messages: Array<{ role: string; content: string }>,
+): any {
+  if (result?.type !== 'proposal') return result;
+  if (userChoseToScheduleLater(messages)) return result;
+
+  const proposal = result.proposalData || {};
+  const preferredTime = typeof proposal.preferred_time === 'string' ? proposal.preferred_time.trim() : '';
+  const weeklyRoutine = typeof proposal.weekly_routine === 'string' ? proposal.weekly_routine : '';
+  const hasPreferredTime = /^\d{1,2}:\d{2}$/.test(preferredTime);
+  const hasRoutineTime = Boolean(extractTimeRange(weeklyRoutine));
+
+  if (hasPreferredTime) {
+    return {
+      ...result,
+      proposalData: {
+        ...proposal,
+        preferred_time: preferredTime.padStart(5, '0'),
+      },
+    };
+  }
+  if (hasRoutineTime) return result;
+
+  return {
+    response: lang === 'pt'
+      ? 'Perfeito. Antes de eu fechar isso, preciso combinar o horário exato para colocar na sua agenda. Que horas você quer fazer essa atividade todos os dias?'
+      : 'Perfect. Before I lock this in, I need the exact time so I can put it on your calendar. What time do you want to do this activity each day?',
+    type: 'clarification',
+    proposalButtonText: '',
+  };
 }
 
 // ─── Gemini via REST API (Primary) ────────────────────────────────────
@@ -306,6 +347,7 @@ export async function POST(req: NextRequest) {
     if (!result || !result.response) {
       result = { response: '', type: 'silent_fail' };
     }
+    result = enforceSchedulingConfirmation(result, lang, messages);
 
     return NextResponse.json(result);
   } catch (error: any) {

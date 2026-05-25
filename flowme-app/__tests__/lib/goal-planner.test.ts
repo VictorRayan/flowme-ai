@@ -221,6 +221,21 @@ describe('buildGoalOperatingPlan', () => {
     expect(mon?.end_at).toMatch(/T10:00:00/);
   });
 
+  it('books a per-day block from a colon time plus an explicit duration', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Aprender ingles ate dezembro',
+      monthly_milestone: 'Concluir unidade 1 ate o fim do mes',
+      weekly_routine: 'Estudar inglês às 21:00 por 60 minutos todos os dias',
+      start_date: '2026-05-25',
+    });
+
+    const mon = plan.active_tasks.find((t) => t.scheduled_date === '2026-05-25');
+    expect(mon).toBeDefined();
+    expect(mon?.duration_minutes).toBe(60);
+    expect(mon?.start_at).toMatch(/T21:00:00/);
+    expect(mon?.end_at).toMatch(/T22:00:00/);
+  });
+
   it('describes a single-activity day in the description', () => {
     const plan = buildGoalOperatingPlan({
       annual_smart_goal: 'Aprender Clean Architecture ate dezembro de 2026',

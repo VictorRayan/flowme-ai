@@ -13,6 +13,9 @@ export async function POST(req: NextRequest) {
     const { supabase, user } = await requireAuth(req);
     const body = await req.json();
     const { morningTime, eveningTime, goalProposals } = body;
+    const timezone = typeof body.timezone === 'string' && body.timezone.trim()
+      ? body.timezone.trim()
+      : 'UTC';
 
     if (!morningTime || !eveningTime) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'Missing morningTime or eveningTime');
@@ -59,6 +62,8 @@ export async function POST(req: NextRequest) {
     let calendarEventsCreated = 0;
     let calendarEventsSkipped = 0;
     let calendarEventsFailed = 0;
+    let calendarEventsExpected = 0;
+    let calendarEventLinksFailed = 0;
     let calendarRateLimited = false;
     const persistedRoutines = new Set<string>();
     const bookedSlots: Array<{ startMin: number; endMin: number }> = [];
@@ -114,6 +119,7 @@ export async function POST(req: NextRequest) {
       if (!calendarAccountId || calendarRateLimited) continue;
 
       for (const task of result.plan.recurring_events) {
+        calendarEventsExpected += 1;
         try {
           const event = await createCalendarEvent(calendarAccountId, {
             title: task.title,
@@ -121,21 +127,27 @@ export async function POST(req: NextRequest) {
             startAt: task.start_at,
             endAt: task.end_at,
             recurrence: task.recurrence,
-          });
-          await recordGoalCalendarEventLinks(supabase, user.id, [{
-            linked_account_id: calendarAccountId,
-            provider_event_id: event.id,
-            action_plan_id: result.persisted.action_plan.id,
-            goal_id: result.persisted.goals.weekly.id,
-            title: task.title,
-            scheduled_date: task.scheduled_date,
-            start_at: task.start_at,
-            end_at: task.end_at,
-            duration_minutes: task.duration_minutes,
-            plan_day: null,
-            sort_order: 0,
-          }]);
+            timeZone: timezone,
+          }, { supabase, user });
           calendarEventsCreated += 1;
+          try {
+            await recordGoalCalendarEventLinks(supabase, user.id, [{
+              linked_account_id: calendarAccountId,
+              provider_event_id: event.id,
+              action_plan_id: result.persisted.action_plan.id,
+              goal_id: result.persisted.goals.weekly.id,
+              title: task.title,
+              scheduled_date: task.scheduled_date,
+              start_at: task.start_at,
+              end_at: task.end_at,
+              duration_minutes: task.duration_minutes,
+              plan_day: null,
+              sort_order: 0,
+            }]);
+          } catch (linkErr: any) {
+            calendarEventLinksFailed += 1;
+            console.warn('[Onboarding Complete API] Calendar event link recording failed (event already created):', linkErr?.message || linkErr);
+          }
           await sleep(250);
         } catch (evErr: any) {
           calendarEventsFailed += 1;
@@ -149,12 +161,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (calendarEventsExpected > 0 && calendarEventsCreated === 0) {
+      return apiError(
+        ErrorCode.INTERNAL_ERROR,
+        'Could not create Google Calendar events for the accepted goal plan. Please reconnect Google Calendar and try again.',
+        502,
+      );
+    }
+
     return apiSuccess({
       success: true,
       created_plan_count: createdPlans.length,
+      calendar_events_expected: calendarEventsExpected,
       calendar_events_created: calendarEventsCreated,
       calendar_events_skipped: calendarEventsSkipped,
       calendar_events_failed: calendarEventsFailed,
+      calendar_event_links_failed: calendarEventLinksFailed,
       calendar_rate_limited: calendarRateLimited,
     });
   } catch (err: any) {

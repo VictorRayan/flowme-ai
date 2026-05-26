@@ -62,7 +62,6 @@ function makeContext() {
           if (table === 'action_plans' && operation !== 'insert') return Promise.resolve({ data: [{ id: 'plan-1', title: 'Active plan' }], error: null }).then(resolve as any, reject as any);
           if (table === 'linked_accounts') return Promise.resolve({ data: [{ id: 'google-1', name: 'Personal', type: 'calendar' }], error: null }).then(resolve as any, reject as any);
           if (table === 'goal_calendar_events') return Promise.resolve({ data: [{ id: 'link-1', title: 'Task 1', status: 'deleted' }], error: null }).then(resolve as any, reject as any);
-          if (table === 'microactivities') return Promise.resolve({ data: [{ id: 'task-1', title: 'Sleep by eleven' }], error: null }).then(resolve as any, reject as any);
           return Promise.resolve({ data: [], error: null }).then(resolve as any, reject as any);
         },
       };
@@ -182,9 +181,8 @@ describe('goals tools', () => {
       problem_statement: 'I have slept poorly for three nights and need a reset plan.',
       linked_goal_ids: ['goal-1'],
       duration_days: 14,
-      priority_label: 'negotiable',
       tasks: [
-        { title: 'Lights out by eleven', duration_minutes: 30, priority_label: 'non_negotiable' },
+        { title: 'Lights out by eleven', duration_minutes: 30 },
       ],
     }, context);
 
@@ -197,8 +195,6 @@ describe('goals tools', () => {
     expect(context.supabase.calls).toEqual(expect.arrayContaining([
       expect.objectContaining({ table: 'action_plans', method: 'insert' }),
     ]));
-    expect(context.supabase.calls).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ table: 'microactivities', method: 'insert' }),
-    ]));
+    expect(context.supabase.calls.map(call => call.table)).not.toContain('microactivities');
   });
 });

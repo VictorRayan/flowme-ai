@@ -281,6 +281,18 @@ describe('buildGoalOperatingPlan', () => {
     const dayTasks = plan.active_tasks.filter((t) => t.scheduled_date === '2026-05-23');
     expect(dayTasks).toHaveLength(1);
   });
+
+  it('uses goal context when the recurring event title would be contextless', () => {
+    const plan = buildGoalOperatingPlan({
+      annual_smart_goal: 'Lançar o Flowme com usuários pagantes até dezembro',
+      monthly_milestone: 'Validar o onboarding com dez usuários reais',
+      weekly_routine: 'Dedicar para às 10:00 por 30 minutos todos os dias',
+      preferred_time: '10:00',
+      start_date: '2026-05-26',
+    });
+
+    expect(plan.recurring_events[0].title).toBe('Avançar: Validar o onboarding com dez usuários reais');
+  });
 });
 
 describe('summarizeTitle', () => {
@@ -302,5 +314,9 @@ describe('summarizeTitle', () => {
 
   it('falls back to "for" patterns in English', () => {
     expect(summarizeTitle('Block out time daily for studying calculus and physics')).toBe('Studying calculus and physics');
+  });
+
+  it('extracts object context after "para o"', () => {
+    expect(summarizeTitle('Dedicar 30 minutos por dia para o desenvolvimento do produto')).toBe('Desenvolvimento do produto');
   });
 });

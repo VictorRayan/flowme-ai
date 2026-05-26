@@ -1,7 +1,6 @@
 export type TaskSourceType = 'calendar_event' | 'goal_task' | 'action_plan_task' | 'manual';
 export type TaskExecutionType = 'event';
 export type TaskOutcome = 'pending' | 'completed' | 'skipped' | 'moved' | 'incomplete' | 'blocked' | 'deferred';
-export type TaskPriorityLabel = 'non_negotiable' | 'negotiable' | 'routine';
 export type PrioritySource = 'user' | 'balys' | 'system';
 
 export interface NormalizedTask {
@@ -18,7 +17,6 @@ export interface NormalizedTask {
   is_time_blocked: boolean;
   outcome: TaskOutcome;
   outcome_reason: string | null;
-  priority_label: TaskPriorityLabel;
   priority_score: number;
   priority_source: PrioritySource;
   priority_reason: string | null;
@@ -49,7 +47,6 @@ interface FlowmeEventRow {
   title: string;
   description?: string | null;
   notes?: string | null;
-  category?: string | null;
   status?: string | null;
   priority?: number | null;
   scheduled_date?: string | null;
@@ -79,7 +76,6 @@ interface CalendarEventRow {
   linked_account_id?: string | null;
 }
 
-const PRIORITY_LABELS: TaskPriorityLabel[] = ['non_negotiable', 'negotiable', 'routine'];
 const OUTCOMES: TaskOutcome[] = ['pending', 'completed', 'skipped', 'moved', 'incomplete', 'blocked', 'deferred'];
 const SOURCES: TaskSourceType[] = ['calendar_event', 'goal_task', 'action_plan_task', 'manual'];
 const PRIORITY_SOURCES: PrioritySource[] = ['user', 'balys', 'system'];
@@ -100,7 +96,6 @@ export function normalizeFlowmeEventTask(row: FlowmeEventRow): NormalizedTask {
   const duration = row.duration_minutes ?? inferDurationMinutes(row.start_at, row.end_at);
   const sourceType = parseSourceType(row.source_type, 'manual');
   const dbId = row.id;
-  const priorityLabel = parsePriorityLabel(row.category);
   const outcome = parseOutcome(row.outcome || row.status);
   const isTimeBlocked = Boolean(row.is_time_blocked) || Boolean(row.start_at && row.end_at);
 
@@ -118,8 +113,7 @@ export function normalizeFlowmeEventTask(row: FlowmeEventRow): NormalizedTask {
     is_time_blocked: isTimeBlocked,
     outcome,
     outcome_reason: row.outcome_reason || null,
-    priority_label: priorityLabel,
-    priority_score: typeof row.priority === 'number' ? row.priority : defaultPriorityScore(priorityLabel),
+    priority_score: typeof row.priority === 'number' ? row.priority : 0,
     priority_source: parsePrioritySource(row.priority_source),
     priority_reason: row.priority_reason || null,
     linked_goal_id: row.linked_goal_id || null,
@@ -148,7 +142,6 @@ export function normalizeCalendarEventTask(row: CalendarEventRow, date: string):
     is_time_blocked: true,
     outcome: 'pending',
     outcome_reason: null,
-    priority_label: 'negotiable',
     priority_score: 0,
     priority_source: 'system',
     priority_reason: null,
@@ -182,28 +175,11 @@ export function buildDayUnit(date: string, timezone: string, tasks: NormalizedTa
 export function compareTaskPathOrder(a: NormalizedTask, b: NormalizedTask): number {
   if (a.outcome === 'completed' && b.outcome !== 'completed') return 1;
   if (b.outcome === 'completed' && a.outcome !== 'completed') return -1;
-  if (a.priority_label !== b.priority_label) return priorityWeight(b.priority_label) - priorityWeight(a.priority_label);
   if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
   const aTime = a.start_at ? new Date(a.start_at).getTime() : Number.POSITIVE_INFINITY;
   const bTime = b.start_at ? new Date(b.start_at).getTime() : Number.POSITIVE_INFINITY;
   if (aTime !== bTime) return aTime - bTime;
   return a.title.localeCompare(b.title);
-}
-
-function priorityWeight(label: TaskPriorityLabel): number {
-  if (label === 'non_negotiable') return 3;
-  if (label === 'routine') return 1;
-  return 2;
-}
-
-function defaultPriorityScore(label: TaskPriorityLabel): number {
-  if (label === 'non_negotiable') return 3;
-  if (label === 'routine') return 1;
-  return 0;
-}
-
-function parsePriorityLabel(value?: string | null): TaskPriorityLabel {
-  return PRIORITY_LABELS.includes(value as TaskPriorityLabel) ? value as TaskPriorityLabel : 'negotiable';
 }
 
 function parseOutcome(value?: string | null): TaskOutcome {

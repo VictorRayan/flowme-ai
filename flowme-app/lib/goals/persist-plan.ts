@@ -3,7 +3,7 @@ import { buildGoalOperatingPlan, GoalProposalInput } from '@/lib/goals/planner';
 
 const GOAL_FIELDS = 'id, title, timeframe, parent_goal_id, status, starts_on, due_on, target_date, success_criteria';
 const ACTION_PLAN_FIELDS = 'id, title, plan_type, linked_goal_id, linked_goal_ids, status, starts_on, review_date, success_criteria';
-const TASK_FIELDS = 'id, title, category, status, outcome, scheduled_date, start_at, end_at, duration_minutes, linked_goal_id, action_plan_id, plan_day, sort_order';
+const TASK_FIELDS = 'id, title, status, outcome, scheduled_date, start_at, end_at, duration_minutes, linked_goal_id, action_plan_id, plan_day, sort_order';
 export async function persistGoalOperatingPlan(
   supabase: SupabaseClient,
   userId: string,
@@ -42,7 +42,6 @@ export async function persistGoalOperatingPlan(
         starts_on: plan.action_plan.starts_on,
         review_date: plan.action_plan.review_date,
         success_criteria: plan.action_plan.success_criteria,
-        priority_label: plan.action_plan.priority_label,
       })
       .select(ACTION_PLAN_FIELDS)
       .single();
@@ -69,7 +68,6 @@ export async function persistGoalOperatingPlan(
           description: task.description,
           start_at: startAt,
           end_at: endAt,
-          category: task.category,
           status: 'pending',
           priority: task.priority,
           scheduled_date: task.scheduled_date,

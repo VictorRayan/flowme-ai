@@ -78,10 +78,10 @@ describe('/api/events', () => {
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('POST rejects invalid priority label through the local creation shutdown', async () => {
+  it('POST rejects obsolete priority metadata through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/events', {
       method: 'POST',
-      body: JSON.stringify({ title: 'Stretch', scheduled_date: '2026-05-02', priority_label: 'urgent' }),
+      body: JSON.stringify({ title: 'Stretch', scheduled_date: '2026-05-02', legacy_priority: 'urgent' }),
     });
     const res = await POST(req);
     const body = await res.json();

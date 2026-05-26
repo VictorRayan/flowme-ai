@@ -19,14 +19,12 @@ describe('goal operating task DTO', () => {
     expect(classifyExecutionType(5, false)).toBe('event');
   });
 
-  it('normalizes a legacy local row into stable task fields', () => {
+  it('normalizes a legacy local row into stable event fields', () => {
     const task = normalizeFlowmeEventTask({
       id: 'task-1',
       title: 'Call Leticia',
       source_type: 'manual',
-      category: 'non_negotiable',
       status: 'pending',
-      priority: 3,
       scheduled_date: '2026-05-02',
       start_at: '2026-05-02T10:00:00Z',
       end_at: '2026-05-02T10:03:00Z',
@@ -37,7 +35,7 @@ describe('goal operating task DTO', () => {
 
     expect(task.task_id).toBe('manual:task-1');
     expect(task.execution_type).toBe('event');
-    expect(task.priority_label).toBe('non_negotiable');
+    expect(task.priority_score).toBe(0);
     expect(task.linked_goal_id).toBe('goal-1');
     expect(task.action_plan_id).toBe('plan-1');
   });
@@ -59,14 +57,12 @@ describe('goal operating task DTO', () => {
     const completed = normalizeFlowmeEventTask({
       id: 'done',
       title: 'Already done',
-      category: 'non_negotiable',
       outcome: 'completed',
       scheduled_date: '2026-05-02',
     });
     const next = normalizeFlowmeEventTask({
       id: 'next',
       title: 'Continue this',
-      category: 'non_negotiable',
       outcome: 'pending',
       scheduled_date: '2026-05-02',
     });

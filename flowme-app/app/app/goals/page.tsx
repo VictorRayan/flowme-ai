@@ -22,7 +22,6 @@ import dayjs from 'dayjs';
 
 type GoalTimeframe = 'yearly' | 'monthly' | 'weekly';
 type GoalStatus = 'not_started' | 'in_progress' | 'completed' | 'cancelled';
-type PriorityLabel = 'non_negotiable' | 'negotiable' | 'routine';
 
 interface Goal {
   id: string;
@@ -54,13 +53,11 @@ interface ActionPlan {
   starts_on: string | null;
   review_date: string | null;
   success_criteria: string | null;
-  priority_label: PriorityLabel;
 }
 
 interface Task {
   id: string;
   title: string;
-  category: PriorityLabel | null;
   status: string | null;
   outcome: string | null;
   scheduled_date: string | null;
@@ -224,7 +221,6 @@ export default function GoalsPage() {
                       <Box key={task.id} sx={{ py: 1.2, borderBottom: '1px solid rgba(148,163,184,0.11)' }}>
                         <Typography sx={{ fontWeight: 700 }}>{task.title}</Typography>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.6 }}>
-                          <Chip size="small" label={task.category || 'negotiable'} sx={priorityChipSx(task.category || 'negotiable')} />
                           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                             {task.scheduled_date ? dayjs(task.scheduled_date).format('MMM D') : g.unscheduled}
                           </Typography>
@@ -324,7 +320,6 @@ function ActionPlanItem({ plan, tasks, uiLang }: { plan: ActionPlan; tasks: Task
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
         <InsightsIcon sx={{ fontSize: 18, color: plan.plan_type === 'short_term_problem' ? '#fbbf24' : '#93c5fd' }} />
         <Chip size="small" label={plan.plan_type === 'short_term_problem' ? g.shortTerm : g.goalPlan} sx={{ bgcolor: 'rgba(251,191,36,0.12)', color: '#fbbf24' }} />
-        <Chip size="small" label={plan.priority_label} sx={priorityChipSx(plan.priority_label)} />
       </Stack>
       <Typography sx={{ fontWeight: 800, lineHeight: 1.25 }}>{plan.title}</Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.8, lineHeight: 1.55 }}>
@@ -375,10 +370,4 @@ function calculateGoalProgress(goal: Goal, tasks: Task[]): number {
   if (goal.status === 'completed') return 100;
   if (goal.status === 'in_progress') return 20;
   return 0;
-}
-
-function priorityChipSx(label: string) {
-  if (label === 'non_negotiable') return { bgcolor: 'rgba(239,68,68,0.13)', color: '#fca5a5' };
-  if (label === 'routine') return { bgcolor: 'rgba(20,184,166,0.13)', color: '#5eead4' };
-  return { bgcolor: 'rgba(147,197,253,0.13)', color: '#93c5fd' };
 }

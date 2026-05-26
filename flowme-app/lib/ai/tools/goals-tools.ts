@@ -8,7 +8,6 @@ import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 const goalTimeframeSchema = z.enum(['yearly', 'monthly', 'weekly']);
 const goalStatusSchema = z.enum(['not_started', 'in_progress', 'completed', 'cancelled']);
 const planStatusSchema = z.enum(['not_started', 'in_progress', 'completed', 'cancelled']);
-const priorityLabelSchema = z.enum(['non_negotiable', 'negotiable', 'routine']);
 
 const GOAL_FIELDS = `
   id, title, description, timeframe, parent_goal_id, status, target_date,
@@ -18,7 +17,7 @@ const GOAL_FIELDS = `
 
 const ACTION_PLAN_FIELDS = `
   id, title, description, linked_goal_id, linked_goal_ids, plan_type, problem_statement,
-  status, duration_days, starts_on, review_date, success_criteria, priority_label,
+  status, duration_days, starts_on, review_date, success_criteria,
   created_at, updated_at
 `;
 
@@ -460,7 +459,6 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
     starts_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     review_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     success_criteria: z.string().max(1000).optional(),
-    priority_label: priorityLabelSchema.optional().default('negotiable'),
     calendar_account_nickname: z.string().optional().describe('Google Calendar account nickname/name. Required when the user has more than one active Google account.'),
     tasks: z.array(z.object({
       title: z.string().min(3).max(180),
@@ -469,7 +467,6 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
       start_at: z.string().optional().describe('ISO-like datetime. Timezone offset preferred; if omitted, app timezone/default handling is used.'),
       end_at: z.string().optional().describe('ISO-like datetime after start_at. Timezone offset preferred.'),
       duration_minutes: z.number().min(1).max(240).optional().default(5),
-      priority_label: priorityLabelSchema.optional().default('negotiable'),
     })).min(1).max(366),
   })),
   call: async (args, context) => {
@@ -480,7 +477,6 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
     const linkedGoalIds = Array.from(new Set(args.linked_goal_ids || []));
     const startsOn = args.starts_on || context.nowIso.slice(0, 10);
     const durationDays = args.duration_days ?? 14;
-    const priorityLabel = args.priority_label ?? 'negotiable';
     const taskInputs = args.tasks || [];
     const reviewDate = args.review_date || addDays(startsOn, durationDays);
     const created: { actionPlanId: string | null } = { actionPlanId: null };
@@ -501,7 +497,6 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
           starts_on: startsOn,
           review_date: reviewDate,
           success_criteria: args.success_criteria?.trim() || null,
-          priority_label: priorityLabel,
         })
         .select(ACTION_PLAN_FIELDS)
         .single();

@@ -8,7 +8,6 @@ import {
 import CheckCircleIcon    from '@mui/icons-material/CheckCircle';
 import BlockIcon          from '@mui/icons-material/Block';
 import CalendarTodayIcon  from '@mui/icons-material/CalendarToday';
-import FlagIcon           from '@mui/icons-material/Flag';
 import TrackChangesIcon   from '@mui/icons-material/TrackChanges';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import SkipNextIcon       from '@mui/icons-material/SkipNext';
@@ -20,7 +19,6 @@ import BriefingDialog, { type BriefingSections } from '@/components/briefings/Br
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 type TaskOutcome   = 'pending'|'completed'|'skipped'|'moved'|'incomplete'|'blocked'|'deferred';
-type PriorityLabel = 'non_negotiable'|'negotiable'|'routine';
 type SourceType    = 'calendar_event'|'goal_task'|'action_plan_task'|'manual';
 
 interface NormalizedTask {
@@ -29,7 +27,7 @@ interface NormalizedTask {
   date: string|null; start_at: string|null; end_at: string|null;
   duration_minutes: number|null; execution_type: 'event';
   is_time_blocked: boolean; outcome: TaskOutcome; outcome_reason: string|null;
-  priority_label: PriorityLabel; priority_score: number;
+  priority_score: number;
   priority_source: 'user'|'balys'|'system'; priority_reason: string|null;
   linked_goal_id: string|null; action_plan_id: string|null;
   action_plan_title: string|null; plan_day: number|null; sort_order: number;
@@ -60,10 +58,9 @@ function sortTasks(tasks: NormalizedTask[]): NormalizedTask[] {
   const timed = [...tasks.filter(t => t.start_at)]
     .sort((a,b) => new Date(a.start_at!).getTime() - new Date(b.start_at!).getTime());
   const flex = [...tasks.filter(t => !t.start_at)]
-    .sort((a,b) => pw(b.priority_label) - pw(a.priority_label) || a.sort_order - b.sort_order);
+    .sort((a,b) => a.sort_order - b.sort_order);
   return [...timed, ...flex];
 }
-function pw(l: PriorityLabel) { return l==='non_negotiable'?3:l==='negotiable'?2:1; }
 
 function timeLabel(task: NormalizedTask) {
   if (task.start_at) {
@@ -605,7 +602,6 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
             zIndex:50,
           }} onClick={e=>e.stopPropagation()}>
             <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{mb:0.6}}>
-              <PChip label={task.priority_label} mustDoLabel={t.mustDo}/>
               {task.source_type==='calendar_event' && (
                 <Chip size="small" icon={<CalendarTodayIcon/>} label="Cal"
                   sx={{height:18,fontSize:10,bgcolor:'rgba(99,102,241,0.15)',color:'#a5b4fc',
@@ -664,16 +660,8 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
 /* ── tiny pieces ─────────────────────────────────────────────────────────── */
 function BIcon({task,color}:{task:NormalizedTask;color:string}) {
   if (task.source_type==='calendar_event')    return <CalendarTodayIcon sx={{fontSize:24,color}}/>;
-  if (task.priority_label==='non_negotiable') return <FlagIcon          sx={{fontSize:24,color}}/>;
   if (task.action_plan_id)                    return <TrackChangesIcon  sx={{fontSize:24,color}}/>;
   return <RadioButtonUncheckedIcon sx={{fontSize:24,color}}/>;
-}
-
-function PChip({label, mustDoLabel}:{label:PriorityLabel; mustDoLabel: string}) {
-  const sx = label==='non_negotiable' ? {bgcolor:'rgba(244,63,94,0.15)',color:'#fda4af'}
-    : label==='routine'               ? {bgcolor:'rgba(34,197,94,0.12)',color:'#86efac'}
-    :                                   {bgcolor:'rgba(34,211,238,0.12)',color:'#67e8f9'};
-  return <Chip size="small" label={label==='non_negotiable'? mustDoLabel : label} sx={{height:18,fontSize:10,...sx}}/>;
 }
 
 function ABtn({color,icon,label,onClick,disabled}:{color:string;icon:React.ReactNode;label:string;onClick:()=>void;disabled:boolean}) {
@@ -692,7 +680,5 @@ function accentFor(task: NormalizedTask) {
   if (task.outcome==='blocked'||task.outcome==='deferred')     return {bg:'rgba(249,115,22,0.14)', border:'#f97316',icon:'#fb923c',  label:'#f97316'};
   if (task.outcome==='moved'||task.outcome==='skipped')        return {bg:'rgba(139,92,246,0.14)', border:'#8b5cf6',icon:'#a78bfa',  label:'#a78bfa'};
   if (task.source_type==='calendar_event')                     return {bg:'rgba(99,102,241,0.18)', border:'#6366f1',icon:'#a5b4fc',  label:'#818cf8'};
-  if (task.priority_label==='non_negotiable')                  return {bg:'rgba(244,63,94,0.18)',  border:'#f43f5e',icon:'#fda4af',  label:'#f43f5e'};
-  if (task.priority_label==='routine')                         return {bg:'rgba(34,197,94,0.14)',  border:'#22c55e',icon:'#86efac',  label:'#4ade80'};
   return                                                             {bg:'rgba(34,211,238,0.16)', border:'#22d3ee',icon:'#67e8f9',  label:'#22d3ee'};
 }

@@ -14,7 +14,7 @@ const sourceSchema = z.object({
 
 export const remindersCreateTool = defineTool({
   name: 'reminders.create',
-  description: `Creates a reminder notification for the user. Reminders are notifications only: they are NOT tasks, NOT microactivities, and NOT calendar events.
+  description: `Creates a reminder notification for the user. Reminders are notifications only: they are NOT tasks and NOT calendar events.
 
 WHEN TO USE: user says "me lembre...", "remind me...", "avise-me...", or asks for a reminder attached to a calendar event.
 
@@ -127,4 +127,3 @@ export const remindersCancelTool = defineTool({
     }
   },
 });
-

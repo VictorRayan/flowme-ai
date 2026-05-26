@@ -4,13 +4,12 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
 const ACTION_PLAN_FIELDS = `
   id, title, description, linked_goal_id, linked_goal_ids, plan_type, problem_statement,
-  status, duration_days, starts_on, review_date, success_criteria, priority_label,
+  status, duration_days, starts_on, review_date, success_criteria,
   created_at, updated_at
 `;
 
 const VALID_PLAN_TYPES = ['goal_plan', 'short_term_problem'];
 const VALID_STATUSES = ['not_started', 'in_progress', 'completed', 'cancelled'];
-const VALID_PRIORITY_LABELS = ['non_negotiable', 'negotiable', 'routine'];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -31,7 +30,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       'starts_on',
       'review_date',
       'success_criteria',
-      'priority_label',
     ];
 
     for (const field of stringFields) {
@@ -58,10 +56,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (updates.status && !VALID_STATUSES.includes(String(updates.status))) {
       return apiError(ErrorCode.VALIDATION_ERROR, `status must be one of: ${VALID_STATUSES.join(', ')}`);
     }
-    if (updates.priority_label && !VALID_PRIORITY_LABELS.includes(String(updates.priority_label))) {
-      return apiError(ErrorCode.VALIDATION_ERROR, `priority_label must be one of: ${VALID_PRIORITY_LABELS.join(', ')}`);
-    }
-
     const { data, error } = await supabase
       .from('action_plans')
       .update(updates)

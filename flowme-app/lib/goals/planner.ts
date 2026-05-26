@@ -31,7 +31,7 @@ export interface PlannedActionPlanRecord {
   starts_on: string;
   review_date: string;
   success_criteria: string;
-  priority_label: 'non_negotiable' | 'negotiable' | 'routine';
+  priority_label: 'event';
 }
 
 export interface PlannedTaskOccurrence {
@@ -42,7 +42,7 @@ export interface PlannedTaskOccurrence {
   start_at: string | null;
   end_at: string | null;
   duration_minutes: number;
-  category: 'non_negotiable' | 'negotiable' | 'routine';
+  category: 'event';
   priority: number;
   priority_source: 'balys';
   priority_reason: string;
@@ -171,7 +171,7 @@ export function buildGoalOperatingPlan(input: GoalProposalInput): GoalOperatingP
     starts_on: startDate,
     review_date: windowEnd,
     success_criteria: input.monthly_milestone.trim(),
-    priority_label: 'non_negotiable',
+    priority_label: 'event',
   };
 
   const activeTasks = createExecutionWindowTasks({
@@ -187,6 +187,7 @@ export function buildGoalOperatingPlan(input: GoalProposalInput): GoalOperatingP
     preferredTime,
     duration,
     weeklyRoutine: input.weekly_routine,
+    contextTitle: monthlyTitle || annualTitle,
     routineTasks,
     cadence,
   });
@@ -212,6 +213,7 @@ function createRecurringEvents({
   preferredTime,
   duration,
   weeklyRoutine,
+  contextTitle,
   routineTasks,
   cadence,
 }: {
@@ -220,6 +222,7 @@ function createRecurringEvents({
   preferredTime: string | null;
   duration: number;
   weeklyRoutine: string;
+  contextTitle: string;
   routineTasks: Array<{ title: string; durationMinutes: number; inferredDuration: boolean }>;
   cadence: Cadence;
 }): PlannedRecurringEvent[] {
@@ -236,7 +239,7 @@ function createRecurringEvents({
   return schedules.map((schedule, index) => {
     const scheduledDate = firstMatchingDate(startDate, schedule.daysOfWeek);
     const { startAt, endAt } = buildTaskTimes(scheduledDate, schedule.startTime, schedule.durationMinutes, 0, 0);
-    const title = summarizeTitle(schedule.title || (routineTasks.length === 1 ? routineTasks[0].title : composeDayTitle(routineTasks)));
+    const title = contextualEventTitle(schedule.title || (routineTasks.length === 1 ? routineTasks[0].title : composeDayTitle(routineTasks)), contextTitle);
     const description = composeDayDescription(routineTasks);
     return {
       client_id: `recurrence-${index + 1}`,
@@ -288,8 +291,8 @@ function createExecutionWindowTasks({
       start_at: startAt,
       end_at: endAt,
       duration_minutes: totalDuration,
-      category: planDay === 1 ? 'non_negotiable' : 'negotiable',
-      priority: planDay === 1 ? 3 : 2,
+      category: 'event',
+      priority: 0,
       priority_source: 'balys',
       priority_reason: planDay === 1
         ? 'First-day kickoff task for the accepted goal plan.'
@@ -306,6 +309,13 @@ function createExecutionWindowTasks({
 function composeDayTitle(routineTasks: Array<{ title: string }>): string {
   const first = routineTasks[0]?.title || 'Execução do plano';
   return summarizeTitle(first);
+}
+
+function contextualEventTitle(candidate: string, contextTitle: string): string {
+  const summarized = summarizeTitle(candidate);
+  if (!isContextlessTitle(summarized)) return summarized;
+  const fallback = summarizeTitle(contextTitle);
+  return fallback ? `Avançar: ${fallback}` : summarized;
 }
 
 function composeDayDescription(routineTasks: Array<{ title: string; durationMinutes: number }>): string {
@@ -659,6 +669,9 @@ export function summarizeTitle(input: string): string {
   let text = input
     .replace(/\s+/g, ' ')
     .replace(/\b(\d{1,2}):(\d{2})\b/g, '')
+    .replace(/\b(?:às?|as|at)\s*\d{1,2}(?:h\d{0,2})?\b/gi, '')
+    .replace(/\b(?:durante|por|for|de)\s+\d{1,3}\s*(min|mins|minute|minutes|minuto|minutos|h|hr|hrs|hour|hours|hora|horas)\b/gi, '')
+    .replace(/\b(todos os dias|todo dia|diariamente|daily|every day|segunda a domingo|segunda a sexta|dias uteis|dias úteis|weekdays?|weekends?)\b/gi, '')
     .replace(/[ ,;.]+,/g, ',')
     .replace(/^[ ,;.\-–—]+|[ ,;.\-–—]+$/g, '')
     .trim();
@@ -667,11 +680,20 @@ export function summarizeTitle(input: string): string {
   if (paraMatch && paraMatch[1].trim().length >= 6) {
     text = paraMatch[1].trim();
   } else {
-    const forMatch = text.match(/\bfor\s+([a-zA-Z]+ing\b[^,.;\n]*)/i);
-    if (forMatch && forMatch[1].trim().length >= 6) text = forMatch[1].trim();
+    const paraObjectMatch = /^(dedicar|dedicar-se|focar|trabalhar|avancar|avançar)\b/i.test(text)
+      ? text.match(/\bpara\s+(?:o|a|os|as|um|uma)?\s*([^,.;\n]{6,})/i)
+      : null;
+    if (paraObjectMatch && paraObjectMatch[1].trim().length >= 6) {
+      text = paraObjectMatch[1].trim();
+    } else {
+      const forMatch = text.match(/\bfor\s+([a-zA-Z]+ing\b[^,.;\n]*)/i);
+      if (forMatch && forMatch[1].trim().length >= 6) text = forMatch[1].trim();
+    }
   }
 
   text = text.split(/[,;.\n]/)[0].trim();
+  text = text.replace(/(^|\s)(?:às?|as|at)(?=\s|$)/gi, ' ').replace(/\s+/g, ' ').trim();
+  text = text.replace(/\b(para|por|em|no|na|nos|nas|for|to)\b\s*$/i, '').trim();
   text = text.replace(/^[ ,;.\-–—]+|[ ,;.\-–—]+$/g, '').trim();
   if (text.length > 0) text = text.charAt(0).toUpperCase() + text.slice(1);
 
@@ -680,6 +702,15 @@ export function summarizeTitle(input: string): string {
   const lastSpace = truncated.lastIndexOf(' ');
   const cut = lastSpace > MAX_TITLE_LEN - 15 ? truncated.slice(0, lastSpace) : truncated;
   return `${cut.replace(/[ ,;.\-–—]+$/g, '')}…`;
+}
+
+function isContextlessTitle(title: string): boolean {
+  const normalized = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (!normalized) return true;
+  if (/^goal task \d+$/.test(normalized)) return true;
+  if (/^(dedicar|dedicar-se|focar|trabalhar|avancar)(\s+(para|em|no|na|nos|nas))?$/.test(normalized)) return true;
+  if (/\b(para|em|no|na|nos|nas|for|to)$/.test(normalized)) return true;
+  return false;
 }
 
 function normalizeDuration(value?: number): number {

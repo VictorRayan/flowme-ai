@@ -83,7 +83,7 @@ const dict = {
     step3_title: 'Your Daily Rituals',
     step3_desc: 'Flow-me works with two key moments each day that become your allies. Pick the times that work best for you.',
     morning_sync: 'Daily Planning',
-    morning_desc: 'Every morning, Flow-me will scan your recent emails, sync your calendar events, and organize your priorities — separating essentials, negotiables, and routines.',
+    morning_desc: 'Every morning, Flow-me will scan your recent emails, sync your calendar events, and organize the priorities that deserve space in your day.',
     evening_sync: 'Reflection & Briefing',
     evening_desc: 'At the end of the day, you do a quick reflection (text or voice) about what happened. The AI counselor analyzes your progress and adjusts tomorrow\'s plan.',
     

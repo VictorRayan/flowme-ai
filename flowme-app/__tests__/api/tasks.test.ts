@@ -6,7 +6,6 @@ import { POST as MOVE } from '@/app/api/tasks/[id]/move/route';
 const MOCK_TASK = {
   id: 'task-1',
   title: 'Write tests',
-  category: 'negotiable',
   status: 'pending',
   priority: 0,
   scheduled_date: '2026-05-01',
@@ -60,7 +59,7 @@ describe('POST /api/tasks', () => {
   it('rejects local task creation', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ title: 'Write tests', category: 'negotiable', scheduled_date: '2026-05-01' }),
+      body: JSON.stringify({ title: 'Write tests', scheduled_date: '2026-05-01' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(410);
@@ -72,7 +71,7 @@ describe('POST /api/tasks', () => {
   it('returns VALIDATION_ERROR when title is empty through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ title: '', category: 'negotiable' }),
+      body: JSON.stringify({ title: '' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(410);
@@ -84,7 +83,7 @@ describe('POST /api/tasks', () => {
   it('returns VALIDATION_ERROR when title is missing through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ category: 'negotiable' }),
+      body: JSON.stringify({}),
     });
     const res = await POST(req);
     expect(res.status).toBe(410);
@@ -92,10 +91,10 @@ describe('POST /api/tasks', () => {
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('returns VALIDATION_ERROR for unknown category through the local creation shutdown', async () => {
+  it('rejects obsolete metadata through the local creation shutdown', async () => {
     const req = new NextRequest('http://localhost/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ title: 'My task', category: 'invalid_category' }),
+      body: JSON.stringify({ title: 'My task', legacy_priority: 'urgent' }),
     });
     const res = await POST(req);
     const body = await res.json();
@@ -108,7 +107,6 @@ describe('POST /api/tasks', () => {
       method: 'POST',
       body: JSON.stringify({
         title: 'Practice negotiation',
-        category: 'non_negotiable',
         outcome: 'pending',
         source_type: 'goal_task',
         duration_minutes: 15,

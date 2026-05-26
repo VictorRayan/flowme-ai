@@ -4,13 +4,12 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
 const ACTION_PLAN_FIELDS = `
   id, title, description, linked_goal_id, linked_goal_ids, plan_type, problem_statement,
-  status, duration_days, starts_on, review_date, success_criteria, priority_label,
+  status, duration_days, starts_on, review_date, success_criteria,
   created_at, updated_at
 `;
 
 const VALID_PLAN_TYPES = ['goal_plan', 'short_term_problem'];
 const VALID_STATUSES = ['not_started', 'in_progress', 'completed', 'cancelled'];
-const VALID_PRIORITY_LABELS = ['non_negotiable', 'negotiable', 'routine'];
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,10 +70,6 @@ export async function POST(req: NextRequest) {
     if (body.status && !VALID_STATUSES.includes(body.status)) {
       return apiError(ErrorCode.VALIDATION_ERROR, `status must be one of: ${VALID_STATUSES.join(', ')}`);
     }
-    if (body.priority_label && !VALID_PRIORITY_LABELS.includes(body.priority_label)) {
-      return apiError(ErrorCode.VALIDATION_ERROR, `priority_label must be one of: ${VALID_PRIORITY_LABELS.join(', ')}`);
-    }
-
     const { data, error } = await supabase
       .from('action_plans')
       .insert({
@@ -90,7 +85,6 @@ export async function POST(req: NextRequest) {
         starts_on: body.starts_on || null,
         review_date: body.review_date || null,
         success_criteria: typeof body.success_criteria === 'string' ? body.success_criteria.trim() || null : null,
-        priority_label: body.priority_label || 'negotiable',
       })
       .select(ACTION_PLAN_FIELDS)
       .single();

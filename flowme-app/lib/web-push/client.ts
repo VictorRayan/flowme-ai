@@ -1,3 +1,5 @@
+import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -11,13 +13,13 @@ export async function isPushSupported(): Promise<boolean> {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
 }
 
-export async function registerWebPush(): Promise<{ ok: boolean; reason?: string }> {
+export async function registerWebPush(options: { permission?: NotificationPermission } = {}): Promise<{ ok: boolean; reason?: string }> {
   if (!(await isPushSupported())) return { ok: false, reason: 'unsupported' };
 
   const reg = await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
 
-  const permission = await Notification.requestPermission();
+  const permission = options.permission ?? (await requestBrowserNotificationPermission()).permission;
   if (permission !== 'granted') return { ok: false, reason: 'permission-denied' };
 
   const keyRes = await fetch('/api/web-push/vapid-public-key');

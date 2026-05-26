@@ -14,6 +14,7 @@ import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 import { finishButtonLabel, proposalButtonLabel } from '@/lib/onboarding/proposal-button';
+import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
 
 const dict = {
   pt: {
@@ -60,7 +61,7 @@ const dict = {
     delivery_title: 'Como quer receber',
     delivery_whatsapp: 'WhatsApp',
     delivery_push: 'Notificação no navegador',
-    delivery_push_hint: 'Vamos pedir permissão ao seu navegador.',
+    delivery_push_hint: 'Ao começar sua jornada, o navegador vai pedir permissão para ativar notificações.',
     delivery_push_denied: 'Você bloqueou a permissão. Habilite nas configurações do navegador e tente de novo.',
     delivery_push_unsupported: 'Seu navegador não suporta notificações push.',
     delivery_web: 'Sempre disponível no app',
@@ -109,7 +110,7 @@ const dict = {
     delivery_title: 'How you want it',
     delivery_whatsapp: 'WhatsApp',
     delivery_push: 'Browser notification',
-    delivery_push_hint: "We'll ask your browser for permission.",
+    delivery_push_hint: "When you start, your browser will ask permission to enable notifications.",
     delivery_push_denied: 'You blocked permission. Enable it in your browser settings and try again.',
     delivery_push_unsupported: 'Your browser does not support push notifications.',
     delivery_web: 'Always available in the app',
@@ -146,33 +147,8 @@ export default function OnboardingWizard() {
   const [topicDraft, setTopicDraft] = React.useState('');
   const [briefingCity, setBriefingCity] = React.useState('');
   const [deliverWhatsApp, setDeliverWhatsApp] = React.useState(true);
-  const [deliverPush, setDeliverPush] = React.useState(false);
   const [pushError, setPushError] = React.useState<'denied' | 'unsupported' | null>(null);
   const [finishError, setFinishError] = React.useState<string | null>(null);
-
-  const handleDeliverPushToggle = async (checked: boolean) => {
-    setPushError(null);
-    if (!checked) {
-      setDeliverPush(false);
-      return;
-    }
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setPushError('unsupported');
-      return;
-    }
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        setDeliverPush(true);
-      } else {
-        setDeliverPush(false);
-        setPushError('denied');
-      }
-    } catch {
-      setDeliverPush(false);
-      setPushError('unsupported');
-    }
-  };
 
   const addTopic = () => {
     const cleaned = topicDraft.trim();
@@ -218,6 +194,12 @@ export default function OnboardingWizard() {
     if (finishing) return;
     setFinishing(true);
     setFinishError(null);
+    setPushError(null);
+    const pushPermission = await requestBrowserNotificationPermission();
+    const shouldRegisterPush = pushPermission.ok;
+    if (!pushPermission.ok) {
+      setPushError(pushPermission.reason === 'unsupported' ? 'unsupported' : 'denied');
+    }
     const proposalsToPersist = [...acceptedProposals];
     if (aiProposal?.data && proposalsToPersist.length < goalCount) {
       proposalsToPersist[currentGoalIndex - 1] = aiProposal.data;
@@ -244,7 +226,7 @@ export default function OnboardingWizard() {
 
     const delivery: string[] = ['web'];
     if (deliverWhatsApp) delivery.push('whatsapp');
-    if (deliverPush) delivery.push('push');
+    if (shouldRegisterPush) delivery.push('push');
     try {
       await fetch('/api/briefings/preferences', {
         method: 'PATCH',
@@ -263,10 +245,10 @@ export default function OnboardingWizard() {
       console.error('Failed to save briefing preferences', e);
     }
 
-    if (deliverPush) {
+    if (shouldRegisterPush) {
       try {
         const { registerWebPush } = await import('@/lib/web-push/client');
-        await registerWebPush();
+        await registerWebPush({ permission: 'granted' });
       } catch (e) {
         console.warn('Web push registration failed', e);
       }
@@ -662,12 +644,9 @@ export default function OnboardingWizard() {
                     control={<Switch checked={deliverWhatsApp} onChange={(e) => setDeliverWhatsApp(e.target.checked)} />}
                     label={<Typography sx={{ color: '#fff' }}>{t.delivery_whatsapp}</Typography>}
                   />
-                  <Box>
-                    <FormControlLabel
-                      control={<Switch checked={deliverPush} onChange={(e) => handleDeliverPushToggle(e.target.checked)} />}
-                      label={<Typography sx={{ color: '#fff' }}>{t.delivery_push}</Typography>}
-                    />
-                    <Typography sx={{ display: 'block', color: pushError ? '#f87171' : 'text.disabled', fontSize: 12, ml: 6, mt: -0.5 }}>
+                  <Box sx={{ pl: 1, py: 0.75 }}>
+                    <Typography sx={{ color: '#fff', fontWeight: 600 }}>{t.delivery_push}</Typography>
+                    <Typography sx={{ display: 'block', color: pushError ? '#f87171' : 'text.disabled', fontSize: 12, mt: 0.5 }}>
                       {pushError === 'denied'
                         ? t.delivery_push_denied
                         : pushError === 'unsupported'

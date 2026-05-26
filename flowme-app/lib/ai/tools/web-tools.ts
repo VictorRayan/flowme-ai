@@ -19,7 +19,7 @@ async function runGroundedSearch(query: string): Promise<GroundedResponse> {
   const client = new GoogleGenerativeAI(apiKey);
   const model = client.getGenerativeModel({
     model: 'gemini-2.5-flash',
-    tools: [{ googleSearchRetrieval: {} } as any],
+    tools: [{ googleSearch: {} } as any],
   });
 
   const result = await model.generateContent(query);

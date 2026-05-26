@@ -560,6 +560,16 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
       <Box
         ref={(node: HTMLDivElement | null) => setBubbleRef(task.task_id, node)}
         onClick={()=>setOpen(o=>!o)}
+        role="button"
+        tabIndex={0}
+        aria-label={task.title}
+        data-testid="today-event-bubble"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(o => !o);
+          }
+        }}
         sx={{
           width:BUBBLE, height:BUBBLE, borderRadius:'50%',
           display:'flex', alignItems:'center', justifyContent:'center',

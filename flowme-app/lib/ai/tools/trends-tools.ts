@@ -1,6 +1,6 @@
-import OpenAI from 'openai';
 import { z } from 'zod';
 import { defineTool } from './Tool';
+import { webGroundedSearchTool } from './web-tools';
 
 type TrendSignal = { quote: string };
 type TrendItem = { topic: string; summary: string; signals: TrendSignal[] };
@@ -49,35 +49,27 @@ RETURNS receipt: { trends: [{topic, summary, signals: [{quote}]}] }.`,
   inputSchema: z.object({
     topics: z.array(z.string().min(1).max(80)).min(1).max(3).describe('User-friendly topic strings. Max 3.'),
   }),
-  call: async (args) => {
-    const apiKey = process.env.XAI_API_KEY;
-    if (!apiKey) return { ok: false, error: 'Trends unavailable: XAI_API_KEY not configured.' };
-
-    const client = new OpenAI({ apiKey, baseURL: 'https://api.x.ai/v1' });
-
-    const systemPrompt = `You summarize current real-time online conversation. For each topic the user gives, return 2-4 distinct trends bubbling up right now. Be concrete and specific. Quote sentiment paraphrased — no handles, no usernames, no URLs. Return STRICT JSON only.`;
-    const userPrompt = `Topics: ${args.topics.join(' | ')}\n\nReturn JSON shape:\n{\n  "trends": [\n    { "topic": "...", "summary": "1 short sentence", "signals": [ { "quote": "paraphrased reaction or take" } ] }\n  ]\n}`;
-
+  call: async (args, ctx) => {
     try {
-      const response = await client.chat.completions.create({
-        model: 'grok-4-fast',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.4,
-        response_format: { type: 'json_object' } as any,
-        ...(({ search_parameters: { mode: 'on', sources: [{ type: 'x' }] } } as any)),
-      } as any);
-
-      const content = response.choices?.[0]?.message?.content || '{}';
-      let parsed: any;
-      try { parsed = JSON.parse(content); } catch { parsed = {}; }
-      const rawTrends = Array.isArray(parsed?.trends) ? parsed.trends : [];
-      const trends = rawTrends
-        .map(sanitizeTrend)
+      const results = await Promise.allSettled(
+        args.topics.map((topic) => webGroundedSearchTool.call({
+          query: `O que as pessoas estão comentando agora sobre ${topic}? Resuma tendências recentes, debates e sinais atuais em português.`,
+        }, ctx)),
+      );
+      const trends = results
+        .map((settled, idx) => {
+          if (settled.status !== 'fulfilled' || !settled.value.ok) return null;
+          const answer = String((settled.value as any).receipt?.answer || '').trim();
+          if (!answer) return null;
+          return sanitizeTrend({
+            topic: args.topics[idx],
+            summary: answer,
+            signals: [],
+          });
+        })
         .filter((t: TrendItem | null): t is TrendItem => t !== null)
         .slice(0, 9);
+      if (trends.length === 0) return { ok: false, error: 'Trends unavailable: grounded search returned no trends.' };
 
       const receipt: TrendsResponse = { trends };
       return { ok: true, receipt };

@@ -127,7 +127,7 @@ async function newsSection(ctx: ToolContext, topics: string[]): Promise<Briefing
 
     const by_topic = results.map((settled, idx) => {
       if (settled.status !== 'fulfilled' || !(settled.value as any).ok) {
-        return { topic: topics[idx], items: [] as NewsItem[] };
+        return { topic: activeTopics[idx], items: [] as NewsItem[] };
       }
       const value: any = settled.value;
       const answer = String(value.receipt?.answer || '');

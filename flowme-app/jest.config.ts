@@ -12,6 +12,7 @@ const config = {
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/.next/',
+    '<rootDir>/e2e/',
     '<rootDir>/__tests__/components/', // component tests need @testing-library/dom installed separately
   ],
   modulePathIgnorePatterns: [

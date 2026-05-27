@@ -4,7 +4,7 @@ import { hasDeliveredChannel } from '@/lib/briefings/persist';
 import { webGroundedSearchTool } from '@/lib/ai/tools/web-tools';
 
 jest.mock('@/lib/ai/tools/weather-tools', () => ({
-  weatherGetTool: { call: jest.fn().mockResolvedValue({ ok: true, receipt: { temperature_c: 17, condition: 'Clima', city: 'São Paulo' } }) },
+  weatherGetTool: { call: jest.fn().mockResolvedValue({ ok: true, receipt: { temperature_c: 17, feels_like_c: 16, precipitation_mm: 0, weather_code: 2, condition: 'Clima', city: 'São Paulo' } }) },
 }));
 
 jest.mock('@/lib/ai/tools/calendar-tools', () => ({
@@ -92,6 +92,7 @@ describe('briefings', () => {
     expect(sections.goal.ok).toBe(true);
     expect(sections.goal.data?.title).toBe('Estudar Clean Architecture');
     expect(sections.calendar.data?.events[0].title).toBe('Estudar Clean Architecture');
+    expect(sections.weather.data?.advice).toBe('Noite fria: vale sair com agasalho.');
   });
 
   it('uses default topics and web fallback when explicit news topics are missing', async () => {

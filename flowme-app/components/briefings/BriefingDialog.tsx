@@ -11,15 +11,16 @@ import EventIcon from '@mui/icons-material/Event';
 import FlagIcon from '@mui/icons-material/Flag';
 import NewspaperIcon from '@mui/icons-material/Newspaper';
 import ForumIcon from '@mui/icons-material/Forum';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 export interface BriefingSectionResult<T> { ok: boolean; data: T | null; error?: string }
-export interface WeatherSection { temperature_c: number; condition: string; city: string }
+export interface WeatherSection { temperature_c: number; feels_like_c?: number | null; precipitation_mm?: number | null; weather_code?: number | null; is_day?: boolean | null; condition: string; city: string; advice?: string | null }
 export interface CalendarEventLite { title: string; start_at: string; end_at?: string | null; location?: string | null }
 export interface CalendarSection { events: CalendarEventLite[] }
 export interface GoalSection { title: string; status: string; progress?: number }
 export interface NewsItem { title: string; summary: string; url?: string | null; source?: string | null }
 export interface NewsSection { by_topic: Array<{ topic: string; items: NewsItem[] }> }
-export interface TrendItem { topic: string; summary: string; signals: Array<{ quote: string }> }
+export interface TrendItem { topic: string; headline?: string; subheadline?: string; url?: string | null; summary: string; signals: Array<{ quote: string; url?: string | null }> }
 export interface TrendsSection { trends: TrendItem[] }
 
 export interface BriefingSections {
@@ -47,6 +48,7 @@ const COPY = {
     news: 'Pra ficar por dentro',
     trends: 'No ar agora',
     empty: 'Sem dados pra esse item agora',
+    read_x: 'Ler no X',
     weather_fmt: (w: WeatherSection) => `${w.condition || 'Clima'} · ${Math.round(w.temperature_c)}°C em ${w.city}`,
     no_events: 'Sua agenda está livre',
   },
@@ -57,6 +59,7 @@ const COPY = {
     news: 'In the world',
     trends: 'Buzz right now',
     empty: 'Nothing here right now',
+    read_x: 'Read on X',
     weather_fmt: (w: WeatherSection) => `${w.condition || 'Weather'} · ${Math.round(w.temperature_c)}°C in ${w.city}`,
     no_events: 'Your day is open',
   },
@@ -111,9 +114,16 @@ export default function BriefingDialog({ open, onClose, greetingTitle, loading, 
         {sections && (
           <Box>
             <SectionShell icon={<WbSunnyIcon fontSize="small" />} title={t.weather}>
-              {sections.weather.ok && sections.weather.data
-                ? <Typography sx={{ color: '#fff' }}>{t.weather_fmt(sections.weather.data)}</Typography>
-                : <Typography sx={{ color: 'text.disabled' }}>{t.empty}</Typography>}
+              {sections.weather.ok && sections.weather.data ? (
+                <Stack spacing={0.5}>
+                  <Typography sx={{ color: '#fff' }}>{t.weather_fmt(sections.weather.data)}</Typography>
+                  {sections.weather.data.advice && (
+                    <Typography sx={{ color: 'text.secondary', fontSize: 13.5, lineHeight: 1.5 }}>
+                      {sections.weather.data.advice}
+                    </Typography>
+                  )}
+                </Stack>
+              ) : <Typography sx={{ color: 'text.disabled' }}>{t.empty}</Typography>}
             </SectionShell>
 
             <SectionShell icon={<EventIcon fontSize="small" />} title={t.calendar}>
@@ -159,11 +169,27 @@ export default function BriefingDialog({ open, onClose, greetingTitle, loading, 
 
             <SectionShell icon={<ForumIcon fontSize="small" />} title={t.trends}>
               {sections.trends.ok && sections.trends.data && sections.trends.data.trends.length > 0 ? (
-                <Stack spacing={1}>
+                <Stack spacing={1.5}>
                   {sections.trends.data.trends.slice(0, 5).map((tr, idx) => (
-                    <Box key={idx}>
-                      <Typography sx={{ color: '#fff', fontWeight: 600 }}>{tr.topic}</Typography>
-                      <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>{tr.summary}</Typography>
+                    <Box key={idx} sx={{ pb: 0.5 }}>
+                      <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 15, lineHeight: 1.35 }}>
+                        {tr.headline || tr.topic}
+                      </Typography>
+                      <Typography sx={{ color: 'text.secondary', fontSize: 13.5, lineHeight: 1.55, mt: 0.35, overflowWrap: 'anywhere' }}>
+                        {tr.subheadline || tr.summary}
+                      </Typography>
+                      {tr.url && (
+                        <Typography
+                          component="a"
+                          href={tr.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{ color: '#a5b4fc', display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: 12.5, fontWeight: 600, mt: 0.75, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                        >
+                          {t.read_x}
+                          <OpenInNewIcon sx={{ fontSize: 13 }} />
+                        </Typography>
+                      )}
                     </Box>
                   ))}
                 </Stack>

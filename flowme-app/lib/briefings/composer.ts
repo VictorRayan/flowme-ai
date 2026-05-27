@@ -4,6 +4,7 @@ import { summarizeTitle } from '@/lib/goals/planner';
 import { webGroundedSearchTool } from '@/lib/ai/tools/web-tools';
 import { trendsFromTopicsTool } from '@/lib/ai/tools/trends-tools';
 import type { ToolContext } from '@/lib/ai/tools/Tool';
+import { weatherAdvice } from './weather-advice';
 import type {
   BriefingSectionResult,
   BriefingSections,
@@ -33,16 +34,33 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-async function weatherSection(ctx: ToolContext, city: string | null | undefined): Promise<BriefingSectionResult<WeatherSection>> {
+async function weatherSection(ctx: ToolContext, city: string | null | undefined, slot: 'morning' | 'evening'): Promise<BriefingSectionResult<WeatherSection>> {
   if (!city) return fail('Sem cidade configurada');
   try {
     const result: any = await withTimeout(weatherGetTool.call({ city }, ctx), SECTION_TIMEOUT_MS, 'weather');
     if (!result.ok) return fail(result.error || 'Sem dados de clima');
     const r = result.receipt || result.data || {};
+    const temperature = Number(r.temperature_c ?? r.current?.temperature_c ?? 0);
+    const feelsLike = Number(r.feels_like_c ?? r.current?.feels_like_c ?? temperature);
+    const precipitation = Number(r.precipitation_mm ?? r.current?.precipitation_mm ?? 0);
+    const weatherCode = Number(r.weather_code ?? r.current?.weather_code ?? 0);
+    const condition = String(r.condition || r.current?.condition || r.current?.description || '');
     return ok({
-      temperature_c: Number(r.temperature_c ?? r.current?.temperature_c ?? 0),
-      condition: String(r.condition || r.current?.condition || ''),
+      temperature_c: temperature,
+      feels_like_c: feelsLike,
+      precipitation_mm: precipitation,
+      weather_code: weatherCode,
+      is_day: Boolean(r.is_day ?? r.current?.is_day ?? slot === 'morning'),
+      condition,
       city: String(r.city || city),
+      advice: weatherAdvice({
+        slot,
+        temperature_c: temperature,
+        feels_like_c: feelsLike,
+        precipitation_mm: precipitation,
+        weather_code: weatherCode,
+        condition,
+      }),
     });
   } catch (err: any) {
     return fail(err?.message || 'weather failure');
@@ -208,7 +226,7 @@ export async function composeBriefing(
   options: { slot: 'morning' | 'evening'; news_topics: string[]; city: string | null | undefined },
 ): Promise<BriefingSections> {
   const [weather, calendar, goal, news, trends] = await Promise.all([
-    weatherSection(ctx, options.city),
+    weatherSection(ctx, options.city, options.slot),
     calendarSection(ctx, options.slot),
     goalSection(ctx),
     newsSection(ctx, options.news_topics),

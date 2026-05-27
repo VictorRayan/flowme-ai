@@ -13,11 +13,12 @@ export type GoalCalendarEventLinkInput = {
   start_at: string;
   end_at: string;
   duration_minutes: number;
+  recurrence?: string[] | null;
   plan_day?: number | null;
   sort_order?: number | null;
 };
 
-export type DeletedGoalCalendarEvent = {
+export type GoalCalendarEvent = {
   id: string;
   provider_event_id: string;
   linked_account_id: string;
@@ -28,6 +29,7 @@ export type DeletedGoalCalendarEvent = {
   start_at: string;
   end_at: string;
   duration_minutes: number;
+  recurrence: string[] | null;
   plan_day: number | null;
   sort_order: number | null;
   status: GoalCalendarEventStatus;
@@ -36,9 +38,12 @@ export type DeletedGoalCalendarEvent = {
   deleted_at: string | null;
 };
 
+/** @deprecated use GoalCalendarEvent — kept for callers that imported the old name */
+export type DeletedGoalCalendarEvent = GoalCalendarEvent;
+
 const GOAL_EVENT_FIELDS = `
   id, provider_event_id, linked_account_id, action_plan_id, goal_id, title,
-  scheduled_date, start_at, end_at, duration_minutes, plan_day, sort_order,
+  scheduled_date, start_at, end_at, duration_minutes, recurrence, plan_day, sort_order,
   status, deletion_source, deletion_note, deleted_at
 `;
 
@@ -60,6 +65,7 @@ export async function recordGoalCalendarEventLinks(
     start_at: link.start_at,
     end_at: link.end_at,
     duration_minutes: link.duration_minutes,
+    recurrence: link.recurrence ?? null,
     plan_day: link.plan_day ?? null,
     sort_order: link.sort_order ?? null,
     status: 'active',
@@ -82,7 +88,7 @@ export async function markGoalCalendarEventDeleted(
     deletionSource: GoalCalendarEventDeletionSource;
     deletionNote?: string | null;
   },
-): Promise<{ matched: number; needs_replan: boolean; deleted_events: DeletedGoalCalendarEvent[] }> {
+): Promise<{ matched: number; needs_replan: boolean; deleted_events: GoalCalendarEvent[] }> {
   const { data, error } = await supabase
     .from('goal_calendar_events')
     .update({
@@ -98,7 +104,7 @@ export async function markGoalCalendarEventDeleted(
     .select(GOAL_EVENT_FIELDS);
 
   if (error) throw error;
-  const deletedEvents = (data || []) as DeletedGoalCalendarEvent[];
+  const deletedEvents = (data || []) as GoalCalendarEvent[];
   return {
     matched: deletedEvents.length,
     needs_replan: deletedEvents.length > 0,
@@ -110,7 +116,7 @@ export async function listDeletedGoalCalendarEvents(
   supabase: SupabaseClient,
   userId: string,
   limit = 20,
-): Promise<DeletedGoalCalendarEvent[]> {
+): Promise<GoalCalendarEvent[]> {
   const { data, error } = await supabase
     .from('goal_calendar_events')
     .select(GOAL_EVENT_FIELDS)
@@ -120,5 +126,113 @@ export async function listDeletedGoalCalendarEvents(
     .limit(limit);
 
   if (error) throw error;
-  return (data || []) as DeletedGoalCalendarEvent[];
+  return (data || []) as GoalCalendarEvent[];
+}
+
+export type ListGoalCalendarEventsFilter = {
+  goalId?: string | null;
+  actionPlanId?: string | null;
+  providerEventIds?: string[] | null;
+  statuses?: GoalCalendarEventStatus[];
+  limit?: number;
+};
+
+export async function listGoalCalendarEvents(
+  supabase: SupabaseClient,
+  userId: string,
+  filter: ListGoalCalendarEventsFilter = {},
+): Promise<GoalCalendarEvent[]> {
+  let query = supabase
+    .from('goal_calendar_events')
+    .select(GOAL_EVENT_FIELDS)
+    .eq('user_id', userId);
+
+  if (filter.goalId) query = query.eq('goal_id', filter.goalId);
+  if (filter.actionPlanId) query = query.eq('action_plan_id', filter.actionPlanId);
+  if (filter.providerEventIds && filter.providerEventIds.length > 0) {
+    query = query.in('provider_event_id', filter.providerEventIds);
+  }
+  if (filter.statuses && filter.statuses.length > 0) {
+    query = query.in('status', filter.statuses);
+  }
+
+  const { data, error } = await query
+    .order('scheduled_date', { ascending: true })
+    .limit(filter.limit ?? 200);
+
+  if (error) throw error;
+  return (data || []) as GoalCalendarEvent[];
+}
+
+export async function updateGoalCalendarEventSchedule(
+  supabase: SupabaseClient,
+  userId: string,
+  input: {
+    linkedAccountId: string;
+    providerEventId: string;
+    startAt: string;
+    endAt: string;
+    scheduledDate: string;
+    durationMinutes?: number;
+    recurrence?: string[] | null;
+    status?: GoalCalendarEventStatus;
+  },
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    start_at: input.startAt,
+    end_at: input.endAt,
+    scheduled_date: input.scheduledDate,
+    status: input.status ?? 'rescheduled',
+    updated_at: new Date().toISOString(),
+  };
+  if (typeof input.durationMinutes === 'number') patch.duration_minutes = input.durationMinutes;
+  if (input.recurrence !== undefined) patch.recurrence = input.recurrence;
+
+  const { error } = await supabase
+    .from('goal_calendar_events')
+    .update(patch)
+    .eq('user_id', userId)
+    .eq('linked_account_id', input.linkedAccountId)
+    .eq('provider_event_id', input.providerEventId);
+
+  if (error) throw error;
+}
+
+export async function restoreGoalCalendarEvent(
+  supabase: SupabaseClient,
+  userId: string,
+  input: {
+    linkedAccountId: string;
+    oldProviderEventId: string;
+    newProviderEventId: string;
+    startAt: string;
+    endAt: string;
+    scheduledDate: string;
+    durationMinutes?: number;
+    recurrence?: string[] | null;
+  },
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    status: 'active',
+    provider_event_id: input.newProviderEventId,
+    rescheduled_provider_event_id: input.oldProviderEventId,
+    start_at: input.startAt,
+    end_at: input.endAt,
+    scheduled_date: input.scheduledDate,
+    deletion_source: null,
+    deletion_note: null,
+    deleted_at: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (typeof input.durationMinutes === 'number') patch.duration_minutes = input.durationMinutes;
+  if (input.recurrence !== undefined) patch.recurrence = input.recurrence;
+
+  const { error } = await supabase
+    .from('goal_calendar_events')
+    .update(patch)
+    .eq('user_id', userId)
+    .eq('linked_account_id', input.linkedAccountId)
+    .eq('provider_event_id', input.oldProviderEventId);
+
+  if (error) throw error;
 }

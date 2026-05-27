@@ -329,7 +329,7 @@ function composeDayDescription(routineTasks: Array<{ title: string; durationMinu
   return `Atividades do dia:\n${numbered}`;
 }
 
-interface Cadence {
+export interface Cadence {
   daysOfWeek: number[];
   summary: string;
   inferred: boolean;
@@ -337,7 +337,7 @@ interface Cadence {
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-function resolveCadence(text: string): Cadence {
+export function resolveCadence(text: string): Cadence {
   const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (/\b(weekends?|finais? de semana|fim de semana|final de semana)\b/.test(normalized)) {
     return { daysOfWeek: [0, 6], summary: 'weekends only', inferred: false };
@@ -615,7 +615,7 @@ function buildTaskTimes(date: string, preferredTime: string | null, durationMinu
   return { startAt: start.toISOString(), endAt: end.toISOString() };
 }
 
-function firstMatchingDate(startDate: string, daysOfWeek: number[]): string {
+export function firstMatchingDate(startDate: string, daysOfWeek: number[]): string {
   for (let offset = 0; offset < 7; offset++) {
     const date = addDays(startDate, offset);
     const dow = new Date(`${date}T00:00:00.000Z`).getUTCDay();
@@ -624,7 +624,7 @@ function firstMatchingDate(startDate: string, daysOfWeek: number[]): string {
   return startDate;
 }
 
-function weeklyRRule(daysOfWeek: number[], targetDate: string): string {
+export function weeklyRRule(daysOfWeek: number[], targetDate: string): string {
   const byDay = [...daysOfWeek].sort().map(day => DAY_CODES[day]).join(',');
   return `RRULE:FREQ=WEEKLY;BYDAY=${byDay};UNTIL=${targetDate.replace(/-/g, '')}T235959Z`;
 }

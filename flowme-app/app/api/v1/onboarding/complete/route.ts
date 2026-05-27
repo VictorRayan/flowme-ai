@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
               start_at: task.start_at,
               end_at: task.end_at,
               duration_minutes: task.duration_minutes,
+              recurrence: task.recurrence ?? null,
               plan_day: null,
               sort_order: 0,
             }]);

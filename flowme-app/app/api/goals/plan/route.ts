@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
         start_at: event.start_at,
         end_at: event.end_at,
         duration_minutes: event.task.duration_minutes,
+        recurrence: event.task.recurrence ?? null,
         plan_day: null,
         sort_order: 0,
       })));

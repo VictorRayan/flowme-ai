@@ -1,8 +1,23 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
-import { listDeletedGoalCalendarEvents, recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
+import {
+  GoalCalendarEvent,
+  GoalCalendarEventStatus,
+  listDeletedGoalCalendarEvents,
+  listGoalCalendarEvents,
+  recordGoalCalendarEventLinks,
+  restoreGoalCalendarEvent,
+  updateGoalCalendarEventSchedule,
+} from '@/lib/goals/calendar-event-links';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
-import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-calendar';
+import {
+  deleteActionPlanRecords,
+  deleteGoalRecords,
+  gatherActionPlanDeletionTargets,
+  gatherGoalDeletionTargets,
+} from '@/lib/goals/delete-plan';
+import { firstMatchingDate, resolveCadence, weeklyRRule } from '@/lib/goals/planner';
+import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
 const goalTimeframeSchema = z.enum(['yearly', 'monthly', 'weekly']);
@@ -134,6 +149,59 @@ function defaultStartIso(date: string, timezone: string): string {
 
 function addMinutesIso(startIso: string, minutes: number): string {
   return new Date(new Date(startIso).getTime() + minutes * 60000).toISOString();
+}
+
+function wallClockTimeInTz(iso: string, timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(iso));
+    const hour = parts.find(p => p.type === 'hour')?.value ?? '09';
+    const minute = parts.find(p => p.type === 'minute')?.value ?? '00';
+    return `${hour === '24' ? '00' : hour}:${minute}`;
+  } catch {
+    return '09:00';
+  }
+}
+
+// Build an unambiguous start/end instant for a wall-clock date + HH:MM time in the
+// user's timezone. start carries an explicit offset, end is the UTC equivalent —
+// both encode a single instant, so Google and the DB agree without timezone drift.
+function buildScheduleInstants(date: string, time: string, durationMinutes: number, timezone: string) {
+  const offset = timezoneOffset(date, timezone);
+  const startAt = `${date}T${time}:00${offset}`;
+  const endAt = addMinutesIso(startAt, durationMinutes);
+  return { startAt, endAt };
+}
+
+const DAY_TOKEN_TO_INDEX: Record<string, number> = {
+  su: 0, sun: 0, sunday: 0, domingo: 0,
+  mo: 1, mon: 1, monday: 1, segunda: 1,
+  tu: 2, tue: 2, tuesday: 2, terca: 2, terça: 2,
+  we: 3, wed: 3, wednesday: 3, quarta: 3,
+  th: 4, thu: 4, thursday: 4, quinta: 4,
+  fr: 5, fri: 5, friday: 5, sexta: 5,
+  sa: 6, sat: 6, saturday: 6, sabado: 6, sábado: 6,
+};
+
+// Turn a free-form recurrence preference ("weekends", "seg, qua, sex", ["MO","WE"])
+// into weekday indices, reusing the planner's cadence vocabulary for phrases.
+function normalizeRecurrenceDays(input: string | string[]): number[] {
+  const tokens = Array.isArray(input) ? input : input.split(/[,\s]+/);
+  const explicit = tokens
+    .map(token => DAY_TOKEN_TO_INDEX[token.trim().toLowerCase()])
+    .filter((day): day is number => typeof day === 'number');
+  if (explicit.length > 0) return Array.from(new Set(explicit)).sort((a, b) => a - b);
+  const phrase = Array.isArray(input) ? input.join(' ') : input;
+  return resolveCadence(phrase).daysOfWeek;
+}
+
+function recurrenceUntilDate(goalDue: string | null | undefined): string {
+  if (goalDue) return goalDue.slice(0, 10);
+  return `${new Date().getUTCFullYear() + 1}-12-31`;
 }
 
 function calendarTimesForOccurrence(task: CalendarOccurrence, timezone: string) {
@@ -340,6 +408,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
         start_at: event.start_at,
         end_at: event.end_at,
         duration_minutes: event.occurrence.duration_minutes || 30,
+        recurrence: event.occurrence.recurrence ?? null,
         plan_day: event.occurrence.plan_day,
         sort_order: event.occurrence.sort_order,
       })));
@@ -575,6 +644,372 @@ RIGHT: a concrete sprint title like "Criar landing page do produto — 7 dias" o
       await rollbackCalendarEvents(account.account.id, createdGoogleEventIds, context);
       await cleanupShortActionPlan(context.supabase, context.user.id, created);
       return { ok: false, error: error instanceof Error ? error.message : 'Failed to create short-term action plan' };
+    }
+  },
+});
+
+async function selectLinkedEvents(
+  context: ToolContext,
+  opts: {
+    providerEventIds?: string[] | null;
+    goalId?: string | null;
+    actionPlanId?: string | null;
+    all?: boolean;
+    statuses: GoalCalendarEventStatus[];
+  },
+): Promise<GoalCalendarEvent[]> {
+  if (opts.providerEventIds && opts.providerEventIds.length > 0) {
+    return listGoalCalendarEvents(context.supabase, context.user.id, { providerEventIds: opts.providerEventIds, statuses: opts.statuses });
+  }
+  if (opts.goalId) {
+    return listGoalCalendarEvents(context.supabase, context.user.id, { goalId: opts.goalId, statuses: opts.statuses });
+  }
+  if (opts.actionPlanId) {
+    return listGoalCalendarEvents(context.supabase, context.user.id, { actionPlanId: opts.actionPlanId, statuses: opts.statuses });
+  }
+  if (opts.all) {
+    return listGoalCalendarEvents(context.supabase, context.user.id, { statuses: opts.statuses });
+  }
+  return [];
+}
+
+export const goalsListCalendarEventsTool = defineTool({
+  name: 'goals.list_calendar_events',
+  description: `Lists the Google Calendar events that belong to a goal or action plan, including ones that were DELETED. Read-only.
+
+WHEN TO USE:
+- The user asks about a specific goal/plan and whether its blocks still exist ("o que aconteceu com os horários da minha meta?", "did you delete my study sessions?").
+- BEFORE goals.reschedule_calendar_events, goals.restore_calendar_events, or goals.delete_plan, to resolve which events (and their internal ids) are affected.
+- To explain that an event existed and was deleted: deleted rows are returned with status 'deleted'.
+
+CONTRACT:
+- Pass goal_id or action_plan_id (resolve them first with goals.list). Omit both to list every goal/plan event.
+- include_deleted defaults true so you can see and explain removals.
+- Read-only. provider_event_id is TECHNICAL — keep it to chain into the write tools, never read it aloud.
+- Use titles/dates/status in the final reply. status values: active, rescheduled, moved, deleted.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    goal_id: z.string().optional(),
+    action_plan_id: z.string().optional(),
+    include_deleted: z.boolean().optional().default(true),
+    limit: z.number().min(1).max(200).optional().default(100),
+  }),
+  call: async (args, context) => {
+    try {
+      const statuses: GoalCalendarEventStatus[] | undefined = args.include_deleted
+        ? undefined
+        : ['active', 'rescheduled', 'moved'];
+      const events = await listGoalCalendarEvents(context.supabase, context.user.id, {
+        goalId: args.goal_id,
+        actionPlanId: args.action_plan_id,
+        statuses,
+        limit: args.limit,
+      });
+      const activeCount = events.filter(e => e.status !== 'deleted').length;
+      const deletedCount = events.filter(e => e.status === 'deleted').length;
+      return {
+        ok: true,
+        receipt: {
+          events: events.map(event => ({
+            provider_event_id: event.provider_event_id,
+            title: event.title,
+            scheduled_date: event.scheduled_date,
+            start_at: event.start_at,
+            end_at: event.end_at,
+            status: event.status,
+            is_recurring: Array.isArray(event.recurrence) && event.recurrence.length > 0,
+            goal_id: event.goal_id,
+            action_plan_id: event.action_plan_id,
+            deleted_at: event.deleted_at,
+          })),
+          active_count: activeCount,
+          deleted_count: deletedCount,
+          summary: deletedCount > 0
+            ? `${activeCount} active and ${deletedCount} deleted goal/plan calendar event(s).`
+            : `${activeCount} active goal/plan calendar event(s).`,
+        },
+      };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Failed to list goal calendar events' };
+    }
+  },
+});
+
+export const goalsRescheduleCalendarEventsTool = defineTool({
+  name: 'goals.reschedule_calendar_events',
+  description: `Remanejar (reschedule) the Google Calendar events of a goal or action plan: change the time of day and/or which weekdays a recurring series runs. Keeps the goal/plan link in sync.
+
+WHEN TO USE:
+- "remaneja meus horários de estudo para 21h", "move the workout block to weekends", "muda a recorrência da meta para dias úteis".
+- Reschedule ALL of a goal/plan's events, a specific goal/plan, or specific events.
+
+CONTRACT:
+- Choose the target: goal_id, action_plan_id, provider_event_ids (from goals.list_calendar_events), or apply_to_all=true for every goal/plan event. Resolve goal_id/action_plan_id with goals.list first.
+- Provide at least one change: new_time (HH:MM, 24h) and/or new_recurrence_days.
+- new_recurrence_days accepts natural cadence ("weekends", "dias úteis", "segunda, quarta, sexta") or weekday tokens (MO,TU,...). It only changes recurring series; one-off events keep their single date and are just moved in time.
+- new_time preserves each event's duration. Times resolve in the user's timezone.
+- Only active events are rescheduled. To bring back a deleted event use goals.restore_calendar_events first.
+
+RETURNS receipt: { rescheduled_count, failed_count, results[], summary }. Read summary before replying; report failures honestly. Confirm in human terms ("Movi seus blocos de estudo para as nove da noite"), never read IDs.`,
+  isReadOnly: false,
+  inputSchema: z.object({
+    goal_id: z.string().optional(),
+    action_plan_id: z.string().optional(),
+    provider_event_ids: z.array(z.string()).max(50).optional(),
+    apply_to_all: z.boolean().optional(),
+    new_time: z.string().regex(/^\d{2}:\d{2}$/).optional().describe('New start time of day in HH:MM (24h). Duration is preserved.'),
+    new_recurrence_days: z.string().optional().describe('New cadence for recurring series: a phrase ("weekends", "dias úteis") or weekday tokens ("MO,WE,FR").'),
+    calendar_account_nickname: z.string().optional(),
+  }),
+  call: async (args, context) => {
+    if (!args.new_time && !args.new_recurrence_days) {
+      return { ok: false, error: 'Provide new_time and/or new_recurrence_days to reschedule.' };
+    }
+    if (!args.provider_event_ids?.length && !args.goal_id && !args.action_plan_id && !args.apply_to_all) {
+      return { ok: false, error: 'Specify which events to reschedule: goal_id, action_plan_id, provider_event_ids, or apply_to_all.' };
+    }
+
+    const account = await resolveGoogleCalendarAccount(context, args.calendar_account_nickname);
+    if (!account.ok) return { ok: false, error: account.error };
+    const tz = context.timezone || 'UTC';
+
+    const events = await selectLinkedEvents(context, {
+      providerEventIds: args.provider_event_ids,
+      goalId: args.goal_id,
+      actionPlanId: args.action_plan_id,
+      all: args.apply_to_all,
+      statuses: ['active', 'rescheduled', 'moved'],
+    });
+    if (events.length === 0) {
+      return { ok: true, receipt: { rescheduled_count: 0, failed_count: 0, results: [], summary: 'No active goal or plan calendar events matched the request.' } };
+    }
+
+    let recurrenceDays: number[] | null = null;
+    const dueByGoalId = new Map<string, string | null>();
+    if (args.new_recurrence_days) {
+      recurrenceDays = normalizeRecurrenceDays(args.new_recurrence_days);
+      if (recurrenceDays.length === 0) {
+        return { ok: false, error: `Could not understand the recurrence days "${args.new_recurrence_days}".` };
+      }
+      const goalIds = Array.from(new Set(events.map(e => e.goal_id).filter((id): id is string => Boolean(id))));
+      if (goalIds.length > 0) {
+        const { data } = await context.supabase
+          .from('smart_goals')
+          .select('id, due_on, target_date')
+          .eq('user_id', context.user.id)
+          .in('id', goalIds);
+        for (const goal of (data || []) as Array<{ id: string; due_on?: string | null; target_date?: string | null }>) {
+          dueByGoalId.set(goal.id, goal.due_on || goal.target_date || null);
+        }
+      }
+    }
+
+    const results = [] as Array<{ title: string; status: 'rescheduled' | 'failed'; recurrence_changed?: boolean; recurrence_skipped?: boolean; error?: string }>;
+    for (const event of events) {
+      try {
+        const isRecurring = Array.isArray(event.recurrence) && event.recurrence.length > 0;
+        let scheduledDate = event.scheduled_date;
+        let recurrence: string[] | undefined;
+        if (recurrenceDays && isRecurring) {
+          scheduledDate = firstMatchingDate(event.scheduled_date, recurrenceDays);
+          recurrence = [weeklyRRule(recurrenceDays, recurrenceUntilDate(event.goal_id ? dueByGoalId.get(event.goal_id) : null))];
+        }
+        const time = args.new_time || wallClockTimeInTz(event.start_at, tz);
+        const { startAt, endAt } = buildScheduleInstants(scheduledDate, time, event.duration_minutes || 30, tz);
+
+        await updateCalendarEvent(account.account.id, event.provider_event_id, { startAt, endAt, recurrence }, context);
+        await updateGoalCalendarEventSchedule(context.supabase, context.user.id, {
+          linkedAccountId: account.account.id,
+          providerEventId: event.provider_event_id,
+          startAt: new Date(startAt).toISOString(),
+          endAt,
+          scheduledDate,
+          recurrence: recurrence ?? undefined,
+          status: 'rescheduled',
+        });
+        results.push({
+          title: event.title,
+          status: 'rescheduled',
+          recurrence_changed: Boolean(recurrence),
+          recurrence_skipped: Boolean(recurrenceDays && !isRecurring),
+        });
+      } catch (e: any) {
+        const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
+        results.push({ title: event.title, status: 'failed', error: googleMsg || 'Failed to reschedule event' });
+      }
+    }
+
+    const rescheduled_count = results.filter(r => r.status === 'rescheduled').length;
+    const failed_count = results.length - rescheduled_count;
+    const skippedRecurrence = results.some(r => r.status === 'rescheduled' && r.recurrence_skipped);
+    let summary: string;
+    if (failed_count === 0) {
+      summary = `Rescheduled ${rescheduled_count} event(s).`;
+    } else if (rescheduled_count === 0) {
+      summary = `Could not reschedule any of the ${results.length} event(s). Reasons: ${results.filter(r => r.error).map(r => r.error).slice(0, 3).join('; ')}.`;
+    } else {
+      summary = `Rescheduled ${rescheduled_count} of ${results.length}; ${failed_count} failed: ${results.filter(r => r.error).map(r => r.error).slice(0, 3).join('; ')}.`;
+    }
+    if (skippedRecurrence) summary += ' Some one-off events kept their single date (recurrence applies only to recurring series).';
+
+    return { ok: true, receipt: { rescheduled_count, failed_count, results, summary } };
+  },
+});
+
+export const goalsRestoreCalendarEventsTool = defineTool({
+  name: 'goals.restore_calendar_events',
+  description: `Restore goal/action-plan calendar events that were previously deleted, recreating them on Google Calendar with their original time and recurrence.
+
+WHEN TO USE:
+- "desfaz, recoloca aquele evento", "restore my study sessions", "traz de volta os blocos que você apagou".
+- After goals.list_calendar_events / goals.list_deleted_calendar_events shows deleted blocks the user wants back.
+
+CONTRACT:
+- Choose the target: provider_event_ids (the deleted ids from goals.list_calendar_events), goal_id, action_plan_id, or apply_to_all_deleted=true.
+- Restored events get a NEW underlying calendar entry but reappear with the same title, time, and cadence.
+- If nothing matches the selection, report that there was nothing to restore.
+
+RETURNS receipt: { restored_count, failed_count, results[], summary }. Confirm in human terms; never read IDs.`,
+  isReadOnly: false,
+  inputSchema: z.object({
+    goal_id: z.string().optional(),
+    action_plan_id: z.string().optional(),
+    provider_event_ids: z.array(z.string()).max(50).optional(),
+    apply_to_all_deleted: z.boolean().optional(),
+    calendar_account_nickname: z.string().optional(),
+  }),
+  call: async (args, context) => {
+    if (!args.provider_event_ids?.length && !args.goal_id && !args.action_plan_id && !args.apply_to_all_deleted) {
+      return { ok: false, error: 'Specify which deleted events to restore: goal_id, action_plan_id, provider_event_ids, or apply_to_all_deleted.' };
+    }
+    const account = await resolveGoogleCalendarAccount(context, args.calendar_account_nickname);
+    if (!account.ok) return { ok: false, error: account.error };
+
+    const deletedEvents = await selectLinkedEvents(context, {
+      providerEventIds: args.provider_event_ids,
+      goalId: args.goal_id,
+      actionPlanId: args.action_plan_id,
+      all: args.apply_to_all_deleted,
+      statuses: ['deleted'],
+    });
+    if (deletedEvents.length === 0) {
+      return { ok: true, receipt: { restored_count: 0, failed_count: 0, results: [], summary: 'No deleted goal or plan calendar events matched the request.' } };
+    }
+
+    const results = [] as Array<{ title: string; status: 'restored' | 'failed'; html_link?: string; error?: string }>;
+    for (const event of deletedEvents) {
+      try {
+        const created = await createCalendarEvent(account.account.id, {
+          title: event.title,
+          startAt: event.start_at,
+          endAt: event.end_at,
+          recurrence: event.recurrence || undefined,
+        }, context);
+        await restoreGoalCalendarEvent(context.supabase, context.user.id, {
+          linkedAccountId: account.account.id,
+          oldProviderEventId: event.provider_event_id,
+          newProviderEventId: created.id,
+          startAt: event.start_at,
+          endAt: event.end_at,
+          scheduledDate: event.scheduled_date,
+          recurrence: event.recurrence,
+        });
+        results.push({ title: event.title, status: 'restored', html_link: created.htmlLink });
+      } catch (e: any) {
+        const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
+        results.push({ title: event.title, status: 'failed', error: googleMsg || 'Failed to restore event' });
+      }
+    }
+
+    const restored_count = results.filter(r => r.status === 'restored').length;
+    const failed_count = results.length - restored_count;
+    let summary: string;
+    if (failed_count === 0) {
+      summary = `Restored ${restored_count} event(s).`;
+    } else if (restored_count === 0) {
+      summary = `Could not restore any of the ${results.length} event(s). Reasons: ${results.filter(r => r.error).map(r => r.error).slice(0, 3).join('; ')}.`;
+    } else {
+      summary = `Restored ${restored_count} of ${results.length}; ${failed_count} failed: ${results.filter(r => r.error).map(r => r.error).slice(0, 3).join('; ')}.`;
+    }
+
+    return { ok: true, receipt: { restored_count, failed_count, results, summary } };
+  },
+});
+
+export const goalsDeletePlanTool = defineTool({
+  name: 'goals.delete_plan',
+  description: `Delete a GOAL (meta) or an ACTION PLAN (plano de ação) entirely, including its Google Calendar events. DESTRUCTIVE.
+
+WHEN TO USE:
+- "apaga essa meta", "cancela o plano de ação", "não quero mais essa meta nem os eventos dela".
+
+CONTRACT:
+- Pass goal_id OR action_plan_id (never both). Resolve the id with goals.list first.
+- Deleting a goal also removes its monthly/weekly sub-goals, its linked action plans, their tasks, and all of their calendar events.
+- delete_calendar_events defaults true (also cancels the Google events). Set false to keep the calendar blocks but drop the goal/plan.
+- ALWAYS confirm with the user before calling — this cannot be undone (deleted events can be restored only if they still exist in tracking; the goal/plan records are gone for good).
+
+RETURNS receipt: { deleted_kind, calendar_events_deleted, calendar_events_failed, summary }. Confirm in human terms; never read IDs.`,
+  isReadOnly: false,
+  inputSchema: z.object({
+    goal_id: z.string().optional(),
+    action_plan_id: z.string().optional(),
+    delete_calendar_events: z.boolean().optional().default(true),
+  }),
+  call: async (args, context) => {
+    if (!args.goal_id && !args.action_plan_id) {
+      return { ok: false, error: 'Specify which goal or action plan to delete (goal_id or action_plan_id).' };
+    }
+    if (args.goal_id && args.action_plan_id) {
+      return { ok: false, error: 'Delete a goal OR an action plan, not both in the same call.' };
+    }
+
+    try {
+      const goalTargets = args.goal_id
+        ? await gatherGoalDeletionTargets(context.supabase, context.user.id, args.goal_id)
+        : null;
+      const planTargets = args.action_plan_id
+        ? await gatherActionPlanDeletionTargets(context.supabase, context.user.id, args.action_plan_id)
+        : null;
+      const calendarEvents = goalTargets?.calendar_events ?? planTargets?.calendar_events ?? [];
+
+      let deletedEvents = 0;
+      let failedEvents = 0;
+      if (args.delete_calendar_events) {
+        const liveEvents = calendarEvents.filter(event => event.status !== 'deleted');
+        const eventResults = await Promise.all(liveEvents.map(async (event) => {
+          try {
+            await deleteCalendarEvent(event.linked_account_id, event.provider_event_id, context);
+            return true;
+          } catch (error) {
+            console.error('[goals.delete_plan] calendar event delete failed:', error);
+            return false;
+          }
+        }));
+        deletedEvents = eventResults.filter(Boolean).length;
+        failedEvents = eventResults.length - deletedEvents;
+      }
+
+      let deletedKind: 'goal' | 'action_plan';
+      if (goalTargets) {
+        await deleteGoalRecords(context.supabase, context.user.id, goalTargets);
+        deletedKind = 'goal';
+      } else {
+        await deleteActionPlanRecords(context.supabase, context.user.id, [args.action_plan_id!]);
+        deletedKind = 'action_plan';
+      }
+
+      return {
+        ok: true,
+        receipt: {
+          deleted_kind: deletedKind,
+          calendar_events_deleted: deletedEvents,
+          calendar_events_failed: failedEvents,
+          summary: `Deleted the ${deletedKind === 'goal' ? 'goal and everything under it' : 'action plan'}.${args.delete_calendar_events ? ` Removed ${deletedEvents} calendar event(s)${failedEvents > 0 ? `, ${failedEvents} could not be cancelled` : ''}.` : ' Kept the existing calendar events.'}`,
+        },
+      };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Failed to delete the goal or action plan' };
     }
   },
 });

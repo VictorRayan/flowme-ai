@@ -19,6 +19,7 @@ export function summarizeForWhatsapp(slot: BriefingSlot, sections: BriefingSecti
   if (sections.weather.ok && sections.weather.data) {
     const w = sections.weather.data;
     lines.push(`\n🌤️ ${w.condition || 'Clima'}, ${Math.round(w.temperature_c)}°C em ${w.city}`);
+    if (w.advice) lines.push(`• ${w.advice}`);
   }
 
   if (sections.calendar.ok && sections.calendar.data && sections.calendar.data.events.length > 0) {
@@ -43,7 +44,11 @@ export function summarizeForWhatsapp(slot: BriefingSlot, sections: BriefingSecti
 
   if (sections.trends.ok && sections.trends.data && sections.trends.data.trends.length > 0) {
     lines.push(`\n💬 *No ar agora*`);
-    for (const trend of sections.trends.data.trends.slice(0, 3)) lines.push(`• ${trend.summary}`);
+    for (const trend of sections.trends.data.trends.slice(0, 3)) {
+      const title = trend.headline || trend.topic;
+      const detail = trend.subheadline || trend.summary;
+      lines.push(`• ${title} — ${detail}${trend.url ? `\n  ${trend.url}` : ''}`);
+    }
   }
 
   return lines.join('\n');

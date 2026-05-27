@@ -11,9 +11,13 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 import { finishButtonLabel, proposalButtonLabel } from '@/lib/onboarding/proposal-button';
+import { buildBriefingDelivery } from '@/lib/onboarding/briefing-delivery';
 import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
 
 const dict = {
@@ -65,6 +69,35 @@ const dict = {
     delivery_push_denied: 'Você bloqueou a permissão. Habilite nas configurações do navegador e tente de novo.',
     delivery_push_unsupported: 'Seu navegador não suporta notificações push.',
     delivery_web: 'Sempre disponível no app',
+
+    notif_overline: 'Quase lá',
+    notif_title: 'Ative seus lembretes',
+    notif_desc: 'O Flow-me envia lembretes pelo navegador para você não perder os rituais e as tarefas dos seus objetivos. Toque no botão abaixo e confirme na janela que o navegador vai abrir.',
+    notif_button: 'Ativar notificações',
+    notif_enabling: 'Aguardando o navegador...',
+    notif_continue: 'Continuar mesmo assim',
+    notif_granted: 'Tudo pronto! Notificações ativadas.',
+
+    wa_overline: 'Lembretes no WhatsApp',
+    wa_title: 'Vincule seu WhatsApp',
+    wa_desc: 'Vincule seu número para o Balys te enviar lembretes dos seus rituais e tarefas direto no WhatsApp. Enviaremos um código de verificação para confirmar o número.',
+    wa_phone_label: 'Número do WhatsApp',
+    wa_phone_hint: 'Use o formato internacional, ex: +55 11 99999-9999.',
+    wa_send_from: 'O código de verificação será enviado de',
+    wa_send_code: 'Enviar código',
+    wa_sending: 'Enviando código...',
+    wa_code_sent: 'Enviamos um código de 6 dígitos no seu WhatsApp. Digite abaixo para confirmar.',
+    wa_code_label: 'Código de 6 dígitos',
+    wa_verify: 'Verificar e continuar',
+    wa_verifying: 'Verificando...',
+    wa_use_different: 'Usar outro número',
+    wa_linked: 'WhatsApp vinculado! Você receberá seus lembretes por aqui.',
+    wa_skip: 'Pular por enquanto',
+    wa_skip_hint: 'Você pode vincular o WhatsApp depois em Configurações › Canais.',
+    wa_error_send: 'Não consegui enviar o código. Verifique o número e tente de novo.',
+    wa_error_verify: 'Código incorreto ou expirado. Tente novamente.',
+    wa_connected: 'WhatsApp conectado',
+    wa_not_connected: 'Você pode conectar depois nas configurações.',
   },
   en: {
     welcome: 'Welcome to Flow-me.',
@@ -114,6 +147,35 @@ const dict = {
     delivery_push_denied: 'You blocked permission. Enable it in your browser settings and try again.',
     delivery_push_unsupported: 'Your browser does not support push notifications.',
     delivery_web: 'Always available in the app',
+
+    notif_overline: 'Almost there',
+    notif_title: 'Turn on your reminders',
+    notif_desc: 'Flow-me sends browser reminders so you never miss the rituals and tasks behind your goals. Tap the button below and confirm in the window your browser opens.',
+    notif_button: 'Enable notifications',
+    notif_enabling: 'Waiting for the browser...',
+    notif_continue: 'Continue anyway',
+    notif_granted: 'All set! Notifications are on.',
+
+    wa_overline: 'WhatsApp reminders',
+    wa_title: 'Link your WhatsApp',
+    wa_desc: 'Link your number so Balys can send reminders for your rituals and goal tasks straight to your WhatsApp. We will send a verification code to confirm the number.',
+    wa_phone_label: 'WhatsApp number',
+    wa_phone_hint: 'Use the international format, e.g. +1 555 123 4567.',
+    wa_send_from: 'The verification code will be sent from',
+    wa_send_code: 'Send code',
+    wa_sending: 'Sending code...',
+    wa_code_sent: 'We sent a 6-digit code to your WhatsApp. Enter it below to confirm.',
+    wa_code_label: '6-digit code',
+    wa_verify: 'Verify and continue',
+    wa_verifying: 'Verifying...',
+    wa_use_different: 'Use a different number',
+    wa_linked: 'WhatsApp linked! Your reminders will arrive here.',
+    wa_skip: 'Skip for now',
+    wa_skip_hint: 'You can link WhatsApp later in Settings › Channels.',
+    wa_error_send: "I couldn't send the code. Check the number and try again.",
+    wa_error_verify: 'Wrong or expired code. Please try again.',
+    wa_connected: 'WhatsApp connected',
+    wa_not_connected: 'You can connect it later in settings.',
   }
 };
 
@@ -146,9 +208,19 @@ export default function OnboardingWizard() {
   const [newsTopics, setNewsTopics] = React.useState<string[]>([]);
   const [topicDraft, setTopicDraft] = React.useState('');
   const [briefingCity, setBriefingCity] = React.useState('');
-  const [deliverWhatsApp, setDeliverWhatsApp] = React.useState(true);
+  const [pushGranted, setPushGranted] = React.useState(false);
+  const [enablingPush, setEnablingPush] = React.useState(false);
   const [pushError, setPushError] = React.useState<'denied' | 'unsupported' | null>(null);
   const [finishError, setFinishError] = React.useState<string | null>(null);
+
+  // WhatsApp linking (Task 5)
+  const [waPhone, setWaPhone] = React.useState('');
+  const [waCode, setWaCode] = React.useState('');
+  const [waStage, setWaStage] = React.useState<'idle' | 'sent'>('idle');
+  const [waError, setWaError] = React.useState<string | null>(null);
+  const [waSubmitting, setWaSubmitting] = React.useState(false);
+  const [whatsappLinked, setWhatsappLinked] = React.useState(false);
+  const whatsappInstanceNumber = process.env.NEXT_PUBLIC_WHATSAPP_INSTANCE_DISPLAY_NUMBER ?? '';
 
   const addTopic = () => {
     const cleaned = topicDraft.trim();
@@ -181,11 +253,78 @@ export default function OnboardingWizard() {
         setAiProposal(null);
         setInputValue('');
       } else {
-        setStep(4); // Go to final system contract
+        setStep(4); // Go to the notification permission step
       }
+    } else if (step === 4) {
+      setStep(5); // Go to WhatsApp linking
+    } else if (step === 5) {
+      setStep(6); // Go to final ritual contract
     } else {
-      setStep((prev) => Math.min(prev + 1, 4));
+      setStep((prev) => Math.min(prev + 1, 6));
     }
+  };
+
+  const sendWhatsappCode = async () => {
+    if (!waPhone.trim() || waSubmitting) return;
+    setWaError(null);
+    setWaSubmitting(true);
+    try {
+      const res = await fetch('/api/whatsapp/channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: waPhone }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) throw new Error(data?.error?.message || t.wa_error_send);
+      setWaStage('sent');
+    } catch (e) {
+      setWaError(e instanceof Error ? e.message : t.wa_error_send);
+    } finally {
+      setWaSubmitting(false);
+    }
+  };
+
+  const verifyWhatsappCode = async () => {
+    if (waCode.length !== 6 || waSubmitting) return;
+    setWaError(null);
+    setWaSubmitting(true);
+    try {
+      const res = await fetch('/api/whatsapp/channel/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: waCode }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) throw new Error(data?.error?.message || t.wa_error_verify);
+      setWhatsappLinked(true);
+      nextStep();
+    } catch (e) {
+      setWaError(e instanceof Error ? e.message : t.wa_error_verify);
+    } finally {
+      setWaSubmitting(false);
+    }
+  };
+
+  const skipWhatsapp = () => {
+    setWaError(null);
+    nextStep();
+  };
+
+  const enableNotifications = async () => {
+    if (enablingPush) return;
+    setEnablingPush(true);
+    setPushError(null);
+    const result = await requestBrowserNotificationPermission();
+    setEnablingPush(false);
+    if (!result.ok) {
+      setPushError(result.reason === 'unsupported' ? 'unsupported' : 'denied');
+      return;
+    }
+    setPushGranted(true);
+    void import('@/lib/web-push/client')
+      .then(({ registerWebPush }) => registerWebPush({ permission: 'granted' }))
+      .catch((e) => console.warn('Web push registration failed', e));
+    nextStep();
   };
 
   const [finishing, setFinishing] = React.useState(false);
@@ -194,12 +333,6 @@ export default function OnboardingWizard() {
     if (finishing) return;
     setFinishing(true);
     setFinishError(null);
-    setPushError(null);
-    const pushPermission = await requestBrowserNotificationPermission();
-    const shouldRegisterPush = pushPermission.ok;
-    if (!pushPermission.ok) {
-      setPushError(pushPermission.reason === 'unsupported' ? 'unsupported' : 'denied');
-    }
     const proposalsToPersist = [...acceptedProposals];
     if (aiProposal?.data && proposalsToPersist.length < goalCount) {
       proposalsToPersist[currentGoalIndex - 1] = aiProposal.data;
@@ -224,9 +357,7 @@ export default function OnboardingWizard() {
       return;
     }
 
-    const delivery: string[] = ['web'];
-    if (deliverWhatsApp) delivery.push('whatsapp');
-    if (shouldRegisterPush) delivery.push('push');
+    const delivery = buildBriefingDelivery({ whatsappLinked, pushGranted });
     try {
       await fetch('/api/briefings/preferences', {
         method: 'PATCH',
@@ -243,15 +374,6 @@ export default function OnboardingWizard() {
       });
     } catch (e) {
       console.error('Failed to save briefing preferences', e);
-    }
-
-    if (shouldRegisterPush) {
-      try {
-        const { registerWebPush } = await import('@/lib/web-push/client');
-        await registerWebPush({ permission: 'granted' });
-      } catch (e) {
-        console.warn('Web push registration failed', e);
-      }
     }
 
     router.push('/app/today');
@@ -339,7 +461,7 @@ export default function OnboardingWizard() {
       <Box sx={{ p: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80 }}>
         {step > 1 && (
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {[2,3,4].map((i) => (
+            {[2,3,4,5,6].map((i) => (
               <Box 
                 key={i} 
                 sx={{ 
@@ -548,9 +670,154 @@ export default function OnboardingWizard() {
           </Fade>
         )}
 
-        {/* Step 4: Final Ritual Contract */}
+        {/* Step 4: Notification Permission (mandatory prompt, no opt-out toggle) */}
         {step === 4 && (
           <Fade in={step === 4} timeout={600}>
+            <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <NotificationsActiveIcon sx={{ fontSize: 72, color: 'primary.light', mb: 3 }} />
+              <Typography variant="overline" sx={{ color: 'primary.light', fontWeight: 700 }}>
+                {t.notif_overline}
+              </Typography>
+              <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, mb: 2, color: '#fff', letterSpacing: '-1px' }}>
+                {t.notif_title}
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 5, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7, maxWidth: 460 }}>
+                {t.notif_desc}
+              </Typography>
+
+              <Button
+                variant="contained"
+                size="large"
+                onClick={enableNotifications}
+                disabled={enablingPush}
+                startIcon={enablingPush ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <NotificationsActiveIcon />}
+                sx={{
+                  py: 2, px: 6, borderRadius: 3, fontSize: 18, fontWeight: 700, textTransform: 'none',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  '&.Mui-disabled': { background: 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)', color: 'rgba(255,255,255,0.85)' },
+                }}
+              >
+                {enablingPush ? t.notif_enabling : t.notif_button}
+              </Button>
+
+              {pushError && (
+                <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <Typography sx={{ color: '#f87171', fontSize: 14, maxWidth: 420 }}>
+                    {pushError === 'unsupported' ? t.delivery_push_unsupported : t.delivery_push_denied}
+                  </Typography>
+                  <Button
+                    variant="text"
+                    onClick={nextStep}
+                    sx={{ mt: 1, color: 'text.secondary', textTransform: 'none' }}
+                  >
+                    {t.notif_continue}
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          </Fade>
+        )}
+
+        {/* Step 5: WhatsApp linking (optional, skippable) */}
+        {step === 5 && (
+          <Fade in={step === 5} timeout={600}>
+            <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <WhatsAppIcon sx={{ fontSize: 72, color: '#25D366', mb: 3 }} />
+              <Typography variant="overline" sx={{ color: 'primary.light', fontWeight: 700 }}>
+                {t.wa_overline}
+              </Typography>
+              <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, mb: 2, color: '#fff', letterSpacing: '-1px' }}>
+                {t.wa_title}
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7, maxWidth: 460 }}>
+                {t.wa_desc}
+              </Typography>
+
+              {waStage === 'idle' ? (
+                <Box sx={{ width: '100%', maxWidth: 420 }}>
+                  <TextField
+                    fullWidth
+                    value={waPhone}
+                    onChange={(e) => setWaPhone(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendWhatsappCode(); } }}
+                    label={t.wa_phone_label}
+                    placeholder="+5511999999999"
+                    disabled={waSubmitting}
+                    sx={{ mb: 1, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
+                  />
+                  <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mb: 3, textAlign: 'left' }}>
+                    {t.wa_phone_hint}
+                    {whatsappInstanceNumber && ` ${t.wa_send_from} ${whatsappInstanceNumber}.`}
+                  </Typography>
+                  <Button
+                    fullWidth variant="contained" size="large"
+                    onClick={sendWhatsappCode}
+                    disabled={waSubmitting || !waPhone.trim()}
+                    startIcon={waSubmitting ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <WhatsAppIcon />}
+                    sx={{ py: 2, borderRadius: 3, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', '&.Mui-disabled': { background: 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)', color: 'rgba(255,255,255,0.85)' } }}
+                  >
+                    {waSubmitting ? t.wa_sending : t.wa_send_code}
+                  </Button>
+                </Box>
+              ) : (
+                <Box sx={{ width: '100%', maxWidth: 420 }}>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                    {t.wa_code_sent}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    value={waCode}
+                    onChange={(e) => setWaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); verifyWhatsappCode(); } }}
+                    label={t.wa_code_label}
+                    inputProps={{ inputMode: 'numeric', maxLength: 6, style: { textAlign: 'center', letterSpacing: '0.4em', fontSize: 22 } }}
+                    disabled={waSubmitting}
+                    sx={{ mb: 3, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
+                  />
+                  <Button
+                    fullWidth variant="contained" size="large"
+                    onClick={verifyWhatsappCode}
+                    disabled={waSubmitting || waCode.length !== 6}
+                    startIcon={waSubmitting ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <CheckCircleIcon />}
+                    sx={{ py: 2, borderRadius: 3, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', '&.Mui-disabled': { background: 'linear-gradient(135deg, #047857 0%, #065f46 100%)', color: 'rgba(255,255,255,0.85)' } }}
+                  >
+                    {waSubmitting ? t.wa_verifying : t.wa_verify}
+                  </Button>
+                  <Button
+                    variant="text"
+                    onClick={() => { setWaStage('idle'); setWaCode(''); setWaError(null); }}
+                    disabled={waSubmitting}
+                    sx={{ mt: 1.5, color: 'text.secondary', textTransform: 'none' }}
+                  >
+                    {t.wa_use_different}
+                  </Button>
+                </Box>
+              )}
+
+              {waError && (
+                <Typography sx={{ color: '#f87171', fontSize: 14, mt: 2, maxWidth: 420 }}>
+                  {waError}
+                </Typography>
+              )}
+
+              <Button
+                variant="text"
+                onClick={skipWhatsapp}
+                disabled={waSubmitting}
+                sx={{ mt: 4, color: 'text.secondary', textTransform: 'none' }}
+              >
+                {t.wa_skip}
+              </Button>
+              <Typography variant="caption" sx={{ color: 'text.disabled', mt: 0.5, maxWidth: 420 }}>
+                {t.wa_skip_hint}
+              </Typography>
+            </Box>
+          </Fade>
+        )}
+
+        {/* Step 6: Final Ritual Contract */}
+        {step === 6 && (
+          <Fade in={step === 6} timeout={600}>
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <CheckCircleIcon sx={{ fontSize: 80, color: 'primary.main', mb: 3 }} />
               <Typography variant="h3" sx={{ fontWeight: 800, mb: 2, color: '#fff', letterSpacing: '-1px', textAlign: 'center' }}>
@@ -640,18 +907,25 @@ export default function OnboardingWizard() {
                     control={<Switch checked disabled />}
                     label={<Typography sx={{ color: 'text.disabled' }}>{t.delivery_web}</Typography>}
                   />
-                  <FormControlLabel
-                    control={<Switch checked={deliverWhatsApp} onChange={(e) => setDeliverWhatsApp(e.target.checked)} />}
-                    label={<Typography sx={{ color: '#fff' }}>{t.delivery_whatsapp}</Typography>}
-                  />
+                  <Box sx={{ pl: 1, py: 0.75, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {whatsappLinked
+                      ? <CheckCircleOutlineIcon sx={{ fontSize: 20, color: '#34d399' }} />
+                      : <WhatsAppIcon sx={{ fontSize: 20, color: 'text.disabled' }} />}
+                    <Box>
+                      <Typography sx={{ color: '#fff', fontWeight: 600 }}>{t.delivery_whatsapp}</Typography>
+                      <Typography sx={{ display: 'block', color: whatsappLinked ? '#34d399' : 'text.disabled', fontSize: 12, mt: 0.25 }}>
+                        {whatsappLinked ? t.wa_connected : t.wa_not_connected}
+                      </Typography>
+                    </Box>
+                  </Box>
                   <Box sx={{ pl: 1, py: 0.75 }}>
                     <Typography sx={{ color: '#fff', fontWeight: 600 }}>{t.delivery_push}</Typography>
-                    <Typography sx={{ display: 'block', color: pushError ? '#f87171' : 'text.disabled', fontSize: 12, mt: 0.5 }}>
-                      {pushError === 'denied'
-                        ? t.delivery_push_denied
+                    <Typography sx={{ display: 'block', color: pushGranted ? '#34d399' : pushError ? '#f87171' : 'text.disabled', fontSize: 12, mt: 0.5 }}>
+                      {pushGranted
+                        ? t.notif_granted
                         : pushError === 'unsupported'
                           ? t.delivery_push_unsupported
-                          : t.delivery_push_hint}
+                          : t.delivery_push_denied}
                     </Typography>
                   </Box>
                 </Stack>

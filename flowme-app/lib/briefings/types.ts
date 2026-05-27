@@ -8,8 +8,13 @@ export interface BriefingSectionResult<T> {
 
 export interface WeatherSection {
   temperature_c: number;
+  feels_like_c?: number | null;
+  precipitation_mm?: number | null;
+  weather_code?: number | null;
+  is_day?: boolean | null;
   condition: string;
   city: string;
+  advice?: string | null;
 }
 
 export interface CalendarEventLite {
@@ -42,8 +47,11 @@ export interface NewsSection {
 
 export interface TrendItem {
   topic: string;
+  headline?: string;
+  subheadline?: string;
+  url?: string | null;
   summary: string;
-  signals: Array<{ quote: string }>;
+  signals: Array<{ quote: string; url?: string | null }>;
 }
 
 export interface TrendsSection {

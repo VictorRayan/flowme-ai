@@ -115,11 +115,12 @@ export async function updateCalendarEvent(linkedAccountId: string, eventId: stri
     const event: calendar_v3.Schema$Event = {};
     if (params.title !== undefined) event.summary = params.title;
     if (params.description !== undefined) event.description = params.description;
-    if (params.startAt !== undefined) event.start = { dateTime: params.startAt };
-    if (params.endAt !== undefined) event.end = { dateTime: params.endAt };
+    if (params.startAt !== undefined) event.start = buildGoogleEventTime(params.startAt, params.timeZone);
+    if (params.endAt !== undefined) event.end = buildGoogleEventTime(params.endAt, params.timeZone);
     if (params.participants !== undefined) event.attendees = params.participants.map(email => ({ email }));
     if (params.location !== undefined) event.location = params.location;
     if (params.reminders !== undefined) event.reminders = params.reminders;
+    if (params.recurrence !== undefined) event.recurrence = params.recurrence;
 
     if (params.createMeet) {
       event.conferenceData = {

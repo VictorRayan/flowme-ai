@@ -35,3 +35,7 @@ npm-debug.log*
 tree.json
 patch_route.js
 patch_route.py
+
+# Playwright artifacts
+/playwright-report/
+/test-results/

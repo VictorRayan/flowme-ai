@@ -107,24 +107,67 @@ You must ALWAYS return your response as a strict JSON object with this exact sch
 Do NOT wrap the JSON in markdown code blocks. Just return the raw JSON object.
 `;
 
+// Models sometimes emit JSON with raw line breaks (and other control chars)
+// inside string values, which is invalid JSON and makes JSON.parse throw.
+// Escape control characters that appear *inside* strings so the payload parses,
+// while leaving structural whitespace between tokens untouched.
+function escapeControlCharsInStrings(text: string): string {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { out += ch; escaped = false; continue; }
+    if (ch === '\\') { out += ch; escaped = true; continue; }
+    if (ch === '"') { out += ch; inString = !inString; continue; }
+    if (inString && ch.charCodeAt(0) < 0x20) {
+      if (ch === '\n') out += '\\n';
+      else if (ch === '\r') out += '\\r';
+      else if (ch === '\t') out += '\\t';
+      else out += '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0');
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
 // Tolerant parser: if the model returned prose instead of JSON, salvage the
 // text as a clarifying response so the onboarding does not freeze.
 export function parseAssistantPayload(rawText: string): any | null {
   if (!rawText) return null;
   const cleaned = rawText.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const braceStart = cleaned.indexOf('{');
-    const braceEnd = cleaned.lastIndexOf('}');
-    if (braceStart >= 0 && braceEnd > braceStart) {
-      const candidate = cleaned.slice(braceStart, braceEnd + 1);
-      try { return JSON.parse(candidate); } catch { /* fall through */ }
-    }
-    const prose = cleaned.replace(/^[`"'\s]+|[`"'\s]+$/g, '');
-    if (!prose) return null;
-    return { response: prose, type: 'clarification' };
+
+  const candidates = [cleaned, escapeControlCharsInStrings(cleaned)];
+  const braceStart = cleaned.indexOf('{');
+  const braceEnd = cleaned.lastIndexOf('}');
+  if (braceStart >= 0 && braceEnd > braceStart) {
+    const slice = cleaned.slice(braceStart, braceEnd + 1);
+    candidates.push(slice, escapeControlCharsInStrings(slice));
   }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch { /* try next candidate */ }
+  }
+
+  // Safety net: the blob still won't parse but clearly holds a `response`
+  // field — extract its text so we never render raw JSON to the user.
+  if (cleaned.includes('"response"')) {
+    const match = cleaned.match(/"response"\s*:\s*"((?:[^"\\]|\\.)*?)"\s*(?:,|})/);
+    if (match) {
+      const text = match[1]
+        .replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      const typeMatch = cleaned.match(/"type"\s*:\s*"(clarification|proposal)"/);
+      return { response: text, type: typeMatch ? typeMatch[1] : 'clarification' };
+    }
+  }
+
+  const prose = cleaned.replace(/^[`"'\s]+|[`"'\s]+$/g, '');
+  if (!prose) return null;
+  return { response: prose, type: 'clarification' };
 }
 
 function userChoseToScheduleLater(messages: Array<{ role: string; content: string }>): boolean {

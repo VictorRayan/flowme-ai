@@ -973,9 +973,10 @@ RETURNS receipt: { deleted_kind, calendar_events_deleted, calendar_events_failed
         : null;
       const calendarEvents = goalTargets?.calendar_events ?? planTargets?.calendar_events ?? [];
 
+      const shouldDeleteEvents = args.delete_calendar_events !== false;
       let deletedEvents = 0;
       let failedEvents = 0;
-      if (args.delete_calendar_events) {
+      if (shouldDeleteEvents) {
         const liveEvents = calendarEvents.filter(event => event.status !== 'deleted');
         const eventResults = await Promise.all(liveEvents.map(async (event) => {
           try {
@@ -1005,7 +1006,7 @@ RETURNS receipt: { deleted_kind, calendar_events_deleted, calendar_events_failed
           deleted_kind: deletedKind,
           calendar_events_deleted: deletedEvents,
           calendar_events_failed: failedEvents,
-          summary: `Deleted the ${deletedKind === 'goal' ? 'goal and everything under it' : 'action plan'}.${args.delete_calendar_events ? ` Removed ${deletedEvents} calendar event(s)${failedEvents > 0 ? `, ${failedEvents} could not be cancelled` : ''}.` : ' Kept the existing calendar events.'}`,
+          summary: `Deleted the ${deletedKind === 'goal' ? 'goal and everything under it' : 'action plan'}.${shouldDeleteEvents ? ` Removed ${deletedEvents} calendar event(s)${failedEvents > 0 ? `, ${failedEvents} could not be cancelled` : ''}.` : ' Kept the existing calendar events.'}`,
         },
       };
     } catch (error) {

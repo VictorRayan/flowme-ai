@@ -26,12 +26,15 @@
     - Implementado: etapa dedicada de WhatsApp no onboarding (telefone → código → verificação) reusando /api/whatsapp/channel (Evolution API), com instrução de lembretes e opção "Pular por enquanto" (configurável depois em Configurações › Canais). Tela final mostra status "WhatsApp conectado".
     - Validado: unit 399 testes passando; e2e Playwright (vincular + pular) passando contra app local.
 
-6. Deleção e remanejamento de eventos de plano de ação OU Goal. 
-    - Balys deve ser capaz de entender que evento existia e foi deletado caso usuário pergunte sobre evento, goal ou plano.
-    - Balys deve ser capaz de remanejar todos os eventos e eventos específicos de acordo com preferência de recorrência e horário, ou dias específicos, do usuário.
-    - Balys deve ser capaz de restaurar eventos deletados.
-    - Balys deve ser capaz de deletar goal ou plano de ação.
+6. Deleção e remanejamento de eventos de plano de ação OU Goal.  ✅ CONCLUÍDO (2026-05-26)
+    - Balys deve ser capaz de entender que evento existia e foi deletado caso usuário pergunte sobre evento, goal ou plano.  ✅ tool `goals.list_calendar_events` retorna eventos ativos E deletados (status + data de deleção).
+    - Balys deve ser capaz de remanejar todos os eventos e eventos específicos de acordo com preferência de recorrência e horário, ou dias específicos, do usuário.  ✅ tool `goals.reschedule_calendar_events` (horário + recorrência/dias; alvo: meta, plano, eventos específicos ou todos).
+    - Balys deve ser capaz de restaurar eventos deletados.  ✅ tool `goals.restore_calendar_events` (recria no Google com horário/recorrência originais).
+    - Balys deve ser capaz de deletar goal ou plano de ação.  ✅ tool `goals.delete_plan` (cascata: sub-metas, planos, tasks e eventos; exige confirmação).
     -  Testar end2end localmente e monitorar logs.
+    - Detalhes: migration 036 (coluna `recurrence` em goal_calendar_events); helpers em `lib/goals/calendar-event-links.ts` e `lib/goals/delete-plan.ts`; `updateCalendarEvent` passou a aceitar recorrência; BALYS.md atualizado; tools registrados em `registry.ts`.
+    - Validado: unit 418 testes passando (`npm test`) e typecheck limpo nos arquivos de produção tocados.
+    - Observação: validação e2e real (app local + Google Calendar/Supabase, simulação do usuário victorrayansouzaramos@gmail.com) e monitoria de logs não foi executada neste ambiente por falta de credenciais — recomendado rodar localmente antes do deploy.
 
 
 7. ✅ CONCLUÍDO — Visibilidade de modelo e gasto de tokens por conta em Settings.

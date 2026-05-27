@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 import { finishButtonLabel, proposalButtonLabel } from '@/lib/onboarding/proposal-button';
 import { buildBriefingDelivery } from '@/lib/onboarding/briefing-delivery';
+import { isAcceptProposalIntent } from '@/lib/onboarding/accept-intent';
 import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
 
 const dict = {
@@ -408,7 +409,15 @@ export default function OnboardingWizard() {
 
   const sendMessage = async () => {
     if (!inputValue.trim()) return;
-    
+
+    // If a proposal is on screen, typing an acceptance ("aceitar proposta")
+    // confirms it just like clicking the accept button.
+    if (aiProposal?.data && isAcceptProposalIntent(inputValue)) {
+      setInputValue('');
+      acceptCurrentProposal();
+      return;
+    }
+
     const userMsg = inputValue;
     setInputValue('');
     const currentHistory = [...chatHistory];

@@ -24,6 +24,22 @@ describe('parseAssistantPayload', () => {
     });
   });
 
+  it('parses JSON that has unescaped line breaks inside a string value', () => {
+    const raw = '{\n  "response": "Perfeito, 1 hora por dia é ótimo!\n\nEm que horário você prefere?",\n  "type": "clarification"\n}';
+    expect(parseAssistantPayload(raw)).toEqual({
+      response: 'Perfeito, 1 hora por dia é ótimo!\n\nEm que horário você prefere?',
+      type: 'clarification',
+    });
+  });
+
+  it('never leaks a raw JSON blob into the response field', () => {
+    const raw = '{\n  "response": "Que maravilha! Vamos começar.",\n  "type": "proposal"\n}';
+    const result = parseAssistantPayload(raw);
+    expect(result.response).toBe('Que maravilha! Vamos começar.');
+    expect(result.response).not.toContain('"type"');
+    expect(result.type).toBe('proposal');
+  });
+
   it('returns null for empty input', () => {
     expect(parseAssistantPayload('')).toBeNull();
     expect(parseAssistantPayload('   ')).toBeNull();

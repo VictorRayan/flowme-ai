@@ -8,6 +8,7 @@ import { weatherAdvice } from './weather-advice';
 import type {
   BriefingSectionResult,
   BriefingSections,
+  BriefingSlot,
   CalendarEventLite,
   CalendarSection,
   GoalSection,
@@ -34,7 +35,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-async function weatherSection(ctx: ToolContext, city: string | null | undefined, slot: 'morning' | 'evening'): Promise<BriefingSectionResult<WeatherSection>> {
+async function weatherSection(ctx: ToolContext, city: string | null | undefined, slot: BriefingSlot): Promise<BriefingSectionResult<WeatherSection>> {
   if (!city) return fail('Sem cidade configurada');
   try {
     const result: any = await withTimeout(weatherGetTool.call({ city }, ctx), SECTION_TIMEOUT_MS, 'weather');
@@ -67,14 +68,15 @@ async function weatherSection(ctx: ToolContext, city: string | null | undefined,
   }
 }
 
-async function calendarSection(ctx: ToolContext, slot: 'morning' | 'evening'): Promise<BriefingSectionResult<CalendarSection>> {
+async function calendarSection(ctx: ToolContext, slot: BriefingSlot): Promise<BriefingSectionResult<CalendarSection>> {
   try {
     const now = new Date();
     const end = new Date(now);
-    if (slot === 'morning') {
+    if (slot === 'evening') {
+      // Evening looks ahead to tomorrow; morning/afternoon stay within today.
+      end.setDate(end.getDate() + 1);
       end.setHours(23, 59, 59, 999);
     } else {
-      end.setDate(end.getDate() + 1);
       end.setHours(23, 59, 59, 999);
     }
     const result: any = await withTimeout(
@@ -135,30 +137,85 @@ export function dateInTimezone(date: Date, timezone: string): string {
   return `${map.year}-${map.month}-${map.day}`;
 }
 
+function clampSentence(text: string, max: number): string {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  if (lastStop > max * 0.5) return cut.slice(0, lastStop + 1).trim();
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trim()}…`;
+}
+
+function titleCase(topic: string): string {
+  const t = topic.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function newsQuery(topic: string): string {
+  return `Liste as 3 notícias mais recentes e relevantes sobre "${topic}". Para cada uma, dê um headline curto e factual e um subheadline de no máximo uma frase resumindo o fato principal. Responda APENAS com JSON válido, sem markdown, no formato: {"items":[{"headline":"...","subheadline":"..."}]}`;
+}
+
+function parseNewsItems(answer: string): Array<{ headline: string; subheadline: string }> {
+  if (!answer) return [];
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(answer);
+  } catch {
+    const match = answer.match(/\{[\s\S]*\}/);
+    if (match) { try { parsed = JSON.parse(match[0]); } catch { parsed = null; } }
+  }
+  const raw = Array.isArray(parsed?.items) ? parsed.items : Array.isArray(parsed) ? parsed : [];
+  return raw
+    .map((it: any) => ({
+      headline: clampSentence(String(it?.headline || it?.title || ''), 120),
+      subheadline: clampSentence(String(it?.subheadline || it?.summary || it?.description || ''), 200),
+    }))
+    .filter((it: { headline: string }) => it.headline.length > 0)
+    .slice(0, 3);
+}
+
 async function newsSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<NewsSection>> {
   const activeTopics = normalizeTopics(topics);
   try {
-    const queries = activeTopics.map((t) => `Notícias recentes sobre ${t}`);
     const results = await Promise.allSettled(
-      queries.map((q) => withTimeout(webGroundedSearchTool.call({ query: q }, ctx), SECTION_TIMEOUT_MS, `news:${q}`)),
+      activeTopics.map((topic) => withTimeout(webGroundedSearchTool.call({ query: newsQuery(topic) }, ctx), SECTION_TIMEOUT_MS, `news:${topic}`)),
     );
 
     const by_topic = results.map((settled, idx) => {
+      const topic = activeTopics[idx];
       if (settled.status !== 'fulfilled' || !(settled.value as any).ok) {
-        return { topic: activeTopics[idx], items: [] as NewsItem[] };
+        return { topic, items: [] as NewsItem[] };
       }
       const value: any = settled.value;
       const answer = String(value.receipt?.answer || '');
       const citations: any[] = value.receipt?.citations || [];
-      const items: NewsItem[] = citations.length > 0
-        ? citations.slice(0, 3).map((c) => ({
-          title: String(c.title || 'Notícia'),
-          summary: answer.slice(0, 220),
-          url: c.url || null,
-          source: hostname(c.url),
-        }))
-        : answer ? [{ title: activeTopics[idx], summary: answer.slice(0, 260), url: null, source: null }] : [];
-      return { topic: activeTopics[idx], items };
+      const parsed = parseNewsItems(answer);
+
+      let items: NewsItem[];
+      if (parsed.length > 0) {
+        items = parsed.map((p, i) => {
+          const citation = citations[i] || citations[0] || null;
+          return {
+            title: p.headline,
+            summary: p.subheadline,
+            url: citation?.url || null,
+            source: citation ? (citation.title || hostname(citation.url)) : null,
+          };
+        });
+      } else if (answer.trim()) {
+        // Structured parse failed — emit ONE concise item, never the full repeated block.
+        const citation = citations[0] || null;
+        items = [{
+          title: titleCase(topic),
+          summary: clampSentence(answer, 200),
+          url: citation?.url || null,
+          source: citation ? (citation.title || hostname(citation.url)) : null,
+        }];
+      } else {
+        items = [];
+      }
+      return { topic, items };
     });
 
     const anyHit = by_topic.some((t) => t.items.length > 0);
@@ -169,6 +226,10 @@ async function newsSection(ctx: ToolContext, topics: string[]): Promise<Briefing
   }
 }
 
+// "No ar agora" shows ONLY real X.com (Twitter) trends — headline + subheadline
+// consolidated from the live conversation. No web/Gemini fallback: when X has
+// nothing (or the API has no credit), the section stays empty instead of
+// surfacing generic web summaries.
 async function trendsSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<TrendsSection>> {
   const activeTopics = normalizeTopics(topics);
   try {
@@ -180,40 +241,15 @@ async function trendsSection(ctx: ToolContext, topics: string[]): Promise<Briefi
     if (result.ok && Array.isArray(result.receipt?.trends) && result.receipt.trends.length > 0) {
       return ok({ trends: result.receipt.trends });
     }
-    return await trendsFallbackSection(ctx, activeTopics);
+    return fail(result.error || 'Sem trends do X agora');
   } catch (err: any) {
-    try {
-      return await trendsFallbackSection(ctx, activeTopics);
-    } catch {
-      return fail(err?.message || 'trends failure');
-    }
+    return fail(err?.message || 'trends failure');
   }
 }
 
 function normalizeTopics(topics: string[]): string[] {
   const cleaned = topics.map(topic => topic.trim()).filter(Boolean).slice(0, 3);
   return cleaned.length > 0 ? cleaned : DEFAULT_BRIEFING_TOPICS;
-}
-
-async function trendsFallbackSection(ctx: ToolContext, topics: string[]): Promise<BriefingSectionResult<TrendsSection>> {
-  const results = await Promise.allSettled(
-    topics.map((topic) => withTimeout(
-      webGroundedSearchTool.call({ query: `O que está em alta agora no X/Twitter e redes sociais sobre ${topic}` }, ctx),
-      SECTION_TIMEOUT_MS,
-      `trends-fallback:${topic}`,
-    )),
-  );
-  const trends = results.flatMap((settled, idx) => {
-    if (settled.status !== 'fulfilled' || !(settled.value as any).ok) return [];
-    const answer = String((settled.value as any).receipt?.answer || '').trim();
-    if (!answer) return [];
-    return [{
-      topic: topics[idx],
-      summary: answer.slice(0, 220),
-      signals: [],
-    }];
-  });
-  return trends.length > 0 ? ok({ trends }) : fail('Sem trends agora');
 }
 
 function hostname(url: any): string | null {
@@ -223,7 +259,7 @@ function hostname(url: any): string | null {
 
 export async function composeBriefing(
   ctx: ToolContext,
-  options: { slot: 'morning' | 'evening'; news_topics: string[]; city: string | null | undefined },
+  options: { slot: BriefingSlot; news_topics: string[]; city: string | null | undefined },
 ): Promise<BriefingSections> {
   const [weather, calendar, goal, news, trends] = await Promise.all([
     weatherSection(ctx, options.city, options.slot),

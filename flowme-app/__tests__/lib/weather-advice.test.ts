@@ -30,4 +30,24 @@ describe('weatherAdvice', () => {
       condition: 'Clear sky',
     })).toBe('Manhã quente: roupa leve, água e protetor se for ficar na rua.');
   });
+
+  it('gives an afternoon-specific message when it is hot', () => {
+    expect(weatherAdvice({
+      slot: 'afternoon',
+      temperature_c: 32,
+      feels_like_c: 34,
+      precipitation_mm: 0,
+      condition: 'Clear sky',
+    })).toBe('Tarde quente: hidrate-se e evite o sol forte.');
+  });
+
+  it('suggests an umbrella for a rainy afternoon', () => {
+    expect(weatherAdvice({
+      slot: 'afternoon',
+      temperature_c: 24,
+      precipitation_mm: 0,
+      weather_code: 80,
+      condition: 'Showers',
+    })).toBe('Tarde com chuva: tenha um guarda-chuva à mão.');
+  });
 });

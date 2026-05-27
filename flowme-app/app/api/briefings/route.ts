@@ -17,13 +17,20 @@ function todayInTimezone(timezone: string): string {
   }
 }
 
+function slotForHour(hour: number): BriefingSlot {
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+}
+
 function inferSlot(timezone: string): BriefingSlot {
   try {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, hour: '2-digit', hour12: false }).formatToParts(new Date());
-    const hour = parts.find((p) => p.type === 'hour')?.value || '0';
-    return parseInt(hour, 10) < 18 ? 'morning' : 'evening';
+    const raw = parts.find((p) => p.type === 'hour')?.value || '0';
+    const hour = parseInt(raw === '24' ? '0' : raw, 10);
+    return slotForHour(hour);
   } catch {
-    return new Date().getHours() < 18 ? 'morning' : 'evening';
+    return slotForHour(new Date().getHours());
   }
 }
 
@@ -53,7 +60,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     const timezone = profile?.briefing_timezone || 'UTC';
-    const slot: BriefingSlot = (slotParam === 'morning' || slotParam === 'evening') ? slotParam : inferSlot(timezone);
+    const slot: BriefingSlot = (slotParam === 'morning' || slotParam === 'afternoon' || slotParam === 'evening') ? slotParam : inferSlot(timezone);
     const date = todayInTimezone(timezone);
 
     if (!force) {

@@ -1,4 +1,4 @@
-export type BriefingSlot = 'morning' | 'evening';
+export type BriefingSlot = 'morning' | 'afternoon' | 'evening';
 
 export interface BriefingSectionResult<T> {
   ok: boolean;

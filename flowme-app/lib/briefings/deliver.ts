@@ -5,7 +5,9 @@ import type { BriefingSections, BriefingSlot } from './types';
 type SupabaseLike = { from(table: string): any };
 
 function greeting(slot: BriefingSlot): string {
-  return slot === 'morning' ? 'Bom dia' : 'Boa noite';
+  if (slot === 'morning') return 'Bom dia';
+  if (slot === 'afternoon') return 'Boa tarde';
+  return 'Boa noite';
 }
 
 function appTodayUrl(): string {

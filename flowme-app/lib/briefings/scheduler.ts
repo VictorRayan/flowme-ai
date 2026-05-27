@@ -5,6 +5,7 @@ type SupabaseLike = { from(table: string): any };
 export interface BriefingUser {
   user_id: string;
   morning_briefing_time: string | null;
+  afternoon_briefing_time: string | null;
   evening_briefing_time: string | null;
   briefing_timezone: string | null;
   news_topics: string[];
@@ -57,7 +58,7 @@ export async function findDueSlots(
 ): Promise<DueSlot[]> {
   const { data, error } = await supabase
     .from('user_profile')
-    .select('user_id, morning_briefing_time, evening_briefing_time, briefing_timezone, news_topics, briefing_delivery, briefing_city')
+    .select('user_id, morning_briefing_time, afternoon_briefing_time, evening_briefing_time, briefing_timezone, news_topics, briefing_delivery, briefing_city')
     .eq('daily_routine_enabled', true);
   if (error) {
     console.error('[scheduler.findDueSlots] error:', error);
@@ -68,6 +69,7 @@ export async function findDueSlots(
     const user: BriefingUser = {
       user_id: row.user_id,
       morning_briefing_time: row.morning_briefing_time,
+      afternoon_briefing_time: row.afternoon_briefing_time,
       evening_briefing_time: row.evening_briefing_time,
       briefing_timezone: row.briefing_timezone,
       news_topics: row.news_topics || [],
@@ -79,6 +81,9 @@ export async function findDueSlots(
     const minutesNow = localNow.hours * 60 + localNow.minutes;
     if (isSlotDue(user.morning_briefing_time, minutesNow)) {
       due.push({ user, slot: 'morning', briefing_date: localNow.date });
+    }
+    if (isSlotDue(user.afternoon_briefing_time, minutesNow)) {
+      due.push({ user, slot: 'afternoon', briefing_date: localNow.date });
     }
     if (isSlotDue(user.evening_briefing_time, minutesNow)) {
       due.push({ user, slot: 'evening', briefing_date: localNow.date });

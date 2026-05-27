@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const { supabase, user } = await requireAuth(req);
     const { data, error } = await supabase
       .from('user_profile')
-      .select('morning_briefing_time, evening_briefing_time, briefing_timezone, news_topics, briefing_delivery, daily_routine_enabled, briefing_city')
+      .select('morning_briefing_time, afternoon_briefing_time, evening_briefing_time, briefing_timezone, news_topics, briefing_delivery, daily_routine_enabled, briefing_city')
       .eq('user_id', user.id)
       .maybeSingle();
     if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
@@ -33,6 +33,12 @@ export async function PATCH(req: NextRequest) {
         return apiError(ErrorCode.VALIDATION_ERROR, 'morning_briefing_time must be HH:MM');
       }
       update.morning_briefing_time = body.morning_briefing_time;
+    }
+    if (typeof body.afternoon_briefing_time === 'string' || body.afternoon_briefing_time === null) {
+      if (body.afternoon_briefing_time !== null && !TIME_RE.test(body.afternoon_briefing_time)) {
+        return apiError(ErrorCode.VALIDATION_ERROR, 'afternoon_briefing_time must be HH:MM');
+      }
+      update.afternoon_briefing_time = body.afternoon_briefing_time;
     }
     if (typeof body.evening_briefing_time === 'string' || body.evening_briefing_time === null) {
       if (body.evening_briefing_time !== null && !TIME_RE.test(body.evening_briefing_time)) {

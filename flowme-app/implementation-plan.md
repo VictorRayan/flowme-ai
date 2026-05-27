@@ -1,21 +1,23 @@
-1. Bug no onboarding, não está criando eventos: 
+1. [CONCLUIDO] Bug no onboarding, não está criando eventos: 
   - Balys não está confirmando horário exato de atividade diária do goal.
   - Mesmo confirmando horario exato, eventos não são criados.
   - Comportamento esperado: Balys criar eventos com recorrência (ex: todo dia as 10am - criar um evento com recorrência para todo dia as 10am, se for seg a sex 10am e sabado e domingo as 21h então criar dois eventos recorrentes com horarios distintos de acordo)
   - Subir aplicação localmente e rodar teste do onboarding, checar e corrigir em realtime no código do repositório. (End to End test)
 
-2. Matar conceito de microactivities
+2.[CONCLUIDO] Matar conceito de microactivities
     - Não deve existir essa entidade e nenhum fluxo no projeto com microactivities. 
     - Matar tag negotiable e non-negotiable, não deve existir mais na plataforma e no banco de dados. 
     - Tudo é evento, plano de ação de 21 dias resulta em eventos criados, com ou sem recorrência de acordo com a necessidade. Goal também resulta em eventos criados do Google Calenddar.
     - Eventos do Google Calendar devem ser exibidos em trilha.
     - Após ajustes, testar end2end localmente e monitorar logs.
 
-3. Card bom dia e boa noite não estão trazendo notícias e trends. 
+3. [CONCLUIDO] Card bom dia e boa noite não estão trazendo notícias e trends. 
     - Notícias pelo Gemini Web Search deveria trazer, investigar logs localmente subindo app e ajustar no código.
     - Trends do Twitter não deveria trazer, pois está sem credito na API mesmo.
     - WhatsApp briefing (horario que o usuário define no onboarding), deve mandar para o usuário notícias e trendings também do X.com quando presente.
     - Ajustar e testar end2end localmente e monitorar logs.
+    - Refino (2026-05-26): notícias agora exibem headline + subheadline distintos por item (Gemini retorna JSON estruturado, parser valida e corta em fronteira de frase — sem "textão" repetido); "No Ar Agora" passou a mostrar SOMENTE trends do X.com (removido o fallback via Gemini), vazio quando o X não tem dados; adicionado slot "Boa tarde" (afternoon) ponta a ponta: tipo, composer, scheduler, inferSlot 3 faixas, conselho de clima, saudação e migration 037 (coluna afternoon_briefing_time). Validado: 429 testes passando + parser de notícias confirmado contra o Gemini real.
+    - Pendente neste push: o picker de horário "Boa tarde" no onboarding (afternoon_briefing_time) ficou retido porque app/onboarding/page.tsx está sendo co-editado pela Task 9 (PlatformTour ainda não commitada). Sem ele, o card da tarde funciona sob demanda, mas a ENTREGA agendada da tarde só dispara após persistir o horário. Subir junto quando a Task 9 for commitada.
 
 4. [CONCLUÍDO] Notificações Browser (web push), no onboarding obrigatóriamente (usuário não deve ter togle) deve pedir para o usuário com instrução, par ativar notificação no navegador, além do mais deve aparecer o pop-up do browser para ja ativar, sem o usuário leigo ter que acessar as configurações.
     - Popup de instrução para ativar notificações no onboarding pós usuário submeter infos dos goals, deve dizer ao usuário que serve para enviar lembretes.
@@ -42,11 +44,14 @@
     - Testar end2end localmente e monitorar logs.
     - Feito: removido card "AI Spend & Tokens" + código cliente morto; deletado endpoint /api/ai/spend; removidas strings i18n órfãs (EN/PT); removidos valores em $ das labels de Council mode. Verificado: 399 testes passando, build compila sem erros, /app/settings serve sem erro 500.
 
-8. Visibilidade de modelo de LLM em criação e edição de notas
+8. ✅ CONCLUÍDO — Visibilidade de modelo de LLM em criação e edição de notas
     - Não deve existir essa visibilidade. Usuário final não deve saber de modelo de LLM e gastos, excluir visibilidade de modelo de LLM em criação e edição de notas.
     - Testar end2end localmente e monitorar logs.
+    - Feito: removido do editor de notas (`components/notes/NoteEditor.tsx`) o seletor de modelo de transcrição (dropdown com nomes de modelo + badges de provider Gemini/OpenAI) e os nomes de modelo nos tooltips do microfone ("Transcrevendo..." / "Gravar nota de voz", sem citar modelo). A transcrição de voz do Daily Briefing continua funcionando — o servidor usa o modelo padrão (`/api/notes/transcribe`), sem expor a escolha ao usuário. Removido o estado/lógica do seletor (fetch a `/api/ai/models`, localStorage, handlers) e deletado o endpoint órfão `app/api/ai/models/route.ts` (mesma limpeza da task 7).
+    - Validado: build `next build` compila sem erros; 423/424 testes passando (a única falha é em `briefings.test.ts`, trabalho pré-existente não commitado da task 3, sem relação com notas).
+    - Observação: validação e2e real (gravar/transcrever nota com app local + simulação do usuário victorrayansouzaramos@gmail.com) e monitoria de logs não foi executada neste ambiente por falta de credenciais — recomendado rodar localmente antes do deploy.
 
-9. No onboarding adicionar popup explicativo da plataforma
+9. No onboarding pos metas e notificacões, adicionar popup explicativo da plataforma
     - 1. Como usar Balys 
          - Para que balys serve
          - Habilidades do balys (listar 1 a 1 com use cases reais - criar use-cases)

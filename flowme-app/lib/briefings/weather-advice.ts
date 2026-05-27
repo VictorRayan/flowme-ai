@@ -1,4 +1,4 @@
-type BriefingSlot = 'morning' | 'evening';
+type BriefingSlot = 'morning' | 'afternoon' | 'evening';
 
 export type WeatherAdviceInput = {
   slot: BriefingSlot;
@@ -31,6 +31,14 @@ export function weatherAdvice(input: WeatherAdviceInput): string {
     if (cold) return 'Noite fria: vale sair com agasalho.';
     if (hot) return 'Noite quente: roupa leve e água por perto ajudam.';
     return 'Clima tranquilo para a noite.';
+  }
+
+  if (input.slot === 'afternoon') {
+    if (rainy && cold) return 'Tarde fria e com chuva: leva agasalho e guarda-chuva.';
+    if (rainy) return 'Tarde com chuva: tenha um guarda-chuva à mão.';
+    if (cold) return 'Tarde fria: um agasalho cai bem.';
+    if (hot) return 'Tarde quente: hidrate-se e evite o sol forte.';
+    return 'Tarde tranquila lá fora.';
   }
 
   if (rainy && cold) return 'Manhã fria e com chuva: sai de agasalho e guarda-chuva.';

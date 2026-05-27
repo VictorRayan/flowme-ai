@@ -9,6 +9,7 @@ import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import ElectricalServicesIcon from '@mui/icons-material/ElectricalServices';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import TodayIcon from '@mui/icons-material/Today';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import Link from 'next/link';
 import { type UiLang, resolveUiLang } from '@/lib/i18n';
@@ -21,6 +22,7 @@ const ICONS: Record<TutorialIconId, React.ElementType> = {
   connections: ElectricalServicesIcon,
   goals: TrackChangesIcon,
   calendar: CalendarMonthIcon,
+  today: TodayIcon,
 };
 
 export default function TutorialsPage() {

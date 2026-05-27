@@ -3,6 +3,7 @@
 import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
+import { intlLocale } from '@/lib/datetime';
 import {
   Box, Typography, Button, Paper, List, ListItem, ListItemText,
   IconButton, Chip, Dialog, DialogTitle, DialogContent,
@@ -459,7 +460,7 @@ function ConnectorsContent() {
                             }
                             secondary={
                               <Typography variant="caption" color="text.disabled">
-                                {t.added} {new Date(connector.created_at).toLocaleDateString()}
+                                {t.added} {new Date(connector.created_at).toLocaleDateString(intlLocale(uiLang))}
                                 {authorized && ` · ${t.balysCanRead}`}
                               </Typography>
                             }

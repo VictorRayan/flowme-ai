@@ -8,6 +8,7 @@ import NotesTree, { NoteItem, PersonItem } from '@/components/notes/NotesTree';
 import NoteEditor from '@/components/notes/NoteEditor';
 import DeleteConfirmDialog from '@/components/notes/DeleteConfirmDialog';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
+import { formatDate } from '@/lib/datetime';
 
 interface FullNote extends Omit<NoteItem, 'note_type'> {
   content: object | null;
@@ -190,7 +191,7 @@ export default function NotesPage() {
     await handleNewNote({
       date: today,
       note_type: 'daily_briefing',
-      title: `Daily Briefing — ${dayjs().format('MMM D, YYYY')}`,
+      title: UI[uiLang].notes.briefingTitle(formatDate(new Date(), 'MMM D, YYYY', uiLang)),
     });
   };
 
@@ -233,6 +234,7 @@ export default function NotesPage() {
           onDeletePerson={(id, name) => setDeleteTarget({ kind: 'person', id, name })}
           onNewNote={handleNewNote}
           onNewDailyBriefing={handleNewDailyBriefing}
+          lang={uiLang}
         />
       </Box>
 
@@ -241,6 +243,7 @@ export default function NotesPage() {
           note={selectedNote}
           onSave={handleSave}
           saving={saving}
+          lang={uiLang}
           onRename={selectedNote?.event_id?.startsWith('person:') ? async (newName) => {
             const personId = selectedNote.event_id!.replace('person:', '');
             await handleRenamePerson(personId, newName);

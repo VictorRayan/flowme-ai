@@ -448,6 +448,7 @@ export default function CalendarPage() {
           setDayDetailOpen(false);
           setEventEditorOpen(true);
         }}
+        lang={uiLang}
       />
 
       <LinkAccountModal 

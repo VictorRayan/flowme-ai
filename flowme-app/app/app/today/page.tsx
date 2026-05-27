@@ -14,6 +14,7 @@ import SkipNextIcon       from '@mui/icons-material/SkipNext';
 import Link               from 'next/link';
 import dayjs              from 'dayjs';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
+import { formatDate } from '@/lib/datetime';
 import BriefingPill from '@/components/briefings/BriefingPill';
 import BriefingDialog, { type BriefingSections } from '@/components/briefings/BriefingDialog';
 
@@ -413,7 +414,7 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, 
             </Typography>
           )}
           <Typography sx={{ fontWeight:800, fontSize:{xs:15,md:17}, letterSpacing:'-0.2px', color:'#fff', lineHeight:1 }}>
-            {dayjs(day.date).format(isToday ? 'dddd, MMM D' : 'ddd, MMM D')}
+            {formatDate(day.date, isToday ? 'dddd, MMM D' : 'ddd, MMM D', uiLang)}
           </Typography>
         </Box>
 
@@ -613,7 +614,7 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
           }} onClick={e=>e.stopPropagation()}>
             <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{mb:0.6}}>
               {task.source_type==='calendar_event' && (
-                <Chip size="small" icon={<CalendarTodayIcon/>} label="Cal"
+                <Chip size="small" icon={<CalendarTodayIcon/>} label={t.calendarChip}
                   sx={{height:18,fontSize:10,bgcolor:'rgba(99,102,241,0.15)',color:'#a5b4fc',
                     '& .MuiChip-icon':{fontSize:11,color:'#a5b4fc'}}}/>
               )}
@@ -638,7 +639,7 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
               }}>
                 <TrackChangesIcon sx={{fontSize:10,color:'#fbbf24'}}/>
                 <Typography sx={{fontSize:10,color:'#fbbf24',fontWeight:600,lineHeight:1}}>
-                  {task.action_plan_title}{task.plan_day?` · Day ${task.plan_day}`:''}
+                  {task.action_plan_title}{task.plan_day?` · ${t.dayPrefix(task.plan_day)}`:''}
                 </Typography>
               </Box>
             )}

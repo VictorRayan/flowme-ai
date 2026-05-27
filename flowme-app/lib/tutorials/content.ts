@@ -1,6 +1,6 @@
 export type TutorialLang = 'en' | 'pt';
 
-export type TutorialIconId = 'balys' | 'notes' | 'briefing' | 'connections' | 'goals' | 'calendar';
+export type TutorialIconId = 'balys' | 'notes' | 'briefing' | 'connections' | 'goals' | 'calendar' | 'today';
 
 export type TutorialBlock =
   | { kind: 'heading'; text: string }
@@ -116,6 +116,33 @@ const TUTORIALS: Record<TutorialLang, Tutorial[]> = {
         ] },
         { kind: 'usecase', title: 'Caso real: importar de ChatGPT ou Claude', text: 'Peça ao ChatGPT ou Claude um resumo do seu dia com um prompt como "Resuma em tópicos meus compromissos, prioridades e reflexões de hoje". Copie a resposta, abra o Balys e cole dizendo "anota isso no meu briefing". O Balys guarda o conteúdo e passa a usá-lo para te dar insights nos próximos resumos.' },
         { kind: 'tip', text: 'Quanto mais tópicos e cidade corretos você configurar, mais útil e personalizado fica o briefing.' },
+      ],
+    },
+    {
+      slug: 'trilha',
+      iconId: 'today',
+      title: 'Trilha do dia (aba Hoje): completar tarefas',
+      summary: 'Veja as tarefas e eventos do dia como uma trilha e marque cada um como concluído para acompanhar seu progresso.',
+      readMinutes: 3,
+      blocks: [
+        { kind: 'paragraph', text: 'A aba "Hoje" é o seu painel diário. Logo no topo fica o cartão de briefing (bom dia / boa tarde / boa noite) e, abaixo, a trilha do dia: uma sequência visual de "bolhas", cada uma sendo uma tarefa dos seus planos e metas ou um evento do Google Calendar. É aqui que você executa o dia e marca o que concluiu.' },
+        { kind: 'steps', title: 'Onde fica', items: [
+          'No menu lateral à esquerda, clique em "Hoje".',
+          'No topo aparece o cartão de saudação (o briefing); logo abaixo vem a trilha com as bolhas das tarefas e eventos do dia.',
+          'O cabeçalho de cada dia mostra quantas você já concluiu (ex: 2/5) e a porcentagem de progresso.',
+        ] },
+        { kind: 'steps', title: 'Completar uma tarefa', items: [
+          'Na trilha, localize a bolha da tarefa que você fez.',
+          'Toque na bolha — abre um cartão com o título da tarefa e os botões de ação.',
+          'Clique em "Feito". A bolha fica verde com um check e o contador do dia sobe.',
+          'Marcou sem querer? Toque na bolha de novo e clique em "Desfazer" para voltar ao estado pendente.',
+        ] },
+        { kind: 'steps', title: 'Adiar ou pular', items: [
+          'No mesmo cartão, "Amanhã" move a tarefa para o dia seguinte (vale para tarefas dos seus planos; eventos do Google Calendar não têm essa opção).',
+          '"Pular" marca a tarefa como pulada quando ela não fez sentido hoje.',
+        ] },
+        { kind: 'usecase', title: 'Caso real: fechar o dia no verde', text: 'Toda manhã, abra a aba "Hoje", leia o briefing e percorra a trilha de cima para baixo concluindo cada bloco. As tarefas dos seus planos de ação e os eventos do Google Calendar aparecem juntos na mesma trilha. Cada "Feito" aumenta o progresso do dia — e o Balys usa esse histórico para ajustar o plano de amanhã na sua reflexão da noite.' },
+        { kind: 'tip', text: 'Tarefas ligadas a um plano de ação mostram um selo com o nome do plano (e o dia, ex: "Dia 3"). Toque no selo para ir direto à meta correspondente em "Metas".' },
       ],
     },
     {
@@ -263,6 +290,33 @@ const TUTORIALS: Record<TutorialLang, Tutorial[]> = {
         ] },
         { kind: 'usecase', title: 'Real case: import from ChatGPT or Claude', text: 'Ask ChatGPT or Claude for a recap of your day with a prompt like "Summarize my commitments, priorities and reflections for today in bullet points". Copy the answer, open Balys and paste it saying "save this to my briefing". Balys keeps the content and uses it to give you insights in future recaps.' },
         { kind: 'tip', text: 'The more accurate your topics and city, the more useful and personalized the briefing becomes.' },
+      ],
+    },
+    {
+      slug: 'trilha',
+      iconId: 'today',
+      title: 'Your daily track (Today tab): completing tasks',
+      summary: 'See the day\'s tasks and events as a track and check each one off to keep your progress moving.',
+      readMinutes: 3,
+      blocks: [
+        { kind: 'paragraph', text: 'The "Today" tab is your daily dashboard. At the very top sits the briefing card (good morning / afternoon / evening) and, below it, the day\'s track: a visual sequence of "bubbles", each one a task from your plans and goals or a Google Calendar event. This is where you run your day and mark what you\'ve done.' },
+        { kind: 'steps', title: 'Where it is', items: [
+          'In the left side menu, click "Today".',
+          'The greeting card (the briefing) is at the top; right below it is the track with the day\'s task and event bubbles.',
+          'Each day header shows how many you have completed (e.g. 2/5) and the progress percentage.',
+        ] },
+        { kind: 'steps', title: 'Completing a task', items: [
+          'On the track, find the bubble for the task you did.',
+          'Tap the bubble — a card opens with the task title and action buttons.',
+          'Click "Done". The bubble turns green with a check and the day\'s counter goes up.',
+          'Marked it by mistake? Tap the bubble again and click "Undo" to return it to pending.',
+        ] },
+        { kind: 'steps', title: 'Defer or skip', items: [
+          'In the same card, "Tomorrow" moves the task to the next day (works for your plan tasks; Google Calendar events do not have this option).',
+          '"Skip" marks the task as skipped when it did not make sense today.',
+        ] },
+        { kind: 'usecase', title: 'Real case: end the day in the green', text: 'Every morning, open the "Today" tab, read the briefing, and work down the track checking off each block. Your action-plan tasks and Google Calendar events show up together on the same track. Every "Done" raises the day\'s progress — and Balys uses that history to adjust tomorrow\'s plan during your evening reflection.' },
+        { kind: 'tip', text: 'Tasks tied to an action plan show a badge with the plan name (and the day, e.g. "Day 3"). Tap the badge to jump straight to that goal under "Goals".' },
       ],
     },
     {

@@ -9,6 +9,7 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { resolveUiLang, type UiLang } from '@/lib/i18n';
+import { intlLocale } from '@/lib/datetime';
 
 type ChannelStatus = 'none' | 'pending_verification' | 'active';
 
@@ -228,7 +229,7 @@ export default function WhatsAppChannelPanel() {
                 <Typography fontWeight={600}>+{channel.phone}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {channel.verified_at
-                    ? t.connected(new Date(channel.verified_at).toLocaleDateString())
+                    ? t.connected(new Date(channel.verified_at).toLocaleDateString(intlLocale(uiLang)))
                     : t.connectedSimple}
                 </Typography>
               </Box>

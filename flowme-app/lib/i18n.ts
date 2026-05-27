@@ -82,6 +82,8 @@ export const UI = {
       tomorrow: 'Tomorrow',
       skip: 'Skip',
       mustDo: 'must-do',
+      calendarChip: 'Cal',
+      dayPrefix: (n: number) => `Day ${n}`,
     },
 
     // ── Goals ────────────────────────────────────────────────────────────────
@@ -214,6 +216,11 @@ export const UI = {
       linkAccount: 'Link account',
       noEvents: 'No events',
       allDay: 'All day',
+      dayDetails: 'Day Details',
+      noEventsForDay: 'No events for this day',
+      join: 'Join',
+      open: 'Open',
+      edit: 'Edit',
     },
 
     // ── Notes ────────────────────────────────────────────────────────────────
@@ -226,6 +233,31 @@ export const UI = {
       search: 'Search notes…',
       people: 'People',
       notes: 'Notes',
+      // Sidebar tree
+      dailyBriefing: 'Daily Briefing',
+      todayGroup: 'Today',
+      pastGroup: 'Past',
+      createTodayBriefing: "Create today's briefing",
+      addPeopleEmpty: 'Add people to take notes about them',
+      namePlaceholder: 'Name...',
+      rename: 'Rename',
+      neuralGraph: 'Neural Graph Map',
+      newBriefingToday: 'New briefing for today',
+      addNoteToDay: 'Add note to this day',
+      addPerson: 'Add person',
+      notesMentioning: (count: number, name: string) => `${count} note${count !== 1 ? 's' : ''} mentioning ${name}`,
+      briefingTitle: (date: string) => `Daily Briefing — ${date}`,
+      // Editor
+      insertImage: 'Insert image',
+      saveNow: 'Save now (Ctrl+S)',
+      recordVoice: 'Record voice note',
+      stopTranscribe: 'Stop & transcribe',
+      transcribing: 'Transcribing...',
+      recording: 'Recording...',
+      writeAboutPerson: 'Write anything about this person...',
+      startWriting: 'Start writing your note...',
+      profile: 'Profile',
+      selectOrCreate: 'Select a note or create a new one',
     },
 
     // ── Shared ───────────────────────────────────────────────────────────────
@@ -312,6 +344,8 @@ export const UI = {
       tomorrow: 'Amanhã',
       skip: 'Pular',
       mustDo: 'obrigatório',
+      calendarChip: 'Agenda',
+      dayPrefix: (n: number) => `Dia ${n}`,
     },
 
     // ── Goals ────────────────────────────────────────────────────────────────
@@ -444,6 +478,11 @@ export const UI = {
       linkAccount: 'Vincular conta',
       noEvents: 'Sem eventos',
       allDay: 'Dia inteiro',
+      dayDetails: 'Detalhes do Dia',
+      noEventsForDay: 'Nenhum evento neste dia',
+      join: 'Entrar',
+      open: 'Abrir',
+      edit: 'Editar',
     },
 
     // ── Notes ────────────────────────────────────────────────────────────────
@@ -456,6 +495,31 @@ export const UI = {
       search: 'Buscar notas…',
       people: 'Pessoas',
       notes: 'Notas',
+      // Sidebar tree
+      dailyBriefing: 'Resumo Diário',
+      todayGroup: 'Hoje',
+      pastGroup: 'Anteriores',
+      createTodayBriefing: 'Criar resumo de hoje',
+      addPeopleEmpty: 'Adicione pessoas para fazer anotações sobre elas',
+      namePlaceholder: 'Nome...',
+      rename: 'Renomear',
+      neuralGraph: 'Mapa de Grafo Neural',
+      newBriefingToday: 'Novo resumo para hoje',
+      addNoteToDay: 'Adicionar nota neste dia',
+      addPerson: 'Adicionar pessoa',
+      notesMentioning: (count: number, name: string) => `${count} nota${count !== 1 ? 's' : ''} mencionando ${name}`,
+      briefingTitle: (date: string) => `Resumo Diário — ${date}`,
+      // Editor
+      insertImage: 'Inserir imagem',
+      saveNow: 'Salvar agora (Ctrl+S)',
+      recordVoice: 'Gravar nota de voz',
+      stopTranscribe: 'Parar & transcrever',
+      transcribing: 'Transcrevendo...',
+      recording: 'Gravando...',
+      writeAboutPerson: 'Escreva qualquer coisa sobre esta pessoa...',
+      startWriting: 'Comece a escrever sua nota...',
+      profile: 'Perfil',
+      selectOrCreate: 'Selecione uma nota ou crie uma nova',
     },
 
     // ── Shared ───────────────────────────────────────────────────────────────

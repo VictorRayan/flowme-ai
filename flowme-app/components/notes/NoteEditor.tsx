@@ -32,6 +32,7 @@ import FormatAlignRightIcon from '@mui/icons-material/FormatAlignRight';
 import MentionList from './MentionList';
 import DocumentMentionList, { DocItem } from './DocumentMentionList';
 import { PluginKey } from '@tiptap/pm/state';
+import { UI, type UiLang } from '@/lib/i18n';
 
 interface Person {
   id: string;
@@ -58,6 +59,7 @@ interface NoteEditorProps {
   onRename?: (newName: string) => Promise<void>;
   onDelete?: () => void;
   saving?: boolean;
+  lang: UiLang;
 }
 
 // Extend Image node to support alignment attribute
@@ -75,7 +77,8 @@ const DocumentMention = Mention.extend({
   name: 'documentMention',
 });
 
-export default function NoteEditor({ note, onSave, onRename, onDelete, saving }: NoteEditorProps) {
+export default function NoteEditor({ note, onSave, onRename, onDelete, saving, lang }: NoteEditorProps) {
+  const t = UI[lang].notes;
   const [title, setTitle] = useState('');
   const [mentionedPeople, setMentionedPeople] = useState<Person[]>([]);
   const [renamingTitle, setRenamingTitle] = useState(false);
@@ -123,7 +126,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
       StarterKit,
       Underline,
       ResizableImage.configure({ allowBase64: true, inline: false }),
-      Placeholder.configure({ placeholder: note?.note_type === 'person' ? 'Write anything about this person...' : 'Start writing your note...' }),
+      Placeholder.configure({ placeholder: note?.note_type === 'person' ? t.writeAboutPerson : t.startWriting }),
       Mention.configure({
         HTMLAttributes: { class: 'mention' },
         suggestion: {
@@ -353,7 +356,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
   if (!note) {
     return (
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>
-        <Typography>Select a note or create a new one</Typography>
+        <Typography>{t.selectOrCreate}</Typography>
       </Box>
     );
   }
@@ -410,7 +413,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
 
         {/* Insert image */}
         <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={handleImageFileChange} />
-        <Tooltip title="Insert image">
+        <Tooltip title={t.insertImage}>
           <IconButton size="small" onClick={() => imageInputRef.current?.click()}>
             <ImageIcon fontSize="small" />
           </IconButton>
@@ -423,11 +426,11 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           <>
             {/* Mic / stop / spinner */}
             {transcribing ? (
-              <Tooltip title="Transcribing...">
+              <Tooltip title={t.transcribing}>
                 <span><CircularProgress size={18} sx={{ mx: 0.5 }} /></span>
               </Tooltip>
             ) : (
-              <Tooltip title={recording ? 'Stop & transcribe' : 'Record voice note'}>
+              <Tooltip title={recording ? t.stopTranscribe : t.recordVoice}>
                 <IconButton
                   size="small"
                   onClick={recording ? stopRecording : startRecording}
@@ -441,14 +444,14 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
                 </IconButton>
               </Tooltip>
             )}
-            {recording && <Chip label="Recording..." color="error" size="small" sx={{ mr: 0.5 }} />}
+            {recording && <Chip label={t.recording} color="error" size="small" sx={{ mr: 0.5 }} />}
             <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           </>
         )}
 
         {/* Delete */}
         {onDelete && (
-          <Tooltip title="Delete">
+          <Tooltip title={t.delete}>
             <IconButton size="small" onClick={onDelete} sx={{ color: 'error.main', mr: 0.5 }}>
               <DeleteOutlineIcon fontSize="small" />
             </IconButton>
@@ -459,7 +462,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
         {saving ? (
           <CircularProgress size={16} />
         ) : (
-          <Tooltip title="Save now (Ctrl+S)">
+          <Tooltip title={t.saveNow}>
             <IconButton size="small" onClick={handleManualSave}>
               <SaveIcon fontSize="small" />
             </IconButton>
@@ -512,7 +515,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
                 {title}
               </Typography>
             )}
-            <Chip size="small" label="Profile" color="secondary" variant="outlined" sx={{ ml: 1 }} />
+            <Chip size="small" label={t.profile} color="secondary" variant="outlined" sx={{ ml: 1 }} />
             <Menu
               open={Boolean(contextMenu)}
               onClose={() => setContextMenu(null)}
@@ -520,7 +523,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
               anchorPosition={contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined}
             >
               <MenuItem onClick={() => { setContextMenu(null); setRenameValue(title); setRenamingTitle(true); setTimeout(() => renameTitleRef.current?.focus(), 30); }}>
-                Rename
+                {t.rename}
               </MenuItem>
             </Menu>
           </Box>
@@ -528,7 +531,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           <TextField
             fullWidth
             variant="standard"
-            placeholder="Untitled"
+            placeholder={t.untitled}
             value={title}
             onChange={e => handleTitleChange(e.target.value)}
             InputProps={{ disableUnderline: true, style: { fontSize: 28, fontWeight: 700 } }}
@@ -541,7 +544,7 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
             {note.note_date && <Chip size="small" label={note.note_date} variant="outlined" />}
             {note.event_title && <Chip size="small" icon={<EventIcon />} label={note.event_title} color="info" variant="outlined" />}
-            {isBriefing && <Chip size="small" label="Daily Briefing" color="warning" variant="outlined" icon={<MicIcon sx={{ fontSize: 14 }} />} />}
+            {isBriefing && <Chip size="small" label={t.dailyBriefing} color="warning" variant="outlined" icon={<MicIcon sx={{ fontSize: 14 }} />} />}
           </Stack>
         )}
 

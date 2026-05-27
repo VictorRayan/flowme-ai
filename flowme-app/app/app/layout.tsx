@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
+import { applyDayjsLocale } from '@/lib/datetime';
 
 const drawerWidth = 240;
 
@@ -33,9 +34,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
-    setUiLang(resolveUiLang(stored));
+    const resolved = resolveUiLang(stored);
+    setUiLang(resolved);
+    applyDayjsLocale(resolved);
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue));
+      if (e.key === 'ui_language') {
+        const next = resolveUiLang(e.newValue);
+        setUiLang(next);
+        applyDayjsLocale(next);
+      }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);

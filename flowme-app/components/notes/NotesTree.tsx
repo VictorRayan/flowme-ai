@@ -15,6 +15,8 @@ import AddIcon from '@mui/icons-material/Add';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import HubIcon from '@mui/icons-material/Hub';
 import dayjs from 'dayjs';
+import { UI, type UiLang } from '@/lib/i18n';
+import { formatDate } from '@/lib/datetime';
 
 export interface NoteItem {
   id: string;
@@ -48,8 +50,11 @@ interface NotesTreeProps {
   onDeletePerson: (id: string, name: string) => void;
   onNewNote: (opts?: { date?: string; note_type?: string; title?: string }) => void;
   onNewDailyBriefing: () => void;
+  lang: UiLang;
 }
 
+// Key by numeric year/month/day so sorting and reconstruction are locale-agnostic.
+// Month/day NAMES are derived for display only, in the user's language.
 function groupByDateHierarchy(notes: NoteItem[]) {
   const byYear: Record<string, Record<string, Record<string, NoteItem[]>>> = {};
 
@@ -57,7 +62,7 @@ function groupByDateHierarchy(notes: NoteItem[]) {
     if (note.note_date) {
       const d = dayjs(note.note_date);
       const y = d.format('YYYY');
-      const m = d.format('MMMM');
+      const m = d.format('MM');
       const day = d.format('DD');
       if (!byYear[y]) byYear[y] = {};
       if (!byYear[y][m]) byYear[y][m] = {};
@@ -71,8 +76,9 @@ function groupByDateHierarchy(notes: NoteItem[]) {
 
 import { useRouter } from 'next/navigation';
 
-export default function NotesTree({ notes, people, selectedId, selectedPersonId, onSelect, onSelectPerson, onOpenPersonNote, onAddPerson, onRenamePerson, onDeleteNote, onDeletePerson, onNewNote, onNewDailyBriefing }: NotesTreeProps) {
+export default function NotesTree({ notes, people, selectedId, selectedPersonId, onSelect, onSelectPerson, onOpenPersonNote, onAddPerson, onRenamePerson, onDeleteNote, onDeletePerson, onNewNote, onNewDailyBriefing, lang }: NotesTreeProps) {
   const router = useRouter();
+  const t = UI[lang].notes;
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
@@ -112,15 +118,15 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
       {/* Header */}
       <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: 11, letterSpacing: 1 }}>
-          Notes
+          {t.notes}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="Neural Graph Map">
+          <Tooltip title={t.neuralGraph}>
             <IconButton size="small" onClick={() => router.push('/app/notes/graph')}>
               <HubIcon fontSize="small" sx={{ color: 'primary.main' }} />
             </IconButton>
           </Tooltip>
-          <Tooltip title="New note">
+          <Tooltip title={t.newNote}>
             <IconButton size="small" onClick={() => onNewNote()}>
               <AddIcon fontSize="small" />
             </IconButton>
@@ -136,9 +142,9 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
             {showBriefings ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
           </ListItemIcon>
           <WbSunnyIcon fontSize="small" sx={{ color: 'warning.main', mr: 1 }} />
-          <ListItemText primary={<Typography variant="body2" fontWeight="bold">Daily Briefing</Typography>} />
+          <ListItemText primary={<Typography variant="body2" fontWeight="bold">{t.dailyBriefing}</Typography>} />
           {briefingNotes.length > 0 && <Chip label={briefingNotes.length} size="small" sx={{ height: 16, fontSize: 10, mr: 0.5 }} />}
-          <Tooltip title="New briefing for today">
+          <Tooltip title={t.newBriefingToday}>
             <IconButton size="small" onClick={e => { e.stopPropagation(); onNewDailyBriefing(); }}>
               <AddIcon fontSize="small" />
             </IconButton>
@@ -148,7 +154,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
         <Collapse in={showBriefings} unmountOnExit>
           {/* Today's briefing or create prompt */}
           <Box sx={{ pl: 3, pr: 1, py: 0.25 }}>
-            <Typography variant="caption" color="text.disabled" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>Today</Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>{t.todayGroup}</Typography>
           </Box>
           {todaysBriefing ? (
             <ListItemButton
@@ -167,14 +173,14 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
               <ListItemIcon sx={{ minWidth: 24 }}>
                 <AddIcon fontSize="small" sx={{ color: 'text.disabled' }} />
               </ListItemIcon>
-              <ListItemText primary={<Typography variant="body2" color="text.disabled">Create today's briefing</Typography>} />
+              <ListItemText primary={<Typography variant="body2" color="text.disabled">{t.createTodayBriefing}</Typography>} />
             </ListItemButton>
           )}
 
           {/* Past briefings */}
           {pastBriefings.length > 0 && (
             <Box sx={{ pl: 3, pr: 1, pt: 0.5, pb: 0.25 }}>
-              <Typography variant="caption" color="text.disabled" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>Past</Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>{t.pastGroup}</Typography>
             </Box>
           )}
           {pastBriefings.map(note => (
@@ -190,7 +196,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
               </ListItemIcon>
               <ListItemText
                 primary={<Typography variant="body2" noWrap sx={{ maxWidth: 110 }}>{note.title}</Typography>}
-                secondary={note.note_date ? <Typography variant="caption" color="text.disabled">{dayjs(note.note_date).format('MMM D, YYYY')}</Typography> : undefined}
+                secondary={note.note_date ? <Typography variant="caption" color="text.disabled">{formatDate(note.note_date, 'MMM D, YYYY', lang)}</Typography> : undefined}
               />
             </ListItemButton>
           ))}
@@ -209,20 +215,20 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
             </ListItemButton>
 
             <Collapse in={expandedYears[year]} unmountOnExit>
-              {Object.keys(byYear[year]).map(month => (
+              {Object.keys(byYear[year]).sort((a, b) => b.localeCompare(a)).map(month => (
                 <React.Fragment key={month}>
                   <ListItemButton onClick={() => toggle(setExpandedMonths, `${year}-${month}`)} sx={{ pl: 3 }}>
                     <ListItemIcon sx={{ minWidth: 24 }}>
                       {expandedMonths[`${year}-${month}`] ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
                     </ListItemIcon>
-                    <ListItemText primary={<Typography variant="body2">{month}</Typography>} />
+                    <ListItemText primary={<Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{formatDate(`${year}-${month}-01`, 'MMMM', lang)}</Typography>} />
                   </ListItemButton>
 
                   <Collapse in={expandedMonths[`${year}-${month}`]} unmountOnExit>
                     {Object.keys(byYear[year][month]).sort((a, b) => b.localeCompare(a)).map(day => {
                       const dayKey = `${year}-${month}-${day}`;
                       const dayNotes = byYear[year][month][day];
-                      const dateStr = dayjs(`${year}-${month}-${day}`, 'YYYY-MMMM-DD').format('YYYY-MM-DD');
+                      const dateStr = `${year}-${month}-${day}`;
                       return (
                         <React.Fragment key={day}>
                           <ListItemButton onClick={() => toggle(setExpandedDays, dayKey)} sx={{ pl: 5 }}>
@@ -232,12 +238,12 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
                             <ListItemText
                               primary={
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography variant="body2">{dayjs(dateStr).format('ddd, MMM D')}</Typography>
+                                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{formatDate(dateStr, 'ddd, MMM D', lang)}</Typography>
                                   <Chip label={dayNotes.length} size="small" sx={{ height: 16, fontSize: 10 }} />
                                 </Box>
                               }
                             />
-                            <Tooltip title="Add note to this day">
+                            <Tooltip title={t.addNoteToDay}>
                               <IconButton size="small" onClick={e => { e.stopPropagation(); onNewNote({ date: dateStr }); }}>
                                 <AddIcon sx={{ fontSize: 14 }} />
                               </IconButton>
@@ -274,9 +280,9 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
           <ListItemIcon sx={{ minWidth: 24 }}>
             {showPeople ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
           </ListItemIcon>
-          <ListItemText primary={<Typography variant="body2" fontWeight="bold">People</Typography>} />
+          <ListItemText primary={<Typography variant="body2" fontWeight="bold">{t.people}</Typography>} />
           {people.length > 0 && <Chip label={people.length} size="small" sx={{ height: 16, fontSize: 10, mr: 0.5 }} />}
-          <Tooltip title="Add person">
+          <Tooltip title={t.addPerson}>
             <IconButton size="small" onClick={e => {
               e.stopPropagation();
               setShowPeople(true);
@@ -297,7 +303,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
                   inputRef={newPersonInputRef}
                   size="small"
                   fullWidth
-                  placeholder="Name..."
+                  placeholder={t.namePlaceholder}
                   value={newPersonName}
                   onChange={e => setNewPersonName(e.target.value)}
                   onKeyDown={async e => {
@@ -317,7 +323,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
           )}
           {people.length === 0 && !addingPerson && (
             <Box sx={{ pl: 4, py: 1 }}>
-              <Typography variant="caption" color="text.disabled">Add people to take notes about them</Typography>
+              <Typography variant="caption" color="text.disabled">{t.addPeopleEmpty}</Typography>
             </Box>
           )}
           {people.map(person => {
@@ -373,7 +379,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
                   )
                 } />
                 {!isRenaming && count > 0 && (
-                  <Tooltip title={`${count} note${count !== 1 ? 's' : ''} mentioning ${person.name}`}>
+                  <Tooltip title={t.notesMentioning(count, person.name)}>
                     <IconButton size="small" onClick={e => { e.stopPropagation(); onSelectPerson(person.id); }}
                       color={selectedPersonId === person.id ? 'primary' : 'default'}
                       sx={{ p: 0.3 }}>
@@ -398,14 +404,14 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
               if (person) { setRenameValue(person.name); setRenamingPersonId(person.id); setTimeout(() => renameInputRef.current?.focus(), 50); }
               setContextMenu(null);
             }}>
-              Rename
+              {t.rename}
             </MenuItem>
             <MenuItem sx={{ color: 'error.main' }} onClick={() => {
               const person = people.find(p => p.id === contextMenu?.personId);
               if (person) onDeletePerson(person.id, person.name);
               setContextMenu(null);
             }}>
-              Delete
+              {t.delete}
             </MenuItem>
           </Menu>
 
@@ -420,7 +426,7 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
               if (noteContextMenu) onDeleteNote(noteContextMenu.noteId, noteContextMenu.noteTitle);
               setNoteContextMenu(null);
             }}>
-              Delete
+              {t.delete}
             </MenuItem>
           </Menu>
         </Collapse>

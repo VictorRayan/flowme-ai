@@ -7,6 +7,8 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import EditIcon from '@mui/icons-material/Edit';
 import EventIcon from '@mui/icons-material/Event';
+import { UI, type UiLang } from '@/lib/i18n';
+import { formatDate } from '@/lib/datetime';
 
 interface DayDetailPanelProps {
   open: boolean;
@@ -14,9 +16,11 @@ interface DayDetailPanelProps {
   date: dayjs.Dayjs | null;
   events: CalendarEvent[];
   onEditEvent?: (event: CalendarEvent) => void;
+  lang: UiLang;
 }
 
-export default function DayDetailPanel({ open, onClose, date, events, onEditEvent }: DayDetailPanelProps) {
+export default function DayDetailPanel({ open, onClose, date, events, onEditEvent, lang }: DayDetailPanelProps) {
+  const t = UI[lang].calendar;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -27,11 +31,11 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
         <Box>
-          <Typography variant="overline" sx={{ color: 'text.disabled', letterSpacing: '0.1em', fontSize: 10 }}>
-            {date?.format('MMMM YYYY')}
+          <Typography variant="overline" sx={{ color: 'text.disabled', letterSpacing: '0.1em', fontSize: 10, textTransform: 'capitalize' }}>
+            {date ? formatDate(date, 'MMMM YYYY', lang) : ''}
           </Typography>
-          <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-            {date ? date.format('dddd, D') : 'Day Details'}
+          <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2, textTransform: 'capitalize' }}>
+            {date ? formatDate(date, 'dddd, D', lang) : t.dayDetails}
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small">
@@ -45,13 +49,13 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
         {sorted.length === 0 ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 6, gap: 1.5, opacity: 0.5 }}>
             <EventIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
-            <Typography color="text.secondary" variant="body2">No events for this day</Typography>
+            <Typography color="text.secondary" variant="body2">{t.noEventsForDay}</Typography>
           </Box>
         ) : (
           <List disablePadding sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
             {sorted.map(evt => {
-              const start = dayjs(evt.start_at).format('h:mm A');
-              const end = evt.end_at ? dayjs(evt.end_at).format('h:mm A') : '';
+              const start = formatDate(evt.start_at, 'h:mm A', lang);
+              const end = evt.end_at ? formatDate(evt.end_at, 'h:mm A', lang) : '';
               const isWork = evt.account_type === 'work';
 
               const accent = isWork ? '#8b5cf6' : '#6366f1';
@@ -121,7 +125,7 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
                         }}
                       >
                         <VideocamIcon sx={{ fontSize: 13, color: '#34d399' }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: '#34d399', fontSize: 11 }}>Join</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: '#34d399', fontSize: 11 }}>{t.join}</Typography>
                       </Box>
                     )}
                     {evt.htmlLink && (
@@ -137,7 +141,7 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
                         }}
                       >
                         <OpenInNewIcon sx={{ fontSize: 13, color: '#818cf8' }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: '#818cf8', fontSize: 11 }}>Open</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: '#818cf8', fontSize: 11 }}>{t.open}</Typography>
                       </Box>
                     )}
                     {onEditEvent && (
@@ -153,7 +157,7 @@ export default function DayDetailPanel({ open, onClose, date, events, onEditEven
                         }}
                       >
                         <EditIcon sx={{ fontSize: 13, color: accent }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: accent, fontSize: 11 }}>Edit</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: accent, fontSize: 11 }}>{t.edit}</Typography>
                       </Box>
                     )}
                   </Box>

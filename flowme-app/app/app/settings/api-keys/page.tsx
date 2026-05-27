@@ -13,6 +13,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import KeyIcon from '@mui/icons-material/Key';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import { getUiLang } from '@/lib/i18n';
+import { intlLocale } from '@/lib/datetime';
 
 const ALL_SCOPES = [
   { value: 'calendar.read', label: 'Calendar — Read', group: 'Calendar' },
@@ -229,7 +231,7 @@ export default function ApiKeysPage() {
                   </TableCell>
                   <TableCell>
                     {key.last_used_at
-                      ? new Date(key.last_used_at).toLocaleDateString()
+                      ? new Date(key.last_used_at).toLocaleDateString(intlLocale(getUiLang()))
                       : <Typography variant="caption" color="text.secondary">Never</Typography>}
                   </TableCell>
                   <TableCell>

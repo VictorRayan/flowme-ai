@@ -19,6 +19,14 @@ test.describe('tutorials section', () => {
     await expect(page.getByRole('heading', { name: 'Tutoriais' })).toBeVisible();
     await expect(page.getByText(/dar um boost na sua produtividade/i)).toBeVisible();
     await expect(page.getByRole('link', { name: /Conversando com o Balys/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Trilha do dia/i })).toBeVisible();
+
+    // The track guide explains completing tasks on the Today tab.
+    await page.getByRole('link', { name: /Trilha do dia/i }).click();
+    await expect(page.getByRole('heading', { name: /Trilha do dia/ })).toBeVisible();
+    await expect(page.getByText(/Clique em "Feito"/i)).toBeVisible();
+    await page.getByRole('link', { name: 'Voltar aos tutoriais' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Tutoriais' })).toBeVisible();
 
     // Open the Notes guide.
     await page.getByRole('link', { name: /Notas: sua memória externa/i }).click();

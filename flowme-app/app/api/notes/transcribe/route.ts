@@ -25,6 +25,11 @@ Rules:
 - If the speaker mentions a time or date (e.g. "at 3pm", "tomorrow"), wrap it in <strong>
 - Start the new section with an <hr> separator, then a short <h2> summarizing the new recording's main theme`;
 
+// Default path: Whisper transcribes the audio, then the newest Gemini Flash
+// formats the transcript into structured HTML. Gemini Flash beats the older
+// Gemini Pro on this task at a fraction of the cost. Overridable via env.
+const NOTES_FORMAT_MODEL = process.env.NOTES_FORMAT_MODEL || 'gemini-3-flash-preview';
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -69,24 +74,63 @@ async function handleOpenAI(auth: { supabase: any; user: any }, audioFile: File,
 
   if (!rawText?.trim()) return NextResponse.json({ html: '<p></p>', rawTranscription: '' });
 
-  const prettifyModel = modelOverride || 'gpt-4o';
   const userContent = existingContent?.trim()
     ? `Existing note content (for context only, do NOT repeat it):\n${existingContent}\n\n---\n\nNew transcription to append:\n${rawText}`
     : `Transcription:\n${rawText}`;
 
-  const completion = await openai.chat.completions.create({
+  const html = await formatTranscript(auth, {
+    userContent,
+    rawText,
+    hasExistingContext: Boolean(existingContent?.trim()),
+    openai,
+    openaiModelOverride: modelOverride,
+  });
+
+  return NextResponse.json({ html, rawTranscription: rawText });
+}
+
+// Format the Whisper transcript into structured HTML. Primary path is the
+// newest Gemini Flash; if Gemini is unavailable or errors, fall back to OpenAI
+// so a recording is never lost.
+async function formatTranscript(
+  auth: { supabase: any; user: any },
+  args: { userContent: string; rawText: string; hasExistingContext: boolean; openai: OpenAI; openaiModelOverride: string },
+): Promise<string> {
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const formatted = await geminiFormat(args.userContent);
+      await logAiUsage({
+        supabase: auth.supabase,
+        user: auth.user,
+        feature: 'transcribe',
+        provider: 'gemini',
+        model: NOTES_FORMAT_MODEL,
+        promptTokens: formatted.promptTokens,
+        completionTokens: formatted.completionTokens,
+        metadata: {
+          usage_source: formatted.usageSource,
+          has_existing_context: args.hasExistingContext,
+          transcription_chars: args.rawText.length,
+          step: 'format',
+        },
+      });
+      return formatted.html;
+    } catch (err) {
+      console.error('[notes/transcribe] Gemini formatting failed, falling back to OpenAI:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  const prettifyModel = args.openaiModelOverride || 'gpt-4o-mini';
+  const completion = await args.openai.chat.completions.create({
     model: prettifyModel,
     messages: [
       { role: 'system', content: PRETTIFY_SYSTEM_PROMPT },
-      { role: 'user', content: userContent },
+      { role: 'user', content: args.userContent },
     ],
     temperature: 0.3,
   });
 
-  const html = completion.choices[0]?.message?.content?.trim() || `<p>${rawText}</p>`;
-
-  const promptTokens = completion.usage?.prompt_tokens ?? estimateTokensFromText(PRETTIFY_SYSTEM_PROMPT + userContent);
-  const completionTokens = completion.usage?.completion_tokens ?? estimateTokensFromText(html);
+  const html = completion.choices[0]?.message?.content?.trim() || `<p>${args.rawText}</p>`;
 
   await logAiUsage({
     supabase: auth.supabase,
@@ -94,16 +138,49 @@ async function handleOpenAI(auth: { supabase: any; user: any }, audioFile: File,
     feature: 'transcribe',
     provider: 'openai',
     model: prettifyModel,
-    promptTokens,
-    completionTokens,
+    promptTokens: completion.usage?.prompt_tokens ?? estimateTokensFromText(PRETTIFY_SYSTEM_PROMPT + args.userContent),
+    completionTokens: completion.usage?.completion_tokens ?? estimateTokensFromText(html),
     metadata: {
       usage_source: completion.usage ? 'api' : 'estimated',
-      has_existing_context: Boolean(existingContent?.trim()),
-      transcription_chars: rawText.length,
+      has_existing_context: args.hasExistingContext,
+      transcription_chars: args.rawText.length,
+      step: 'format_fallback',
     },
   });
 
-  return NextResponse.json({ html, rawTranscription: rawText });
+  return html;
+}
+
+async function geminiFormat(userContent: string): Promise<{ html: string; promptTokens: number; completionTokens: number; usageSource: 'api' | 'estimated' }> {
+  const apiKey = process.env.GEMINI_API_KEY!;
+  const prompt = `${PRETTIFY_SYSTEM_PROMPT}\n\n${userContent}`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.3 },
+  };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${NOTES_FORMAT_MODEL}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Gemini format error ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const html = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!html) throw new Error('Gemini returned empty formatting');
+
+  const usage = data?.usageMetadata;
+  return {
+    html,
+    promptTokens: usage?.promptTokenCount ?? estimateTokensFromText(prompt),
+    completionTokens: usage?.candidatesTokenCount ?? estimateTokensFromText(html),
+    usageSource: usage ? 'api' : 'estimated',
+  };
 }
 
 async function handleGemini(auth: { supabase: any; user: any }, audioFile: File, modelOverride: string, existingContent: string) {

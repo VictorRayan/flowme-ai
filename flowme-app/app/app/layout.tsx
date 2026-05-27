@@ -15,6 +15,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import NoteIcon from '@mui/icons-material/Note';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ElectricalServicesIcon from '@mui/icons-material/ElectricalServices';
+import SchoolIcon from '@mui/icons-material/School';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -76,6 +77,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
     { text: nav.balysAi,    icon: <SmartToyIcon          sx={{ fontSize: 20 }} />, path: '/app/ai' },
     { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors' },
+    { text: nav.tutorials,  icon: <SchoolIcon             sx={{ fontSize: 20 }} />, path: '/app/tutorials' },
     { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
   ];
 

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Chip, Stack, Switch, FormControlLabel, Backdrop, Alert } from '@mui/material';
+import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Chip, Stack, Switch, FormControlLabel, Backdrop } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -16,7 +16,8 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
-import { finishButtonLabel, proposalButtonLabel } from '@/lib/onboarding/proposal-button';
+import PlatformTour from '@/components/onboarding/PlatformTour';
+import { proposalButtonLabel } from '@/lib/onboarding/proposal-button';
 import { buildBriefingDelivery } from '@/lib/onboarding/briefing-delivery';
 import { isAcceptProposalIntent } from '@/lib/onboarding/accept-intent';
 import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
@@ -41,6 +42,8 @@ const dict = {
     step3_desc: 'O Flow-me trabalha com dois momentos do dia que serão seus aliados. Escolha os horários que funcionam melhor para você.',
     morning_sync: 'Planejamento do Dia',
     morning_desc: 'Todas as manhãs, o Flow-me vai analisar seus e-mails recentes, sincronizar seus compromissos da agenda e organizar suas prioridades do dia — separando o que é essencial, negociável e rotina.',
+    afternoon_sync: 'Resumo da Tarde',
+    afternoon_desc: 'No meio do dia, o Flow-me te manda um resumo do que ainda falta na agenda, notícias e o que está em alta no X — pra você recalibrar o restante do dia.',
     evening_sync: 'Reflexão e Briefing',
     evening_desc: 'No final do dia, você faz uma reflexão rápida (por texto ou áudio) sobre o que aconteceu. O conselheiro de IA analisa seu progresso e ajusta o plano para amanhã.',
     
@@ -119,6 +122,8 @@ const dict = {
     step3_desc: 'Flow-me works with two key moments each day that become your allies. Pick the times that work best for you.',
     morning_sync: 'Daily Planning',
     morning_desc: 'Every morning, Flow-me will scan your recent emails, sync your calendar events, and organize the priorities that deserve space in your day.',
+    afternoon_sync: 'Afternoon Recap',
+    afternoon_desc: 'Midday, Flow-me sends a recap of what is still on your calendar, the news, and what is buzzing on X — so you can recalibrate the rest of your day.',
     evening_sync: 'Reflection & Briefing',
     evening_desc: 'At the end of the day, you do a quick reflection (text or voice) about what happened. The AI counselor analyzes your progress and adjusts tomorrow\'s plan.',
     
@@ -205,6 +210,7 @@ export default function OnboardingWizard() {
 
   // Ritual Times
   const [morningTime, setMorningTime] = React.useState('08:00');
+  const [afternoonTime, setAfternoonTime] = React.useState('13:00');
   const [eveningTime, setEveningTime] = React.useState('20:00');
   const [newsTopics, setNewsTopics] = React.useState<string[]>([]);
   const [topicDraft, setTopicDraft] = React.useState('');
@@ -260,8 +266,10 @@ export default function OnboardingWizard() {
       setStep(5); // Go to WhatsApp linking
     } else if (step === 5) {
       setStep(6); // Go to final ritual contract
+    } else if (step === 6) {
+      setStep(7); // Go to the platform tour
     } else {
-      setStep((prev) => Math.min(prev + 1, 6));
+      setStep((prev) => Math.min(prev + 1, 7));
     }
   };
 
@@ -365,6 +373,7 @@ export default function OnboardingWizard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           morning_briefing_time: morningTime,
+          afternoon_briefing_time: afternoonTime,
           evening_briefing_time: eveningTime,
           briefing_timezone: timezone,
           news_topics: newsTopics,
@@ -470,7 +479,7 @@ export default function OnboardingWizard() {
       <Box sx={{ p: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80 }}>
         {step > 1 && (
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {[2,3,4,5,6].map((i) => (
+            {[2,3,4,5,6,7].map((i) => (
               <Box 
                 key={i} 
                 sx={{ 
@@ -852,6 +861,22 @@ export default function OnboardingWizard() {
                 </Typography>
               </Box>
 
+              {/* Afternoon Ritual Card */}
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700 }}>{t.afternoon_sync}</Typography>
+                  <TextField
+                    type="time"
+                    value={afternoonTime}
+                    onChange={(e) => setAfternoonTime(e.target.value)}
+                    sx={{ width: 130, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiOutlinedInput-input': { py: 1, textAlign: 'center' } }}
+                  />
+                </Box>
+                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6 }}>
+                  {t.afternoon_desc}
+                </Typography>
+              </Box>
+
               {/* Evening Ritual Card */}
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -941,17 +966,21 @@ export default function OnboardingWizard() {
               </Box>
 
               <Button
-                fullWidth variant="contained" size="large" onClick={finish} disabled={finishing}
-                startIcon={finishing ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : null}
-                sx={{ py: 2.5, borderRadius: 4, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', '&.Mui-disabled': { background: 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)', color: 'rgba(255,255,255,0.85)' } }}
+                fullWidth variant="contained" size="large" onClick={nextStep}
+                endIcon={<ArrowForwardIcon />}
+                sx={{ py: 2.5, borderRadius: 4, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}
               >
-                {finishButtonLabel(finishing, t.btn_finish, lang)}
+                {t.btn_continue}
               </Button>
-              {finishError && (
-                <Alert severity="error" sx={{ width: '100%', mt: 2, bgcolor: 'rgba(127,29,29,0.35)', color: '#fecaca', border: '1px solid rgba(248,113,113,0.25)' }}>
-                  {finishError}
-                </Alert>
-              )}
+            </Box>
+          </Fade>
+        )}
+
+        {/* Step 7: Platform tour (explainer popup, ends the onboarding) */}
+        {step === 7 && (
+          <Fade in={step === 7} timeout={600}>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <PlatformTour lang={lang} onComplete={finish} completing={finishing} error={finishError} />
             </Box>
           </Fade>
         )}

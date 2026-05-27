@@ -12,7 +12,7 @@ import 'tippy.js/dist/tippy.css';
 import {
   Box, TextField, Typography, Chip, Stack, IconButton, Tooltip,
   ToggleButton, ToggleButtonGroup, Divider, CircularProgress,
-  Menu, MenuItem, Alert, Select
+  Menu, MenuItem, Alert
 } from '@mui/material';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
@@ -92,45 +92,6 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-
-  // Transcription model selector — populated dynamically from /api/ai/models
-  type TranscribeOption = { provider: 'openai' | 'gemini'; model: string; label: string };
-  const STORAGE_KEY_TRANSCRIBE = 'briefing_transcribe_model';
-  const [transcribeOptions, setTranscribeOptions] = useState<TranscribeOption[]>([]);
-  const [transcribeModelKey, setTranscribeModelKey] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    return localStorage.getItem(STORAGE_KEY_TRANSCRIBE) || '';
-  });
-
-  useEffect(() => {
-    fetch('/api/ai/models')
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: { openai: { id: string; label: string }[]; gemini: { id: string; label: string }[] }) => {
-        const opts: TranscribeOption[] = [
-          ...data.gemini.map(m => ({ provider: 'gemini' as const, model: m.id, label: m.label })),
-          ...data.openai
-            .filter(m => m.id.startsWith('gpt-'))
-            .map(m => ({ provider: 'openai' as const, model: m.id, label: `Whisper + ${m.label}` })),
-        ];
-        setTranscribeOptions(opts);
-        // Pick persisted key if still valid, else first available
-        setTranscribeModelKey(prev => {
-          const valid = opts.find(o => o.model === prev);
-          if (valid) return prev;
-          const first = opts[0]?.model || '';
-          if (first) localStorage.setItem(STORAGE_KEY_TRANSCRIBE, first);
-          return first;
-        });
-      })
-      .catch(() => {});
-  }, []);
-
-  const selectedOption = transcribeOptions.find(o => o.model === transcribeModelKey) || transcribeOptions[0];
-
-  const handleTranscribeModelChange = (modelKey: string) => {
-    setTranscribeModelKey(modelKey);
-    localStorage.setItem(STORAGE_KEY_TRANSCRIBE, modelKey);
-  };
 
   const fetchSuggestions = useCallback(async (query: string): Promise<Person[]> => {
     const res = await fetch(`/api/people?q=${encodeURIComponent(query)}`);
@@ -337,8 +298,6 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
 
       const formData = new FormData();
       formData.append('audio', blob, `recording-${Date.now()}.webm`);
-      formData.append('provider', selectedOption.provider);
-      formData.append('model', selectedOption.model);
       if (existingText) formData.append('existingContent', existingText);
 
       const res = await fetch('/api/notes/transcribe', { method: 'POST', body: formData });
@@ -459,54 +418,16 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving }:
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Daily Briefing: model selector + mic */}
+        {/* Daily Briefing: voice note mic */}
         {isBriefing && (
           <>
-            {/* Model dropdown */}
-            <Select
-              size="small"
-              value={transcribeModelKey}
-              onChange={e => handleTranscribeModelChange(e.target.value)}
-              disabled={recording || transcribing || transcribeOptions.length === 0}
-              displayEmpty
-              sx={{
-                fontSize: 12,
-                height: 28,
-                mr: 0.5,
-                '& .MuiSelect-select': { py: '3px', pl: 1, pr: '24px !important' },
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
-                minWidth: 150,
-                bgcolor: selectedOption?.provider === 'gemini'
-                  ? 'rgba(52,211,153,0.07)'
-                  : 'rgba(99,102,241,0.07)',
-                color: selectedOption?.provider === 'gemini' ? 'success.main' : 'primary.light',
-              }}
-            >
-              {transcribeOptions.length === 0 && (
-                <MenuItem value="" disabled dense>
-                  <Typography variant="caption" sx={{ fontSize: 12, opacity: 0.5 }}>Loading models…</Typography>
-                </MenuItem>
-              )}
-              {transcribeOptions.map(opt => (
-                <MenuItem key={opt.model} value={opt.model} dense>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <Box sx={{
-                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                      bgcolor: opt.provider === 'gemini' ? 'success.main' : 'primary.main',
-                    }} />
-                    <Typography variant="caption" sx={{ fontSize: 12 }}>{opt.label}</Typography>
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-
             {/* Mic / stop / spinner */}
             {transcribing ? (
-              <Tooltip title={`Transcribing with ${selectedOption?.label ?? ''}...`}>
+              <Tooltip title="Transcribing...">
                 <span><CircularProgress size={18} sx={{ mx: 0.5 }} /></span>
               </Tooltip>
             ) : (
-              <Tooltip title={recording ? 'Stop & transcribe' : `Record voice note → ${selectedOption?.label ?? ''}`}>
+              <Tooltip title={recording ? 'Stop & transcribe' : 'Record voice note'}>
                 <IconButton
                   size="small"
                   onClick={recording ? stopRecording : startRecording}

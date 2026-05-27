@@ -48,10 +48,11 @@
     - Não deve existir essa visibilidade. Usuário final não deve saber de modelo de LLM e gastos, excluir visibilidade de modelo de LLM em criação e edição de notas.
     - Testar end2end localmente e monitorar logs.
     - Feito: removido do editor de notas (`components/notes/NoteEditor.tsx`) o seletor de modelo de transcrição (dropdown com nomes de modelo + badges de provider Gemini/OpenAI) e os nomes de modelo nos tooltips do microfone ("Transcrevendo..." / "Gravar nota de voz", sem citar modelo). A transcrição de voz do Daily Briefing continua funcionando — o servidor usa o modelo padrão (`/api/notes/transcribe`), sem expor a escolha ao usuário. Removido o estado/lógica do seletor (fetch a `/api/ai/models`, localStorage, handlers) e deletado o endpoint órfão `app/api/ai/models/route.ts` (mesma limpeza da task 7).
-    - Validado: build `next build` compila sem erros; 423/424 testes passando (a única falha é em `briefings.test.ts`, trabalho pré-existente não commitado da task 3, sem relação com notas).
+    - Refino (modelo padrão de transcrição): mantido **whisper-1** para áudio→texto; formatação texto→HTML passou de `gpt-4o` para o Flash mais novo **`gemini-3-flash-preview`** (melhor custo/qualidade que o Pro; ~$0,3/$1,2 por 1M no `lib/ai/billing.ts`). Fallback automático para `gpt-4o-mini` se o Gemini falhar/sem key, para nunca perder uma gravação. Modelo de formatação configurável via env `NOTES_FORMAT_MODEL`. Nada disso é exposto ao usuário.
+    - Validado: build `next build` compila sem erros; 453/453 testes passando (`npm test`), incluindo novo `__tests__/api/notes-transcribe.test.ts` (caminho Gemini, fallback OpenAI, transcrição vazia).
     - Observação: validação e2e real (gravar/transcrever nota com app local + simulação do usuário victorrayansouzaramos@gmail.com) e monitoria de logs não foi executada neste ambiente por falta de credenciais — recomendado rodar localmente antes do deploy.
 
-9. No onboarding pos metas e notificacões, adicionar popup explicativo da plataforma
+9. ✅ CONCLUÍDO — No onboarding pos metas e notificacões, adicionar popup explicativo da plataforma
     - 1. Como usar Balys 
          - Para que balys serve
          - Habilidades do balys (listar 1 a 1 com use cases reais - criar use-cases)
@@ -70,8 +71,12 @@
         - Como importar briefing do Chat GPT ou do Claude (dica de prompt para colar e pegar output e colar no briefing ou no Balys)
     - 4. Toda etapa pode ser skiped, menos uma etapa obrigatória que fala onde rever essas infos (seção Tutorials - que será criada mais a frente neste docs.)
     - Testar end2end localmente e monitorar logs.
+    - Feito: novo step final do onboarding (step 7), exibido após o contrato de rituais (metas + push + WhatsApp + briefing). Componente `components/onboarding/PlatformTour.tsx` com 4 seções: (1) Balys — para que serve, 5 habilidades com use-cases reais, áudio/imagem e como invocar o conselho; (2) Conexões — onde fica, Gmail/Docs/Sheets/Drive, como usar no Balys (/docs, /sheets...); (3) Notas — onde fica, para quê serve, gravar áudio, daily briefing (o quê + como), e dica de prompt para importar resumo do ChatGPT/Claude; (4) etapa OBRIGATÓRIA "Tutoriais" (sem botão Pular) apontando onde rever tudo. "Pular tutorial" nas seções 1-3 salta direto para a obrigatória. Conteúdo PT/EN em `lib/onboarding/tour-content.ts`. O `finish()` (persistência + redirect /app/today) foi movido para o botão final do tour.
+    - Validado: 450 testes unitários passando (incl. 21 novos em `__tests__/lib/tour-content.test.ts`); `next build` compila sem erros; e2e Playwright real (browser dirigindo a UL completa do onboarding, APIs externas mockadas) — `e2e/onboarding-tour.spec.ts` (percorrer todas as seções + finalizar, e pular direto para a obrigatória) passando, e os 4 specs de onboarding existentes seguem verdes. Screenshots conferidos visualmente.
+    - Dependência: a seção/menu "Tutoriais" referenciada na etapa obrigatória só passa a existir na task 10 (forward reference intencional conforme este docs); até lá o texto cita "Tutoriais" mas o item de menu ainda não aparece.
+    - Observação: validação e2e com login real do usuário victorrayansouzaramos@gmail.com contra Supabase/Google não foi executada neste ambiente por falta de credenciais — o e2e roda contra o app local real com backends mockados. Recomendado rodar o fluxo autenticado localmente antes do deploy.
 
-10. Criar seção Tutorials no menu para explicar como utilizar a ferramenta e obter maior produtividade e insights com tutoriais de ponta a ponta. Como se fosse a Academy da Anthropic sobre como usar Claude Code.
+10. ✅ CONCLUÍDO — Criar seção Tutorials no menu para explicar como utilizar a ferramenta e obter maior produtividade e insights com tutoriais de ponta a ponta. Como se fosse a Academy da Anthropic sobre como usar Claude Code.
     - Card sobre cada tema
         Ex. Como utilizar notas para obter guardar informações relevantes e obter insights de pessoas, do seu dia, semana e vida.
     - Cada card é clicável, abre uma wi-ki post de cima para baixo com scroll visível com artigo explicando como usar funcionalidade X da ferramenta, step by step com use cases reais. 
@@ -79,6 +84,8 @@
     - Pessoa deve poder voltar para pagina inicial de tutorials
     - Deve ter uma mensagem clara de que essa aba serve para a pessoa aprender a como dar boost na produtividade, na rotina e na inteligência que a IA fornece.
     - Testar end2end localmente e monitorar logs.
+    - Feito: item "Tutoriais"/"Tutorials" no menu lateral (ícone School), entre Conexões e Configurações (resolve a forward-reference da task 9). Landing `app/app/tutorials/page.tsx` com mensagem clara de propósito (boost de produtividade/rotina/inteligência da IA) + grid de 6 cards clicáveis. Artigos em `app/app/tutorials/[slug]/page.tsx`: wiki top-to-bottom scrollável, passos numerados, casos de uso reais e dicas, com botões "Voltar aos tutoriais". 6 guias (Balys, Notas, Daily briefing, Conexões, Metas, Calendário) com step-by-step preciso baseado na UI real (ex: "FAB '+' no canto inferior direito", "ícone de microfone na barra do editor", "digite @ para mencionar"). Conteúdo PT/EN em `lib/tutorials/content.ts`.
+    - Validado: 468 testes unitários passando (incl. 15 novos em `__tests__/lib/tutorials-content.test.ts`); `next build` compila sem erros (rotas `/app/tutorials` e `/app/tutorials/[slug]` registradas); e2e Playwright AUTENTICADO real (`e2e/tutorials.spec.ts`) passando contra o app local com sessão Supabase real: menu → Tutoriais → abrir guia de Notas → conferir conteúdo step-by-step → voltar à lista. Screenshots da landing e do artigo conferidos visualmente.
 
 
 *** GEMINI, CLAUDE E CODEX (CHATGPT) RECADO IMPORTANTE.

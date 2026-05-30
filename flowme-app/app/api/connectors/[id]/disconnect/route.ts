@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data: connector, error: connectorError } = await supabase
       .from('connectors')
-      .select('id, config')
+      .select('id, type, config')
       .eq('id', connectorId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const linkedAccountId = connector.config?.linked_account_id as string | undefined;
+    const tokenTable = connector.type === 'slack' ? 'user_slack_tokens' : 'user_google_tokens';
 
     // Mark linked account inactive if it was created for this connector
     if (linkedAccountId) {
@@ -30,9 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .eq('id', linkedAccountId)
         .eq('user_id', user.id);
 
-      // Remove stored tokens
       await supabase
-        .from('user_google_tokens')
+        .from(tokenTable)
         .delete()
         .eq('linked_account_id', linkedAccountId);
     }

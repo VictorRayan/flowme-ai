@@ -1,5 +1,5 @@
 const CONNECTOR_ACCOUNT_NAME_PATTERNS = [
-  /\((gmail|google docs|google sheets|google drive)\)/i,
+  /\((gmail|google docs|google sheets|google drive|slack)\)/i,
 ];
 
 export function isConnectorLinkedAccountName(name: string | null | undefined): boolean {

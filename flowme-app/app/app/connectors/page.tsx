@@ -17,12 +17,13 @@ import EmailIcon from '@mui/icons-material/Email';
 import DescriptionIcon from '@mui/icons-material/Description';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import FolderIcon from '@mui/icons-material/Folder';
+import ForumIcon from '@mui/icons-material/Forum';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 
-type ConnectorType = 'gmail' | 'google_docs' | 'google_sheets' | 'google_drive';
+type ConnectorType = 'gmail' | 'google_docs' | 'google_sheets' | 'google_drive' | 'slack';
 
 interface Connector {
   id: string;
@@ -38,6 +39,7 @@ const CONNECTOR_ICONS: Record<ConnectorType, React.ReactNode> = {
   google_docs: <DescriptionIcon />,
   google_sheets: <GridOnIcon />,
   google_drive: <FolderIcon />,
+  slack: <ForumIcon />,
 };
 
 const CONNECTOR_COLORS: Record<ConnectorType, string> = {
@@ -45,6 +47,7 @@ const CONNECTOR_COLORS: Record<ConnectorType, string> = {
   google_docs: '#4285F4',
   google_sheets: '#0F9D58',
   google_drive: '#FBBC04',
+  slack: '#4A154B',
 };
 
 const CONNECTOR_LABELS: Record<ConnectorType, string> = {
@@ -52,6 +55,7 @@ const CONNECTOR_LABELS: Record<ConnectorType, string> = {
   google_docs: 'Google Docs',
   google_sheets: 'Google Sheets',
   google_drive: 'Google Drive',
+  slack: 'Slack',
 };
 
 function getConnectorMeta(type: ConnectorType, uiLang: UiLang) {
@@ -151,7 +155,7 @@ function AddConnectorDialog({ open, onClose, onCreated, uiLang }: {
           </FormControl>
           <TextField
             label={t.nameLabel}
-            placeholder={`e.g. ${type === 'gmail' ? 'Work email' : type === 'google_sheets' ? 'Financial Sheet' : type === 'google_docs' ? 'Contracts' : 'My Drive'}`}
+            placeholder={`e.g. ${type === 'gmail' ? 'Work email' : type === 'google_sheets' ? 'Financial Sheet' : type === 'google_docs' ? 'Contracts' : type === 'slack' ? 'Work Slack' : 'My Drive'}`}
             value={name}
             onChange={e => setName(e.target.value)}
             fullWidth
@@ -298,7 +302,7 @@ function ConnectorsContent() {
   // Handle OAuth return params
   useEffect(() => {
     const connectedId = searchParams.get('connector_connected');
-    const errorParam = searchParams.get('google_error');
+    const errorParam = searchParams.get('google_error') || searchParams.get('slack_error');
     if (connectedId) {
       setBanner({ type: 'success', message: t.authorizedSuccess });
       fetchConnectors();

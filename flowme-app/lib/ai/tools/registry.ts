@@ -10,6 +10,7 @@ import { weatherGetTool } from './weather-tools';
 import { remindersCancelTool, remindersCreateTool, remindersListTool } from './reminders-tools';
 import { webGroundedSearchTool } from './web-tools';
 import { trendsFromTopicsTool } from './trends-tools';
+import { SLACK_TOOLS } from './slack-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
@@ -52,6 +53,7 @@ export const ALL_TOOLS: Tool[] = [
   weatherGetTool,
   webGroundedSearchTool,
   trendsFromTopicsTool,
+  ...SLACK_TOOLS,
 ];
 
 const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
@@ -67,9 +69,10 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   weather: 'weather.',
   web: 'web.',
   trends: 'trends.',
+  slack: 'slack.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'slack' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

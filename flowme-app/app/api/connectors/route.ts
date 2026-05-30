@@ -2,10 +2,10 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 
-const VALID_TYPES = ['gmail', 'google_docs', 'google_sheets', 'google_drive'];
+const VALID_TYPES = ['gmail', 'google_docs', 'google_sheets', 'google_drive', 'slack'];
 
 function initialConnectorConfig(type: string, input: unknown): Record<string, unknown> {
-  if (['gmail', 'google_docs', 'google_sheets', 'google_drive'].includes(type)) return {};
+  if (['gmail', 'google_docs', 'google_sheets', 'google_drive', 'slack'].includes(type)) return {};
   return input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {};
 }
 

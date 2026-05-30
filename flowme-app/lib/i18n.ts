@@ -200,6 +200,7 @@ export const UI = {
         google_docs: { description: 'Connect Google Docs so Balys can find, read, and edit documents', scopes: 'Find, read & edit documents' },
         google_sheets: { description: 'Connect Google Sheets so Balys can find, read, edit, and analyze spreadsheets', scopes: 'Find, read & edit spreadsheets' },
         google_drive: { description: 'Connect Google Drive so Balys can discover and read files', scopes: 'Discover and read Drive files' },
+        slack: { description: 'Connect your Slack workspace so Balys can search messages, summarize threads, and send replies with your confirmation', scopes: 'Read messages, threads, channels & post (with confirmation)' },
       },
     },
 
@@ -462,6 +463,7 @@ export const UI = {
         google_docs: { description: 'Conecte o Google Docs para o Balys encontrar, ler e editar documentos', scopes: 'Encontrar, ler e editar documentos' },
         google_sheets: { description: 'Conecte o Google Sheets para o Balys encontrar, ler, editar e analisar planilhas', scopes: 'Encontrar, ler e editar planilhas' },
         google_drive: { description: 'Conecte o Google Drive para o Balys descobrir e ler arquivos', scopes: 'Descobrir e ler arquivos do Drive' },
+        slack: { description: 'Conecte seu workspace do Slack para o Balys buscar mensagens, resumir threads e responder com sua confirmação', scopes: 'Ler mensagens, threads, canais e postar (com confirmação)' },
       },
     },
 

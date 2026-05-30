@@ -46,6 +46,27 @@ function check(result: WebAPICallResult, label: string): void {
   }
 }
 
+export async function searchMessages(
+  client: WebClient,
+  query: string,
+  count = 10,
+): Promise<SlackMessageHit[]> {
+  const result = await client.search.messages({ query, count: Math.min(Math.max(count, 1), 50), sort: 'timestamp' });
+  check(result, 'search.messages');
+  const matches = (result as any).messages?.matches as any[] | undefined;
+  if (!Array.isArray(matches)) return [];
+  return matches.map((m) => ({
+    text: String(m.text || ''),
+    user_id: m.user || null,
+    user_name: m.username || null,
+    channel_id: m.channel?.id || null,
+    channel_name: m.channel?.name || null,
+    ts: String(m.ts || ''),
+    thread_ts: m.thread_ts || null,
+    permalink: m.permalink || null,
+  }));
+}
+
 export async function listConversations(
   client: WebClient,
   opts: { types?: string; limit?: number } = {},
@@ -72,9 +93,8 @@ export async function readChannelHistory(
   client: WebClient,
   channel: string,
   limit = 20,
-  oldest?: string,
 ): Promise<SlackMessageHit[]> {
-  const result = await client.conversations.history({ channel, limit: Math.min(Math.max(limit, 1), 200), oldest });
+  const result = await client.conversations.history({ channel, limit: Math.min(Math.max(limit, 1), 200) });
   check(result, 'conversations.history');
   const messages = (result as any).messages as any[] | undefined;
   if (!Array.isArray(messages)) return [];
@@ -88,16 +108,6 @@ export async function readChannelHistory(
     thread_ts: m.thread_ts || null,
     permalink: null,
   }));
-}
-
-export async function getPermalink(client: WebClient, channel: string, ts: string): Promise<string | null> {
-  try {
-    const result = await client.chat.getPermalink({ channel, message_ts: ts });
-    if (!result.ok) return null;
-    return (result as any).permalink || null;
-  } catch {
-    return null;
-  }
 }
 
 export async function readThread(

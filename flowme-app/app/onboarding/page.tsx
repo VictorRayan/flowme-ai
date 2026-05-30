@@ -500,7 +500,12 @@ export default function OnboardingWizard() {
         {step === 0 && (
           <Fade in={step === 0} timeout={600}>
             <Box sx={{ textAlign: 'center' }}>
-              <LanguageIcon sx={{ fontSize: 60, color: 'primary.main', mb: 3 }} />
+              <Box
+                component="img"
+                src="/brand/flowme-icon.png"
+                alt="Flow-me"
+                sx={{ width: 120, height: 120, mb: 2, mx: 'auto', display: 'block', objectFit: 'contain' }}
+              />
               <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, color: '#fff', letterSpacing: '-1px' }}>
                 Flow-me
               </Typography>

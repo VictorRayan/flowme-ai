@@ -66,8 +66,8 @@ Estas etapas **dependem de você** (não dá pra fazer só no repositório):
   - Produção: `https://app.flow-me.online/api/auth/slack/callback`
   - Dev: use um túnel HTTPS (ngrok/cloudflared) → `https://<seu-tunnel>/api/auth/slack/callback`
     > **Importante:** sem HTTPS o OAuth do Slack não funciona localmente. Já que vocês usam Traefik, dá pra expor um subdomínio de staging com TLS, ou usar ngrok no dev.
-- **User Token Scopes** (vamos usar token de usuário `xoxp` para agir como o usuário):
-  - Leitura: `channels:history`, `groups:history`, `im:history`, `mpim:history`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `users:read` (NOTE: `search:read` é proibido para apps do Slack Marketplace — usamos read-de-canal/thread em vez de busca global)
+- **User Token Scopes** (vamos usar token de usuário `xoxp` — necessário p/ `search:read` e agir como o usuário):
+  - Leitura: `search:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `users:read` (NOTE: `search:read` é permitido porque distribuímos só via **Public Distribution**, não Marketplace. Se algum dia formos pro Marketplace, remover `search:read` e cair pra scan-and-filter sobre `conversations.history`)
   - Escrita: `chat:write`
 - (Opcional) **Bot Token Scopes** se quiser que o Balys poste **como bot** em vez de como o usuário: `chat:write`, `channels:read`, `users:read`. Decidir na Fase 5.
 
@@ -171,6 +171,7 @@ Balys (chat) → tool slack.* → getSlackAccountId(ctx) → token válido
 Helpers: `getSlackAccountId(ctx)` (connector `type='slack'` ativo → `config.linked_account_id`; fallback `linked_accounts` provider `slack`) e `getConnectedSlackClient(linkedAccountId, ctx)`.
 
 Tools (prefixo `slack.`):
+- [ ] `slack.search_messages` (read) — busca global via `search.messages` (suporta sintaxe Slack: `from:@user`, `in:#channel`, `before:YYYY-MM-DD`).
 - [ ] `slack.list_channels` (read) — lista canais/DMs acessíveis.
 - [ ] `slack.read_channel` (read) — histórico recente de um canal.
 - [ ] `slack.read_thread` (read) — respostas de uma thread.
@@ -195,7 +196,8 @@ Tools (prefixo `slack.`):
 ### Fase 9 — Testes + e2e
 - [ ] `npm test` verde (unit de client, auth, tools).
 - [ ] **e2e (obrigatório antes de marcar pronto):** subir o app local, conectar um Slack de teste via OAuth (com túnel HTTPS), e validar no chat do Balys:
-  - "lista meus canais" → retorna canais/DMs acessíveis
+  - "busca no Slack a conversa sobre X" → retorna matches do `search.messages`
+  - "quem me falou sobre Y?" → search com texto livre
   - "resume as últimas 20 mensagens do canal #geral" → lê histórico e resume
   - "resume a thread tal" → lê e resume
   - "manda no canal #geral: ..." → **pede confirmação** e só então posta
@@ -207,7 +209,7 @@ Tools (prefixo `slack.`):
 
 | Capacidade | Scope (user token `xoxp`) | Observação |
 |---|---|---|
-| ~~Buscar mensagens~~ | `search:read` | ❌ **NÃO usar** — banido para apps do Marketplace. Substituído por `read_channel` + `read_thread` quando o usuário sabe onde olhar. |
+| Buscar mensagens | `search:read` | **Só existe em user token**, não em bot token. Permitido para Public Distribution (não para Marketplace). |
 | Ler histórico | `channels:history`, `groups:history`, `im:history`, `mpim:history` | Por tipo de conversa. |
 | Listar conversas | `channels:read`, `groups:read`, `im:read`, `mpim:read` | |
 | Dados de usuário | `users:read` | |
@@ -261,7 +263,7 @@ Tools (prefixo `slack.`):
 - [ ] Envs configuradas (dev + prod).
 - [ ] Migration aplicada no Supabase.
 - [ ] `npm test` verde (client, auth, tools, rota OAuth).
-- [ ] e2e: conectar Slack real + listar canais + ler thread + postar (com confirmação) funcionando.
+- [ ] e2e: conectar Slack real + buscar mensagens + ler thread + postar (com confirmação) funcionando.
 - [ ] Logs monitorados sem erro de scope/rate limit.
 - [ ] BALYS.md atualizado.
 

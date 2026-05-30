@@ -22,11 +22,10 @@ describe('buildSlackAuthorizeUrl', () => {
     expect(url.searchParams.get('scope')).toBeNull();
   });
 
-  it('includes the read + write scopes but never the Marketplace-banned search:read', () => {
-    expect(SLACK_USER_SCOPES).toContain('channels:history');
+  it('includes search:read and chat:write among the user scopes (Public Distribution app)', () => {
+    expect(SLACK_USER_SCOPES).toContain('search:read');
     expect(SLACK_USER_SCOPES).toContain('chat:write');
-    // search:read is not permitted for Slack Marketplace apps.
-    expect(SLACK_USER_SCOPES).not.toContain('search:read' as any);
+    expect(SLACK_USER_SCOPES).toContain('channels:history');
   });
 });
 

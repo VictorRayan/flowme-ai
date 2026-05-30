@@ -35,6 +35,12 @@ export default function Login() {
 
   return (
     <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
+      <Box
+        component="img"
+        src="/brand/flowme-icon.png"
+        alt="Flow Me"
+        sx={{ width: 104, height: 104, mx: 'auto', mb: 1, display: 'block', objectFit: 'contain' }}
+      />
       <Typography variant="h4" component="h1" gutterBottom align="center" fontWeight="bold">
         Flow Me
       </Typography>

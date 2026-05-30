@@ -92,21 +92,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <Box className="sidebar-bg">
       {/* Logo */}
       <Box sx={{ px: 2, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box sx={{
-          width: 30,
-          height: 30,
-          borderRadius: '8px',
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 0 14px rgba(99,102,241,0.45)',
-          flexShrink: 0,
-        }}>
-          <Typography sx={{ color: '#fff', fontSize: 14, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.5px' }}>
-            F
-          </Typography>
-        </Box>
+        <Box
+          component="img"
+          src="/brand/flowme-icon.png"
+          alt="Flow Me"
+          sx={{ width: 36, height: 36, flexShrink: 0, objectFit: 'contain' }}
+        />
         <Typography
           variant="h6"
           noWrap

@@ -1,4 +1,5 @@
 import {
+  searchMessages,
   listConversations,
   readChannelHistory,
   readThread,
@@ -11,6 +12,7 @@ type Mock = jest.Mock;
 
 function makeClient(overrides: Record<string, Mock> = {}) {
   return {
+    search: { messages: overrides.searchMessages || jest.fn() },
     conversations: {
       list: overrides.list || jest.fn(),
       history: overrides.history || jest.fn(),
@@ -24,6 +26,27 @@ function makeClient(overrides: Record<string, Mock> = {}) {
 describe('slack-client', () => {
   it('getSlackClient throws when token is empty', () => {
     expect(() => getSlackClient('')).toThrow(/required/);
+  });
+
+  it('searchMessages normalizes matches and bubbles Slack errors', async () => {
+    const fn = jest.fn().mockResolvedValue({
+      ok: true,
+      messages: {
+        matches: [
+          { text: 'Hi there', user: 'U1', channel: { id: 'C1', name: 'general' }, ts: '1.2', permalink: 'https://x' },
+        ],
+      },
+    });
+    const client = makeClient({ searchMessages: fn });
+    const result = await searchMessages(client, 'hi');
+    expect(result).toEqual([{
+      text: 'Hi there', user_id: 'U1', user_name: null,
+      channel_id: 'C1', channel_name: 'general',
+      ts: '1.2', thread_ts: null, permalink: 'https://x',
+    }]);
+
+    const failing = makeClient({ searchMessages: jest.fn().mockResolvedValue({ ok: false, error: 'rate_limited' }) });
+    await expect(searchMessages(failing, 'hi')).rejects.toThrow(/rate_limited/);
   });
 
   it('listConversations returns lite shape and excludes archived', async () => {

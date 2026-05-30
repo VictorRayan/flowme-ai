@@ -1,10 +1,12 @@
 // Slack OAuth v2 helpers used by /api/auth/slack/{connect,callback}.
 
 // User-token scopes for Balys (read + write on behalf of the user).
-// search:read is intentionally NOT included — Slack does not allow it for
-// Marketplace apps. Balys reads through conversations.history / replies and
-// channel listings instead.
+// Includes search:read because Flowme distributes the app via Public
+// Distribution only (not Slack Marketplace), where search:read is allowed.
+// If the app is ever submitted to Marketplace, remove search:read and fall
+// back to scan-and-filter over conversations.history.
 export const SLACK_USER_SCOPES = [
+  'search:read',
   'channels:history',
   'channels:read',
   'groups:history',

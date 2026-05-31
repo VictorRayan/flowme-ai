@@ -10,11 +10,12 @@ import EventIcon from '@mui/icons-material/Event';
 import GroupsIcon from '@mui/icons-material/Groups';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import EditNoteIcon from '@mui/icons-material/EditNote';
-import EmailIcon from '@mui/icons-material/Email';
-import DescriptionIcon from '@mui/icons-material/Description';
-import GridOnIcon from '@mui/icons-material/GridOn';
-import FolderIcon from '@mui/icons-material/Folder';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import SlackBrandIcon from '@/components/icons/SlackBrandIcon';
+import GmailBrandIcon from '@/components/icons/GmailBrandIcon';
+import GoogleDocsBrandIcon from '@/components/icons/GoogleDocsBrandIcon';
+import GoogleSheetsBrandIcon from '@/components/icons/GoogleSheetsBrandIcon';
+import GoogleDriveBrandIcon from '@/components/icons/GoogleDriveBrandIcon';
 import { type UiLang } from '@/lib/i18n';
 import dayjs from 'dayjs';
 
@@ -27,6 +28,7 @@ export type CommandAction =
   | 'drive'
   | 'docs'
   | 'sheets'
+  | 'slack'
   | 'reminder';
 
 export interface ContextItem {
@@ -141,6 +143,15 @@ function getActions(uiLang: UiLang): ActionDef[] {
       directive: 'Use connectors.list to find an authorized Google Sheets connector. Use connectors.search_docs to list or search spreadsheets. After selecting the relevant spreadsheet internally, use connectors.sheets_agent with mode="analyze" for financial insights or mode="edit" for formulas/edits. Use connectors.read_sheet for simple range reads. Extract insights from actual rows and the economist agent receipts.',
       action: 'sheets',
       aliases: ['/sheets', '/planilhas', '/planilha', 'sheets', 'sheet', 'planilha', 'planilhas'],
+    },
+    {
+      id: 'slack',
+      command: '/slack',
+      label: '/slack',
+      subtitle: pt ? 'Buscar, ler e responder mensagens no Slack' : 'Search, read and reply to Slack messages',
+      directive: 'Use connectors.list to verify the Slack connector is active. Then pick the right tool based on the user intent:\n- KEYWORD search (user gives a name, topic, phrase) → slack.search_messages with their term. Supports Slack operators (from:@user, in:#channel, before:YYYY-MM-DD).\n- BROWSE / "what is recent" / specific channel mention → slack.list_channels to resolve names → slack.read_channel on the relevant one. Never call slack.search_messages without a non-empty search term.\n- THREAD context → slack.read_thread with channel + thread_ts.\n- USER profile lookup → slack.get_user to turn a Slack user ID into a real name.\n- POST a message → slack.send_message with confirmed=true ONLY after the user has explicitly confirmed both the message text and the destination channel/DM. Always show the draft and ask for confirmation first.\nIf the channel or recipient is ambiguous, ask one short clarifying question before acting.',
+      action: 'slack',
+      aliases: ['/slack', 'slack', 'mensagem do slack', 'slack messages', 'slack search'],
     },
     {
       id: 'reminder',
@@ -366,14 +377,16 @@ export default function CommandPalette({ anchorEl, query, uiLang = 'en', onSelec
                           : item.action === 'weather'
                             ? <WbSunnyIcon fontSize="small" sx={{ color: '#38bdf8' }} />
                             : item.action === 'gmail'
-                              ? <EmailIcon fontSize="small" sx={{ color: '#ef4444' }} />
+                              ? <GmailBrandIcon fontSize="small" />
                               : item.action === 'drive'
-                                ? <FolderIcon fontSize="small" sx={{ color: '#fbbc04' }} />
+                                ? <GoogleDriveBrandIcon fontSize="small" />
                                 : item.action === 'docs'
-                                  ? <DescriptionIcon fontSize="small" sx={{ color: '#4285f4' }} />
+                                  ? <GoogleDocsBrandIcon fontSize="small" />
                                   : item.action === 'sheets'
-                                    ? <GridOnIcon fontSize="small" sx={{ color: '#0f9d58' }} />
-                                    : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
+                                    ? <GoogleSheetsBrandIcon fontSize="small" />
+                                    : item.action === 'slack'
+                                      ? <SlackBrandIcon fontSize="small" />
+                                      : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
                     : item.kind === 'note'
                       ? <NoteIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       : <EventIcon fontSize="small" sx={{ color: 'info.main' }} />}

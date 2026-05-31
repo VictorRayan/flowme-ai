@@ -13,12 +13,12 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import EmailIcon from '@mui/icons-material/Email';
-import DescriptionIcon from '@mui/icons-material/Description';
-import GridOnIcon from '@mui/icons-material/GridOn';
-import FolderIcon from '@mui/icons-material/Folder';
-import ForumIcon from '@mui/icons-material/Forum';
 import LinkIcon from '@mui/icons-material/Link';
+import SlackBrandIcon from '@/components/icons/SlackBrandIcon';
+import GmailBrandIcon from '@/components/icons/GmailBrandIcon';
+import GoogleDocsBrandIcon from '@/components/icons/GoogleDocsBrandIcon';
+import GoogleSheetsBrandIcon from '@/components/icons/GoogleSheetsBrandIcon';
+import GoogleDriveBrandIcon from '@/components/icons/GoogleDriveBrandIcon';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -35,11 +35,11 @@ interface Connector {
 }
 
 const CONNECTOR_ICONS: Record<ConnectorType, React.ReactNode> = {
-  gmail: <EmailIcon />,
-  google_docs: <DescriptionIcon />,
-  google_sheets: <GridOnIcon />,
-  google_drive: <FolderIcon />,
-  slack: <ForumIcon />,
+  gmail: <GmailBrandIcon />,
+  google_docs: <GoogleDocsBrandIcon />,
+  google_sheets: <GoogleSheetsBrandIcon />,
+  google_drive: <GoogleDriveBrandIcon />,
+  slack: <SlackBrandIcon />,
 };
 
 const CONNECTOR_COLORS: Record<ConnectorType, string> = {

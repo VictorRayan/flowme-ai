@@ -58,17 +58,24 @@ async function withSlackClient<T>(
 
 export const slackSearchMessagesTool = defineTool({
   name: 'slack.search_messages',
-  description: `Search messages across the user's Slack workspace.
+  description: `Keyword search across the user's Slack workspace via Slack's search API.
 
-WHEN TO USE: "find the Slack message about…", "what did X say about…", "search Slack for…", "quem me falou de…".
+USE ONLY WHEN the user gives a CONCRETE search term (a topic, name, phrase, project, keyword). Examples that fit: "find the Slack message about the launch", "what did Anna say about Q3", "quem me falou do orçamento", "busca por 'maratona' no Slack".
+
+DO NOT USE for browse-style requests with no search term:
+- "show me recent Slack messages" → use slack.list_channels + slack.read_channel instead.
+- "what's happening in my Slack" → use slack.list_channels first.
+- "mensagens do canal X" → use slack.list_channels to resolve X, then slack.read_channel.
+
+If the user has not provided a non-empty search term (≥2 chars), DO NOT call this tool — ask the user what term to search for, or switch to read_channel.
 
 CONTRACT:
-- query: search query (Slack search syntax supported, e.g. "from:@anna budget", "in:#product roadmap", "before:2026-05-01 launch").
+- query: REQUIRED. A non-empty Slack search query, 2–300 chars. Slack operators supported ("from:@anna budget", "in:#product roadmap", "before:2026-05-01 launch").
 - count: max results (1–50, default 10).
 - Returns: matches with text, sender, channel, ts, permalink. Read-only.`,
   isReadOnly: true,
   inputSchema: z.object({
-    query: z.string().min(2).max(300).describe('Search query (Slack operators supported).'),
+    query: z.string().trim().min(2).max(300).describe('REQUIRED non-empty Slack search query (≥2 chars). Slack operators supported.'),
     count: z.number().int().min(1).max(50).optional().describe('Max matches, default 10.'),
   }),
   call: async (args, context) => withSlackClient(context, (client) => searchMessages(client, args.query, args.count ?? 10)),
@@ -78,7 +85,10 @@ export const slackListChannelsTool = defineTool({
   name: 'slack.list_channels',
   description: `List channels and DMs the user has access to.
 
-WHEN TO USE: choosing where to post, resolving a channel name to an ID, listing what's available.
+WHEN TO USE:
+- Broad browse requests: "quais são as mensagens recentes do slack?", "o que tem nos meus canais?", "show me what's in Slack" — start here, then call slack.read_channel on the relevant channels.
+- Resolving a channel name mentioned by the user ("mensagens do canal social") into a channel ID before reading or posting.
+- Showing the user what's available when they ask "que canais eu tenho?".
 
 CONTRACT:
 - types: comma-separated Slack types (default 'public_channel,private_channel,im').
@@ -96,10 +106,15 @@ export const slackReadChannelTool = defineTool({
   name: 'slack.read_channel',
   description: `Read recent messages from a single channel or DM.
 
-WHEN TO USE: "what's new in #channel", "summarize the last 20 messages from X".
+WHEN TO USE:
+- "o que tem de novo no canal #X", "resume as últimas mensagens do canal Y", "quais foram as mensagens do canal Z hoje".
+- Whenever the user wants a feed/recap of a specific channel, even if they ask in broader terms like "mensagens do canal social".
+- For browse-style requests ("recent Slack messages") AFTER you've resolved which channels to look at via slack.list_channels — call this per channel.
+
+DO NOT use slack.search_messages when the user just wants to read a channel — there is no keyword in a browse request.
 
 CONTRACT:
-- channel: channel/DM ID (use slack.list_channels to resolve names → IDs).
+- channel: channel/DM ID (use slack.list_channels to resolve names → IDs first).
 - limit: 1–200, default 20.
 - Read-only.`,
   isReadOnly: true,

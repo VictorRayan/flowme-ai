@@ -79,11 +79,17 @@ export default function FilterPanel({
                 />
               } 
               label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: acc.type === 'work' ? 'secondary.main' : 'primary.main' }} />
-                  <Typography variant="body2">{acc.name}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, width: '100%' }}>
+                  <Box sx={{ flexShrink: 0, width: 8, height: 8, borderRadius: '50%', bgcolor: acc.type === 'work' ? 'secondary.main' : 'primary.main' }} />
+                  <Typography variant="body2" sx={{ wordBreak: 'break-all', overflowWrap: 'anywhere', lineHeight: 1.3 }}>{acc.name}</Typography>
                 </Box>
-              } 
+              }
+              sx={{
+                alignItems: 'flex-start',
+                mr: 0,
+                '& .MuiFormControlLabel-label': { minWidth: 0, flex: 1, overflow: 'hidden' },
+                '& .MuiCheckbox-root': { pt: 0.25 },
+              }}
             />
           ))}
         </FormGroup>

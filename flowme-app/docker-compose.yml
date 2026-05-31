@@ -70,6 +70,12 @@ services:
           curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] send-ritual-prompts %{http_code}\n" \
             -H "Authorization: Bearer $$CRON_SECRET" \
             http://flowme-app:3000/api/cron/send-ritual-prompts || true
+          # Meeting pipeline — runs every minute. The endpoint short-circuits
+          # when no meeting is in `processing` or `reanalyzing`.
+          curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] process-meetings %{http_code}\n" \
+            -H "Authorization: Bearer $$CRON_SECRET" \
+            -X POST \
+            http://flowme-app:3000/api/cron/process-meetings || true
           # Reminders every 5 minutes (TICK runs 0..4).
           if [ "$$TICK" = "0" ]; then
             curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] materialize-calendar-reminders %{http_code}\n" \

@@ -4,6 +4,12 @@ const insertMock = jest.fn().mockResolvedValue({
 const patchMock = jest.fn().mockResolvedValue({
   data: { id: 'event-1', htmlLink: 'https://calendar.google.com/event', hangoutLink: null },
 });
+const getMock = jest.fn().mockResolvedValue({
+  data: { id: 'event-1', summary: 'Deep work' },
+});
+const calendarListGetMock = jest.fn().mockResolvedValue({
+  data: { defaultReminders: [{ method: 'popup', minutes: 30 }] },
+});
 
 jest.mock('googleapis', () => ({
   google: {
@@ -11,7 +17,9 @@ jest.mock('googleapis', () => ({
       events: {
         insert: insertMock,
         patch: patchMock,
+        get: getMock,
       },
+      calendarList: { get: calendarListGetMock },
     })),
   },
 }));
@@ -20,7 +28,20 @@ jest.mock('@/lib/google/google-auth', () => ({
   getValidGoogleToken: jest.fn().mockResolvedValue({}),
 }));
 
-import { createCalendarEvent, updateCalendarEvent } from '@/lib/google/google-calendar';
+import { createCalendarEvent, getCalendarDefaultReminders, getCalendarEvent, updateCalendarEvent } from '@/lib/google/google-calendar';
+
+describe('getCalendarEvent', () => {
+  it('loads the current provider allocation before rescheduling', async () => {
+    await expect(getCalendarEvent('account-1', 'event-1')).resolves.toEqual({ id: 'event-1', summary: 'Deep work' });
+    expect(getMock).toHaveBeenCalledWith({ calendarId: 'primary', eventId: 'event-1' });
+  });
+});
+
+describe('getCalendarDefaultReminders', () => {
+  it('loads reminder defaults for useDefault events', async () => {
+    await expect(getCalendarDefaultReminders('account-1')).resolves.toEqual([{ method: 'popup', minutes: 30 }]);
+  });
+});
 
 describe('createCalendarEvent', () => {
   beforeEach(() => {

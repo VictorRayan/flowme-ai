@@ -14,10 +14,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
     if (!outcome || !EVENT_OUTCOMES.includes(outcome)) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'outcome must be one of: ' + EVENT_OUTCOMES.join(', '));
     }
+    const reason = typeof body.outcome_reason === 'string' ? body.outcome_reason.trim() : '';
+    const reasonCode = typeof body.reason_code === 'string' ? body.reason_code.trim() : '';
+    if (outcome === 'not_done' && !reason && !reasonCode) {
+      return apiError(ErrorCode.VALIDATION_ERROR, 'reason is required for not_done');
+    }
     const row = await upsertEventOutcome(supabase as any, user.id, {
       event_id: eventId,
       outcome,
-      outcome_reason: typeof body.outcome_reason === 'string' ? body.outcome_reason : null,
+      outcome_reason: reason || null,
+      reason_code: reasonCode || null,
+      answer_source: 'today_ui',
       linked_account_id: typeof body.linked_account_id === 'string' ? body.linked_account_id : null,
     });
     return apiSuccess({ outcome: row });

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Chip, Stack, Switch, FormControlLabel, Backdrop } from '@mui/material';
+import { Box, Typography, Button, TextField, Container, Fade, IconButton, CircularProgress, Paper, Chip, Stack, Switch, FormControlLabel, Backdrop, MenuItem } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -46,6 +46,11 @@ const dict = {
     afternoon_desc: 'No meio do dia, o Flow-me te manda um resumo do que ainda falta na agenda, notícias e o que está em alta no X — pra você recalibrar o restante do dia.',
     evening_sync: 'Reflexão e Briefing',
     evening_desc: 'No final do dia, você faz uma reflexão rápida (por texto ou áudio) sobre o que aconteceu. O conselheiro de IA analisa seu progresso e ajusta o plano para amanhã.',
+    weekly_review_sync: 'Revisão Semanal',
+    weekly_review_desc: 'Uma vez por semana, a Balys revisa sua execução, identifica padrões e te ajuda a corrigir a rota.',
+    weekly_review_day: 'Dia da semana',
+    weekly_review_time: 'Horário',
+    weekdays: ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'],
     
     btn_continue: 'Continuar',
     btn_start_setup: 'Começar minha configuração',
@@ -73,6 +78,7 @@ const dict = {
     delivery_push_denied: 'Você bloqueou a permissão. Habilite nas configurações do navegador e tente de novo.',
     delivery_push_unsupported: 'Seu navegador não suporta notificações push.',
     delivery_web: 'Sempre disponível no app',
+    mirror_calendar_whatsapp: 'Espelhar lembretes do Google Calendar no WhatsApp',
 
     notif_overline: 'Quase lá',
     notif_title: 'Ative seus lembretes',
@@ -126,6 +132,11 @@ const dict = {
     afternoon_desc: 'Midday, Flow-me sends a recap of what is still on your calendar, the news, and what is buzzing on X — so you can recalibrate the rest of your day.',
     evening_sync: 'Reflection & Briefing',
     evening_desc: 'At the end of the day, you do a quick reflection (text or voice) about what happened. The AI counselor analyzes your progress and adjusts tomorrow\'s plan.',
+    weekly_review_sync: 'Weekly Review',
+    weekly_review_desc: 'Once a week, Balys reviews your execution, identifies patterns, and helps you correct course.',
+    weekly_review_day: 'Weekday',
+    weekly_review_time: 'Time',
+    weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
     
     btn_continue: 'Continue',
     btn_start_setup: 'Start my setup',
@@ -153,6 +164,7 @@ const dict = {
     delivery_push_denied: 'You blocked permission. Enable it in your browser settings and try again.',
     delivery_push_unsupported: 'Your browser does not support push notifications.',
     delivery_web: 'Always available in the app',
+    mirror_calendar_whatsapp: 'Mirror Google Calendar reminders to WhatsApp',
 
     notif_overline: 'Almost there',
     notif_title: 'Turn on your reminders',
@@ -212,6 +224,8 @@ export default function OnboardingWizard() {
   const [morningTime, setMorningTime] = React.useState('08:00');
   const [afternoonTime, setAfternoonTime] = React.useState('13:00');
   const [eveningTime, setEveningTime] = React.useState('20:00');
+  const [weeklyReviewWeekday, setWeeklyReviewWeekday] = React.useState('0');
+  const [weeklyReviewTime, setWeeklyReviewTime] = React.useState('18:00');
   const [newsTopics, setNewsTopics] = React.useState<string[]>([]);
   const [topicDraft, setTopicDraft] = React.useState('');
   const [briefingCity, setBriefingCity] = React.useState('');
@@ -227,6 +241,7 @@ export default function OnboardingWizard() {
   const [waError, setWaError] = React.useState<string | null>(null);
   const [waSubmitting, setWaSubmitting] = React.useState(false);
   const [whatsappLinked, setWhatsappLinked] = React.useState(false);
+  const [mirrorCalendarWhatsapp, setMirrorCalendarWhatsapp] = React.useState(false);
   const whatsappInstanceNumber = process.env.NEXT_PUBLIC_WHATSAPP_INSTANCE_DISPLAY_NUMBER ?? '';
 
   const addTopic = () => {
@@ -380,6 +395,17 @@ export default function OnboardingWizard() {
           briefing_delivery: delivery,
           daily_routine_enabled: true,
           briefing_city: briefingCity.trim() || null,
+          daily_briefing_note_prompt_enabled: true,
+          daily_briefing_note_time: eveningTime,
+          daily_briefing_note_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
+          weekly_review_enabled: true,
+          weekly_review_weekday: Number(weeklyReviewWeekday),
+          weekly_review_time: weeklyReviewTime,
+          weekly_review_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
+          post_event_checkin_enabled: true,
+          post_event_checkin_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
+          mirror_calendar_reminders_to_whatsapp: whatsappLinked && mirrorCalendarWhatsapp,
+          notification_language: lang,
         }),
       });
     } catch (e) {
@@ -900,6 +926,33 @@ export default function OnboardingWizard() {
 
               {/* City for weather */}
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
+                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>{t.weekly_review_sync}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6, mb: 2 }}>
+                  {t.weekly_review_desc}
+                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    select
+                    fullWidth
+                    label={t.weekly_review_day}
+                    value={weeklyReviewWeekday}
+                    onChange={(e) => setWeeklyReviewWeekday(e.target.value)}
+                  >
+                    {t.weekdays.map((weekday, index) => <MenuItem key={weekday} value={String(index)}>{weekday}</MenuItem>)}
+                  </TextField>
+                  <TextField
+                    type="time"
+                    label={t.weekly_review_time}
+                    value={weeklyReviewTime}
+                    onChange={(e) => setWeeklyReviewTime(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ minWidth: 150 }}
+                  />
+                </Stack>
+              </Box>
+
+              {/* City for weather */}
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1.5 }}>{t.city_title}</Typography>
                 <TextField
                   fullWidth
@@ -967,6 +1020,10 @@ export default function OnboardingWizard() {
                           : t.delivery_push_denied}
                     </Typography>
                   </Box>
+                  <FormControlLabel
+                    control={<Switch checked={mirrorCalendarWhatsapp} onChange={(event) => setMirrorCalendarWhatsapp(event.target.checked)} disabled={!whatsappLinked} />}
+                    label={<Typography sx={{ color: whatsappLinked ? '#fff' : 'text.disabled' }}>{t.mirror_calendar_whatsapp}</Typography>}
+                  />
                 </Stack>
               </Box>
 

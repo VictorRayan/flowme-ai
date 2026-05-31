@@ -1,6 +1,6 @@
 export type TaskSourceType = 'calendar_event' | 'goal_task' | 'action_plan_task' | 'manual';
 export type TaskExecutionType = 'event';
-export type TaskOutcome = 'pending' | 'completed' | 'skipped' | 'moved' | 'incomplete' | 'blocked' | 'deferred';
+export type TaskOutcome = 'pending' | 'completed' | 'skipped' | 'not_done' | 'moved' | 'incomplete' | 'blocked' | 'deferred';
 export type PrioritySource = 'user' | 'balys' | 'system';
 
 export interface NormalizedTask {
@@ -76,7 +76,7 @@ interface CalendarEventRow {
   linked_account_id?: string | null;
 }
 
-const OUTCOMES: TaskOutcome[] = ['pending', 'completed', 'skipped', 'moved', 'incomplete', 'blocked', 'deferred'];
+const OUTCOMES: TaskOutcome[] = ['pending', 'completed', 'skipped', 'not_done', 'moved', 'incomplete', 'blocked', 'deferred'];
 const SOURCES: TaskSourceType[] = ['calendar_event', 'goal_task', 'action_plan_task', 'manual'];
 const PRIORITY_SOURCES: PrioritySource[] = ['user', 'balys', 'system'];
 
@@ -164,7 +164,7 @@ export function buildDayUnit(date: string, timezone: string, tasks: NormalizedTa
     summary: {
       total: sorted.length,
       completed: sorted.filter(task => task.outcome === 'completed').length,
-      skipped: sorted.filter(task => task.outcome === 'skipped').length,
+      skipped: sorted.filter(task => task.outcome === 'skipped' || task.outcome === 'not_done').length,
       moved: sorted.filter(task => task.outcome === 'moved').length,
       blocked: sorted.filter(task => task.outcome === 'blocked').length,
       pending: sorted.filter(task => task.outcome === 'pending').length,

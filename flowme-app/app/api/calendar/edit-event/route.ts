@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
-import { updateCalendarEvent } from '@/lib/google/google-calendar';
+import { getCalendarEvent, updateCalendarEvent } from '@/lib/google/google-calendar';
+import { recordCalendarReschedule } from '@/lib/calendar/event-reschedule-history';
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -18,7 +19,10 @@ export async function PATCH(req: NextRequest) {
       create_meet,
       participants,
       location,
-      reminders
+      reminders,
+      previous_start_at,
+      previous_end_at,
+      event_title,
     } = body;
 
     // Validation
@@ -42,7 +46,15 @@ export async function PATCH(req: NextRequest) {
         return apiError(ErrorCode.VALIDATION_ERROR, 'Cannot use an inactive or deleted account');
     }
 
-    // Call Google API wrapper to patch the event
+    let previousEvent: Awaited<ReturnType<typeof getCalendarEvent>> | null = null;
+    if (start_at !== undefined || end_at !== undefined) {
+      try {
+        previousEvent = await getCalendarEvent(linked_account_id, event_id);
+      } catch (lookupError) {
+        console.error('[calendar.edit-event] failed to load previous event allocation:', lookupError);
+      }
+    }
+
     const result = await updateCalendarEvent(linked_account_id, event_id, {
         title: title ? title.trim() : undefined,
         description: description !== undefined ? description.trim() : undefined,
@@ -53,6 +65,27 @@ export async function PATCH(req: NextRequest) {
         location: location !== undefined ? location.trim() : undefined,
         reminders: reminders,
     });
+
+    const previousStartAt = previousEvent?.start?.dateTime || previousEvent?.start?.date || previous_start_at;
+    const previousEndAt = previousEvent?.end?.dateTime || previousEvent?.end?.date || previous_end_at;
+    if (typeof previousStartAt === 'string' && typeof start_at === 'string') {
+      try {
+        await recordCalendarReschedule(supabase, {
+          user_id: user.id,
+          linked_account_id,
+          provider_event_id: event_id,
+          event_title: typeof event_title === 'string' && event_title.trim() ? event_title.trim() : previousEvent?.summary || title?.trim() || 'Untitled Event',
+          previous_start_at: previousStartAt,
+          previous_end_at: typeof previousEndAt === 'string' && previousEndAt ? previousEndAt : null,
+          new_start_at: start_at,
+          new_end_at: typeof end_at === 'string' && end_at ? end_at : null,
+          changed_by: 'user_ui',
+          source_context: { route: '/api/calendar/edit-event' },
+        });
+      } catch (historyError) {
+        console.error('[calendar.edit-event] failed to record reschedule history:', historyError);
+      }
+    }
 
     return apiSuccess({
         provider_event_id: result.id,

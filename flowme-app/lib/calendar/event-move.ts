@@ -5,6 +5,7 @@ export interface MovableCalendarEvent {
   source: 'google';
   start_at: string;
   end_at?: string | null;
+  title?: string | null;
   linked_account_id?: string;
   provider_event_id?: string | null;
 }
@@ -59,6 +60,9 @@ export function buildEventMoveRequest(event: MovableCalendarEvent, moved: MovedE
       linked_account_id: event.linked_account_id,
       start_at: moved.start_at,
       end_at: moved.end_at,
+      previous_start_at: event.start_at,
+      previous_end_at: event.end_at || '',
+      event_title: event.title || 'Untitled Event',
     },
   };
 }

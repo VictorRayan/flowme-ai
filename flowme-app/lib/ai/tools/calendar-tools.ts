@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { defineTool, ToolContext } from './Tool';
 import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
-import { createCalendarEvent, deleteCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
+import { createCalendarEvent, deleteCalendarEvent, getCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
+import { listCalendarReschedules, recordCalendarReschedule } from '@/lib/calendar/event-reschedule-history';
 
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
@@ -362,6 +363,47 @@ ASK THE USER FIRST IF: time is ambiguous, the user explicitly named someone but 
   }
 });
 
+export const calendarListRescheduleHistoryTool = defineTool({
+  name: 'calendar.list_reschedule_history',
+  description: `Reads the user's calendar reschedule history so Balys can identify execution patterns.
+
+WHEN TO USE: the user asks why their agenda keeps changing, whether they postpone commitments often, how their week was managed, or when a weekly review needs calendar-allocation evidence.
+
+RETURNS human-readable evidence only: titles, movement type, offsets, timing, and aggregates. Never expose technical event IDs.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    from_iso: z.string().optional().describe('Optional ISO lower bound for when the reschedule happened.'),
+    to_iso: z.string().optional().describe('Optional ISO upper bound for when the reschedule happened.'),
+    limit: z.number().int().min(1).max(250).optional().describe('Maximum history rows. Defaults to 100.'),
+  }),
+  call: async (args, context) => {
+    const history = await listCalendarReschedules(context.supabase, context.user.id, {
+      from: args.from_iso,
+      to: args.to_iso,
+      limit: args.limit,
+    });
+    const latePostponements = history.filter(row => row.movement_type === 'postponed' && row.minutes_before_previous_start <= 24 * 60);
+    return {
+      ok: true,
+      receipt: {
+        count: history.length,
+        postponed_count: history.filter(row => row.movement_type === 'postponed').length,
+        advanced_count: history.filter(row => row.movement_type === 'advanced').length,
+        late_postponement_count: latePostponements.length,
+        late_postponement_threshold_hours: 24,
+        changes: history.map(row => ({
+          title: row.event_title,
+          movement_type: row.movement_type,
+          offset_minutes: row.offset_minutes,
+          total_offset_minutes: row.total_offset_minutes,
+          minutes_before_previous_start: row.minutes_before_previous_start,
+          changed_at: row.changed_at,
+        })),
+      },
+    };
+  },
+});
+
 export const calendarUpdateEventTool = defineTool({
   name: 'calendar.update_event',
   description: `Modifies an existing calendar event. Partial update — only the fields you pass are changed.
@@ -395,6 +437,9 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
     if (!resolved.ok) return { ok: false, error: resolved.error };
 
     try {
+      const previous = args.start_iso || args.end_iso
+        ? await getCalendarEvent(resolved.account.id, args.event_id, context)
+        : null;
       const updated = await updateCalendarEvent(resolved.account.id, args.event_id, {
         title: args.title,
         description: args.description,
@@ -403,6 +448,26 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
         endAt: args.end_iso,
         participants: args.participants,
       }, context);
+
+      const previousStartAt = previous?.start?.dateTime || previous?.start?.date;
+      if (previousStartAt && args.start_iso) {
+        try {
+          await recordCalendarReschedule(context.supabase, {
+            user_id: context.user.id,
+            linked_account_id: resolved.account.id,
+            provider_event_id: args.event_id,
+            event_title: previous?.summary || args.title || 'Untitled Event',
+            previous_start_at: previousStartAt,
+            previous_end_at: previous?.end?.dateTime || previous?.end?.date || null,
+            new_start_at: args.start_iso,
+            new_end_at: args.end_iso || null,
+            changed_by: 'balys',
+            source_context: { tool: 'calendar.update_event' },
+          });
+        } catch (historyError) {
+          console.error('[calendar.update_event] failed to record reschedule history:', historyError);
+        }
+      }
 
       return {
         ok: true,

@@ -60,6 +60,7 @@ interface NoteEditorProps {
   onDelete?: () => void;
   saving?: boolean;
   lang: UiLang;
+  autoFocus?: boolean;
 }
 
 // Extend Image node to support alignment attribute
@@ -77,7 +78,7 @@ const DocumentMention = Mention.extend({
   name: 'documentMention',
 });
 
-export default function NoteEditor({ note, onSave, onRename, onDelete, saving, lang }: NoteEditorProps) {
+export default function NoteEditor({ note, onSave, onRename, onDelete, saving, lang, autoFocus }: NoteEditorProps) {
   const t = UI[lang].notes;
   const [title, setTitle] = useState('');
   const [mentionedPeople, setMentionedPeople] = useState<Person[]>([]);
@@ -240,6 +241,10 @@ export default function NoteEditor({ note, onSave, onRename, onDelete, saving, l
   }, [title, onSave]);
 
   useEffect(() => { editorRef.current = editor; }, [editor]);
+
+  useEffect(() => {
+    if (autoFocus && note && editor) editor.commands.focus('end');
+  }, [autoFocus, editor, note]);
 
   useEffect(() => {
     const ed = editorRef.current;

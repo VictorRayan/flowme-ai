@@ -13,7 +13,7 @@ self.addEventListener('push', (event) => {
       body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: '/app/today' },
+      data: { url: payload.url || '/app/today' },
     }),
   );
 });

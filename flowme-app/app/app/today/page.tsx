@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Chip, CircularProgress,
-  Stack, Typography,
+  Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography,
 } from '@mui/material';
 import CheckCircleIcon    from '@mui/icons-material/CheckCircle';
 import BlockIcon          from '@mui/icons-material/Block';
@@ -19,7 +19,7 @@ import BriefingPill from '@/components/briefings/BriefingPill';
 import BriefingDialog, { type BriefingSections } from '@/components/briefings/BriefingDialog';
 
 /* ── types ─────────────────────────────────────────────────────────────── */
-type TaskOutcome   = 'pending'|'completed'|'skipped'|'moved'|'incomplete'|'blocked'|'deferred';
+type TaskOutcome   = 'pending'|'completed'|'skipped'|'not_done'|'moved'|'incomplete'|'blocked'|'deferred';
 type SourceType    = 'calendar_event'|'goal_task'|'action_plan_task'|'manual';
 
 interface NormalizedTask {
@@ -77,7 +77,7 @@ function recount(tasks: NormalizedTask[]): DayUnit['summary'] {
   return {
     total:     tasks.length,
     completed: tasks.filter(t => t.outcome === 'completed').length,
-    skipped:   tasks.filter(t => t.outcome === 'skipped').length,
+    skipped:   tasks.filter(t => t.outcome === 'skipped' || t.outcome === 'not_done').length,
     moved:     tasks.filter(t => t.outcome === 'moved').length,
     blocked:   tasks.filter(t => t.outcome === 'blocked').length,
     pending:   tasks.filter(t => t.outcome === 'pending').length,
@@ -98,6 +98,8 @@ export default function TodayPage() {
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingSections, setBriefingSections] = useState<BriefingSections | null>(null);
   const [briefingUserName, setBriefingUserName] = useState<string | undefined>(undefined);
+  const [notDoneTask, setNotDoneTask] = useState<NormalizedTask | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
 
   const openBriefing = useCallback(async () => {
     setBriefingOpen(true);
@@ -213,6 +215,17 @@ export default function TodayPage() {
   }, [tz]);
 
   useEffect(() => { fetchRange(); }, [fetchRange]);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('focus');
+    if (!token) return;
+    void fetch(`/api/notification-targets/${encodeURIComponent(token)}`)
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        const taskId = data?.target?.target_payload?.task_id;
+        if (typeof taskId === 'string') setFocusedTaskId(taskId);
+      });
+  }, []);
 
   // scroll today into view after load
   useEffect(() => {
@@ -343,6 +356,17 @@ export default function TodayPage() {
             sections={briefingSections}
             uiLang={uiLang}
           />
+          <NotDoneDialog
+            task={notDoneTask}
+            uiLang={uiLang}
+            saving={Boolean(notDoneTask && saving === notDoneTask.task_id)}
+            onClose={() => setNotDoneTask(null)}
+            onSave={(reasonCode, reason) => {
+              if (!notDoneTask) return;
+              void update(notDoneTask, { outcome: 'not_done', reason_code: reasonCode, outcome_reason: reason });
+              setNotDoneTask(null);
+            }}
+          />
           {days.map(day => (
             <DaySection
               key={day.date}
@@ -352,6 +376,8 @@ export default function TodayPage() {
               saving={saving}
               onUpdate={update}
               onMove={moveTo}
+              onNotDone={setNotDoneTask}
+              focusedTaskId={focusedTaskId}
               uiLang={uiLang}
               setBubbleRef={setBubbleRef}
             />
@@ -363,13 +389,15 @@ export default function TodayPage() {
 }
 
 /* ── DaySection: one "unit" like Duolingo ──────────────────────────────── */
-function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, setBubbleRef }: {
+function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, onNotDone, focusedTaskId, uiLang, setBubbleRef }: {
   day: DayUnit;
   isToday: boolean;
   todayRef?: React.RefObject<HTMLDivElement | null>;
   saving: string|null;
   onUpdate: (task: NormalizedTask, body: Record<string,unknown>) => void;
   onMove:   (task: NormalizedTask, to: string) => void;
+  onNotDone: (task: NormalizedTask) => void;
+  focusedTaskId: string | null;
   uiLang: UiLang;
   setBubbleRef: (taskId: string, node: HTMLDivElement | null) => void;
 }) {
@@ -465,10 +493,11 @@ function DaySection({ day, isToday, todayRef, saving, onUpdate, onMove, uiLang, 
                 saving={saving === task.task_id}
                 onDone={()=>onUpdate(task,{outcome:'completed'})}
                 onUndo={()=>onUpdate(task,{outcome:'pending'})}
-                onSkip={()=>onUpdate(task,{outcome:'skipped',outcome_reason:'Skipped'})}
+                onSkip={()=>onNotDone(task)}
                 onMove={()=>onMove(task, tomorrow)}
                 uiLang={uiLang}
                 setBubbleRef={setBubbleRef}
+                autoOpen={focusedTaskId === task.task_id}
               />
             );
           })}
@@ -520,16 +549,18 @@ function TrailConnectorOverlay({ points, width, height }: { points: TrailPoint[]
 }
 
 /* ── TaskBubble ─────────────────────────────────────────────────────────── */
-function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLang, setBubbleRef }: {
+function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLang, setBubbleRef, autoOpen }: {
   task: NormalizedTask; cx: number; cy: number;
   saving: boolean; onDone:()=>void; onUndo:()=>void; onSkip:()=>void; onMove:()=>void;
   uiLang: UiLang;
   setBubbleRef: (taskId: string, node: HTMLDivElement | null) => void;
+  autoOpen: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
   const isCalendarEvent = task.source_type === 'calendar_event';
   const done     = task.outcome === 'completed';
-  const skipped  = task.outcome === 'skipped' || task.outcome === 'moved';
+  const skipped  = task.outcome === 'skipped' || task.outcome === 'not_done' || task.outcome === 'moved';
   const blocked  = task.outcome === 'blocked'  || task.outcome === 'deferred';
   const ac       = accentFor(task);
   const tl       = timeLabel(task);
@@ -537,6 +568,12 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
 
   // Card pops to the right if bubble is on left half, left if on right half
   const cardSide = cx <= 50 ? 'right' : 'left';
+
+  useEffect(() => {
+    if (!autoOpen) return;
+    setOpen(true);
+    window.setTimeout(() => bubbleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+  }, [autoOpen]);
 
   return (
     <Box sx={{
@@ -559,7 +596,10 @@ function TaskBubble({ task, cx, cy, saving, onDone, onUndo, onSkip, onMove, uiLa
 
       {/* circle */}
       <Box
-        ref={(node: HTMLDivElement | null) => setBubbleRef(task.task_id, node)}
+        ref={(node: HTMLDivElement | null) => {
+          bubbleRef.current = node;
+          setBubbleRef(task.task_id, node);
+        }}
         onClick={()=>setOpen(o=>!o)}
         role="button"
         tabIndex={0}
@@ -686,10 +726,70 @@ function ABtn({color,icon,label,onClick,disabled}:{color:string;icon:React.React
   );
 }
 
+function NotDoneDialog({ task, uiLang, saving, onClose, onSave }: {
+  task: NormalizedTask | null;
+  uiLang: UiLang;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (reasonCode: string, reason: string) => void;
+}) {
+  const [reasonCode, setReasonCode] = useState('');
+  const [reason, setReason] = useState('');
+  const t = UI[uiLang].today;
+  const reasons = uiLang === 'pt'
+    ? [['unexpected', 'Imprevisto'], ['no_time', 'Não tive tempo'], ['underestimated', 'Subestimei a duração'], ['lost_priority', 'Perdeu prioridade'], ['other', 'Outro']]
+    : [['unexpected', 'Unexpected issue'], ['no_time', 'No time'], ['underestimated', 'Underestimated duration'], ['lost_priority', 'Lost priority'], ['other', 'Other']];
+
+  useEffect(() => {
+    if (task) {
+      setReasonCode('');
+      setReason('');
+    }
+  }, [task]);
+
+  const canSave = Boolean(reasonCode || reason.trim()) && (reasonCode !== 'other' || Boolean(reason.trim()));
+
+  return (
+    <Dialog open={Boolean(task)} onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>{t.notDoneReasonTitle}</DialogTitle>
+      <DialogContent>
+        <Typography sx={{ mb: 1.5, color: 'text.secondary', fontSize: 13 }}>{task?.title}</Typography>
+        <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mb: 2 }}>
+          {reasons.map(([value, label]) => (
+            <Chip
+              key={value}
+              label={label}
+              clickable
+              color={reasonCode === value ? 'primary' : 'default'}
+              variant={reasonCode === value ? 'filled' : 'outlined'}
+              onClick={() => setReasonCode(value)}
+            />
+          ))}
+        </Stack>
+        <TextField
+          fullWidth
+          multiline
+          minRows={2}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder={t.notDoneReasonPlaceholder}
+          inputProps={{ maxLength: 300 }}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving}>{t.cancel}</Button>
+        <Button onClick={() => onSave(reasonCode, reason.trim())} disabled={!canSave || saving} variant="contained">
+          {t.save}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function accentFor(task: NormalizedTask) {
   if (task.outcome==='completed')                              return {bg:'rgba(34,197,94,0.14)',  border:'#22c55e',icon:'#4ade80',  label:'#22c55e'};
   if (task.outcome==='blocked'||task.outcome==='deferred')     return {bg:'rgba(249,115,22,0.14)', border:'#f97316',icon:'#fb923c',  label:'#f97316'};
-  if (task.outcome==='moved'||task.outcome==='skipped')        return {bg:'rgba(139,92,246,0.14)', border:'#8b5cf6',icon:'#a78bfa',  label:'#a78bfa'};
+  if (task.outcome==='moved'||task.outcome==='skipped'||task.outcome==='not_done') return {bg:'rgba(139,92,246,0.14)', border:'#8b5cf6',icon:'#a78bfa',  label:'#a78bfa'};
   if (task.source_type==='calendar_event')                     return {bg:'rgba(99,102,241,0.18)', border:'#6366f1',icon:'#a5b4fc',  label:'#818cf8'};
   return                                                             {bg:'rgba(34,211,238,0.16)', border:'#22d3ee',icon:'#67e8f9',  label:'#22d3ee'};
 }

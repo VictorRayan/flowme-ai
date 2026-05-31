@@ -86,6 +86,23 @@ describe('persistMessage', () => {
     expect(state.messages.length).toBe(1);
     expect(state.messages[0].attachments).toBeNull();
   });
+
+  it('preserves authenticated URLs for generated image attachments', async () => {
+    const state: MockState = { threads: [], messages: [] };
+    const supabase = makeMockSupabase(state);
+    await persistMessage(supabase, 'user-1', {
+      thread_id: 'thread-1',
+      role: 'assistant',
+      content: 'Generated.',
+      attachments: [{
+        type: 'image',
+        name: 'balys-image.png',
+        mimeType: 'image/png',
+        url: '/api/ai/images?key=users%2Fuser-1%2Fgenerated-images%2Fimage.png',
+      }],
+    });
+    expect(state.messages[0].attachments[0].url).toContain('/api/ai/images?key=');
+  });
 });
 
 describe('renameThread', () => {

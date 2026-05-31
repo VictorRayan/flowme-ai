@@ -19,7 +19,7 @@ const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
 type ConnectorIntent = {
   id?: string;
   label?: string;
-  action?: 'gmail' | 'drive' | 'docs' | 'sheets' | 'briefing' | 'note' | 'weather' | 'council';
+  action?: 'gmail' | 'drive' | 'docs' | 'sheets' | 'briefing' | 'note' | 'weather' | 'council' | 'slack' | 'reminder' | 'image';
 };
 
 async function loadUserAiSettings(supabase: any, userId: string): Promise<{ council_mode: 'cheap' | 'best'; memory_enabled: boolean }> {
@@ -89,6 +89,9 @@ function requiredFirstToolForConnector(
   messages: any[],
 ): string | undefined {
   const action = connectorIntent?.action;
+  if (action === 'image' && latestText.trim().length >= 2) {
+    return 'images.generate';
+  }
   if (action === 'gmail') {
     if (isReadFollowUp(latestText) && hasRecentConnectorContext(messages, (item) => item.tool === 'gmail.search_messages')) {
       return undefined;
@@ -257,6 +260,9 @@ export async function POST(request: NextRequest) {
           parsedConnectorIntent.action === 'drive'
             ? 'Use Google Drive connector tools. SHORT-CIRCUIT: if asked what files are here, call connectors.search_docs immediately. Discover files before selecting and reading the relevant file.'
             : '',
+          parsedConnectorIntent.action === 'image'
+            ? 'Use images.generate to create an image from the user description. If the user did not provide a description, ask one short clarifying question before calling the tool.'
+            : '',
         ].filter(Boolean).join(' ')
       : '';
     const effectiveSystemAddendum = [typeof systemAddendum === 'string' ? systemAddendum : '', connectorIntentPrompt, connectorMemoryPrompt].filter(s => s.trim()).join('\n\n');
@@ -302,6 +308,7 @@ export async function POST(request: NextRequest) {
         let assistantFinalText = '';
         let finalTarget: { provider: string; model: string } = skillTarget;
         const thinkingForPersistence: any[] = [];
+        const generatedAttachments: ThreadAttachmentMeta[] = [];
         const rawThreadIdHeader = request.headers.get('x-thread-id');
         const threadIdForTools = rawThreadIdHeader || 'default-thread';
         // Only persist when we have a real thread id (UUID-shaped) and the user is authenticated.
@@ -360,6 +367,9 @@ export async function POST(request: NextRequest) {
                   };
                   if (idx >= 0) thinkingForPersistence[idx] = { ...thinkingForPersistence[idx], ...update };
                   else thinkingForPersistence.push(update);
+                  if (event.ok && event.tool === 'images.generate' && event.receipt?.image?.url) {
+                    generatedAttachments.push(event.receipt.image);
+                  }
                 }
                 send(event);
               },
@@ -460,6 +470,7 @@ export async function POST(request: NextRequest) {
               thread_id: threadIdForTools,
               role: 'assistant',
               content: assistantFinalText,
+              attachments: generatedAttachments.length > 0 ? generatedAttachments : undefined,
               thinking: thinkingForPersistence.length > 0 ? thinkingForPersistence : undefined,
             });
           }

@@ -50,6 +50,20 @@ export async function getCalendarEvents(linkedAccountId: string, timeMin: string
   return []; // Should never reach here, but TypeScript needs it
 }
 
+export async function getCalendarEvent(linkedAccountId: string, eventId: string, authContext?: GoogleTokenAuthContext) {
+  const auth = await getValidGoogleToken(linkedAccountId, authContext);
+  const calendar = google.calendar({ version: 'v3', auth });
+  const response = await calendar.events.get({ calendarId: 'primary', eventId });
+  return response.data;
+}
+
+export async function getCalendarDefaultReminders(linkedAccountId: string, authContext?: GoogleTokenAuthContext) {
+  const auth = await getValidGoogleToken(linkedAccountId, authContext);
+  const calendar = google.calendar({ version: 'v3', auth });
+  const response = await calendar.calendarList.get({ calendarId: 'primary' });
+  return response.data.defaultReminders || [];
+}
+
 export async function createCalendarEvent(linkedAccountId: string, params: CreateEventParams, authContext?: GoogleTokenAuthContext) {
   try {
     const auth = await getValidGoogleToken(linkedAccountId, authContext);

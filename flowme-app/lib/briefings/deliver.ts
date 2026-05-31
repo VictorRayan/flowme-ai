@@ -1,6 +1,7 @@
 import { sendText } from '@/lib/whatsapp/evolution-client';
 import { summarizeTitle } from '@/lib/goals/planner';
 import type { BriefingSections, BriefingSlot } from './types';
+import { sendWebPush } from '@/lib/web-push/send';
 
 type SupabaseLike = { from(table: string): any };
 
@@ -82,36 +83,9 @@ export async function deliverWebPush(
   userId: string,
   slot: BriefingSlot,
 ): Promise<{ ok: boolean; error?: string }> {
-  const vapidPublic = process.env.VAPID_PUBLIC_KEY;
-  const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
-  const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:noreply@flow-me.online';
-  if (!vapidPublic || !vapidPrivate) return { ok: false, error: 'vapid not configured' };
-
-  const { data: subscriptions } = await supabase
-    .from('web_push_subscriptions')
-    .select('id, endpoint, keys')
-    .eq('user_id', userId);
-
-  if (!subscriptions || subscriptions.length === 0) return { ok: false, error: 'no subscriptions' };
-
-  const { default: webpush } = await import('web-push');
-  webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
-
-  const payload = JSON.stringify({
+  return sendWebPush(supabase, userId, {
     title: greeting(slot) + ', seu resumo está pronto',
     body: 'Toque para abrir o resumo no Flowme.',
+    url: '/app/today',
   });
-
-  let failures = 0;
-  for (const sub of subscriptions) {
-    try {
-      await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
-    } catch (err: any) {
-      failures += 1;
-      if (err?.statusCode === 410 || err?.statusCode === 404) {
-        await supabase.from('web_push_subscriptions').delete().eq('id', sub.id);
-      }
-    }
-  }
-  return failures === subscriptions.length ? { ok: false, error: 'all push deliveries failed' } : { ok: true };
 }

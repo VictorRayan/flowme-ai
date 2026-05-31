@@ -15,6 +15,7 @@ export interface ThreadAttachmentMeta {
   type: 'image' | 'file' | 'audio';
   name: string;
   mimeType: string;
+  url?: string;
 }
 
 export interface PersistedThreadRow {
@@ -139,7 +140,7 @@ export async function persistMessage(
     const attachmentsMeta: ThreadAttachmentMeta[] | null = input.attachments
       ? input.attachments
           .filter((a): a is ThreadAttachmentMeta => Boolean(a && a.type && a.name))
-          .map((a) => ({ type: a.type, name: a.name, mimeType: a.mimeType }))
+          .map((a) => ({ type: a.type, name: a.name, mimeType: a.mimeType, ...(a.url ? { url: a.url } : {}) }))
       : null;
 
     const insert: Record<string, unknown> = {

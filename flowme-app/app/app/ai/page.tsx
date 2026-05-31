@@ -146,7 +146,7 @@ function NoteEditCard({ block, onApply, labels }: { block: NoteEditBlock; onAppl
 
 const STORAGE_KEY_THREADS  = 'balysai_threads';
 
-interface Attachment { type: 'image' | 'file' | 'audio'; name: string; dataUrl: string; mimeType: string; }
+interface Attachment { type: 'image' | 'file' | 'audio'; name: string; dataUrl?: string; mimeType: string; url?: string; }
 interface ThinkingStep {
   call_id: string;
   tool: string;
@@ -248,6 +248,7 @@ function pendingActionIcon(action: CommandAction): React.ReactElement | undefine
   if (action === 'sheets') return <GridOnIcon sx={iconSx} />;
   if (action === 'note') return <EditNoteIcon sx={iconSx} />;
   if (action === 'reminder') return <NotificationsActiveIcon sx={iconSx} />;
+  if (action === 'image') return <ImageIcon sx={iconSx} />;
   return undefined;
 }
 
@@ -309,6 +310,15 @@ export default function AIPage() {
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prompt = params.get('prompt');
+    if (prompt) setInput(prompt);
+    if (params.get('autofocus') === '1') {
+      window.setTimeout(() => inputBoxRef.current?.querySelector('textarea')?.focus(), 0);
+    }
+  }, []);
 
   const activeThread = threads.find(t => t.id === activeThreadId) || null;
   const activeIsWhatsAppThread = isWhatsAppThread(activeThread);
@@ -782,6 +792,7 @@ Rules:
       const decoder = new TextDecoder();
       let assistantText = '';
       const thinking: ThinkingStep[] = [];
+      const assistantAttachments: Attachment[] = [];
       let pendingPreliminaryText = '';
       const isSse = (res.headers.get('x-balys-stream-format') || '').toLowerCase() === 'sse';
 
@@ -792,7 +803,7 @@ Rules:
         setThreads(prev => {
           const updated = prev.map(t => {
             if (t.id !== activeThreadId) return t;
-            const msgs = [...newMessages, { role: 'assistant' as const, content: assistantText, thinking: [...thinking] }];
+            const msgs = [...newMessages, { role: 'assistant' as const, content: assistantText, thinking: [...thinking], attachments: [...assistantAttachments] }];
             return { ...t, ...routedThread, messages: msgs };
           });
           // Strip attachment dataUrls before persisting to avoid quota errors
@@ -846,6 +857,9 @@ Rules:
                 receipt: ev.receipt,
                 error: ev.error,
               });
+            }
+            if (ev.ok && ev.tool === 'images.generate' && ev.receipt?.image?.url) {
+              assistantAttachments.push({ ...ev.receipt.image, dataUrl: '' });
             }
             // Cross-tab invalidation: signal other pages (Calendar, Notes, People) to refetch.
             // Only signal on successful WRITE tools — reads don't change state.
@@ -1027,8 +1041,8 @@ Rules:
                   <Box sx={{ maxWidth: { xs: '85%', md: '75%' }, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                     {msg.attachments?.map((att, ai) => (
                       <Box key={ai}>
-                        {att.type === 'image' && att.dataUrl && <Box component="img" src={att.dataUrl} alt={att.name} sx={{ maxWidth: 240, maxHeight: 180, borderRadius: 2 }} />}
-                        {att.type === 'image' && !att.dataUrl && <Chip icon={<ImageIcon />} label={att.name || 'Image'} size="small" variant="outlined" />}
+                        {att.type === 'image' && (att.dataUrl || att.url) && <Box component="img" src={att.dataUrl || att.url} alt={att.name} sx={{ maxWidth: 360, maxHeight: 360, borderRadius: 2 }} />}
+                        {att.type === 'image' && !att.dataUrl && !att.url && <Chip icon={<ImageIcon />} label={att.name || 'Image'} size="small" variant="outlined" />}
                         {att.type === 'audio' && att.dataUrl && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}
                         {att.type === 'audio' && !att.dataUrl && <Chip icon={<AudioFileIcon />} label={att.name || 'Voice note'} size="small" variant="outlined" />}
                         {att.type === 'file' && <Chip icon={<AttachFileIcon />} label={att.name} size="small" variant="outlined" />}

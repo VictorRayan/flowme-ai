@@ -51,11 +51,15 @@ describe('buildEventMoveRequest', () => {
       source: 'google',
       linked_account_id: 'account-1',
       start_at: '2026-05-01T10:15:00.000Z',
+      end_at: '2026-05-01T11:00:00.000Z',
+      title: 'Deep work',
     }, moved);
 
     expect(request.url).toBe('/api/calendar/edit-event');
     expect(request.body.event_id).toBe('google-event-id');
     expect(request.body.linked_account_id).toBe('account-1');
+    expect(request.body.previous_start_at).toBe('2026-05-01T10:15:00.000Z');
+    expect(request.body.event_title).toBe('Deep work');
   });
 
   it('rejects Google events without a linked account', () => {

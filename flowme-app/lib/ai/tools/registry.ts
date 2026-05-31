@@ -1,5 +1,5 @@
 import { Tool } from './Tool';
-import { calendarCreateEventTool, calendarDeleteEventTool, calendarDeleteEventsBatchTool, calendarListEventsTool, calendarUpdateEventTool } from './calendar-tools';
+import { calendarCreateEventTool, calendarDeleteEventTool, calendarDeleteEventsBatchTool, calendarListEventsTool, calendarListRescheduleHistoryTool, calendarUpdateEventTool } from './calendar-tools';
 import { connectorsListTool, connectorsReadSheetTool, connectorsReadDocTool, connectorsFindAndReadDocTool, connectorsReadDriveFileTool, connectorsSearchDocsTool, connectorsCreateDocTool, connectorsSheetsAgentTool, connectorsDocsAgentTool, gmailCreateDraftTool, gmailReadMessageTool, gmailSearchMessagesTool } from './connectors-tools';
 import { notesCreateTool, notesListTool, notesEditTool } from './notes-tools';
 import { councilConveneTool } from './council-tools';
@@ -11,9 +11,12 @@ import { remindersCancelTool, remindersCreateTool, remindersListTool } from './r
 import { webGroundedSearchTool } from './web-tools';
 import { trendsFromTopicsTool } from './trends-tools';
 import { SLACK_TOOLS } from './slack-tools';
+import { imagesGenerateTool } from './image-tools';
+import { MEETINGS_TOOLS } from './meeting-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
+  calendarListRescheduleHistoryTool,
   calendarCreateEventTool,
   calendarUpdateEventTool,
   calendarDeleteEventTool,
@@ -53,7 +56,9 @@ export const ALL_TOOLS: Tool[] = [
   weatherGetTool,
   webGroundedSearchTool,
   trendsFromTopicsTool,
+  imagesGenerateTool,
   ...SLACK_TOOLS,
+  ...MEETINGS_TOOLS,
 ];
 
 const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
@@ -69,10 +74,12 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   weather: 'weather.',
   web: 'web.',
   trends: 'trends.',
+  images: 'images.',
   slack: 'slack.',
+  meetings: 'meetings.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'slack' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'images' | 'slack' | 'meetings' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

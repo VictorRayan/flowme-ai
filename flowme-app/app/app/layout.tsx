@@ -21,6 +21,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 import { applyDayjsLocale } from '@/lib/datetime';
+import RecordingProvider from '@/components/meetings/RecordingProvider';
+import FloatingRecorderPopup from '@/components/meetings/FloatingRecorderPopup';
 
 const drawerWidth = 240;
 
@@ -180,6 +182,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
+    <RecordingProvider>
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
       {/* Mobile AppBar */}
       <AppBar
@@ -252,6 +255,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </Box>
+      <FloatingRecorderPopup />
     </Box>
+    </RecordingProvider>
   );
 }

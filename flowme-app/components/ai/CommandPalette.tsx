@@ -11,6 +11,8 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import ImageIcon from '@mui/icons-material/Image';
+import MicIcon from '@mui/icons-material/Mic';
 import SlackBrandIcon from '@/components/icons/SlackBrandIcon';
 import GmailBrandIcon from '@/components/icons/GmailBrandIcon';
 import GoogleDocsBrandIcon from '@/components/icons/GoogleDocsBrandIcon';
@@ -29,6 +31,8 @@ export type CommandAction =
   | 'docs'
   | 'sheets'
   | 'slack'
+  | 'image'
+  | 'meeting'
   | 'reminder';
 
 export interface ContextItem {
@@ -152,6 +156,24 @@ function getActions(uiLang: UiLang): ActionDef[] {
       directive: 'Use connectors.list to verify the Slack connector is active. Then pick the right tool based on the user intent:\n- KEYWORD search (user gives a name, topic, phrase) → slack.search_messages with their term. Supports Slack operators (from:@user, in:#channel, before:YYYY-MM-DD).\n- BROWSE / "what is recent" / specific channel mention → slack.list_channels to resolve names → slack.read_channel on the relevant one. Never call slack.search_messages without a non-empty search term.\n- THREAD context → slack.read_thread with channel + thread_ts.\n- USER profile lookup → slack.get_user to turn a Slack user ID into a real name.\n- POST a message → slack.send_message with confirmed=true ONLY after the user has explicitly confirmed both the message text and the destination channel/DM. Always show the draft and ask for confirmation first.\nIf the channel or recipient is ambiguous, ask one short clarifying question before acting.',
       action: 'slack',
       aliases: ['/slack', 'slack', 'mensagem do slack', 'slack messages', 'slack search'],
+    },
+    {
+      id: 'meeting',
+      command: pt ? '/reuniao' : '/meeting',
+      label: pt ? '/reuniao' : '/meeting',
+      subtitle: pt ? 'Resumir e buscar nas suas reuniões gravadas' : 'Summarize and search your recorded meetings',
+      directive: 'Use the meetings.* tools to answer:\n- "minhas últimas reuniões" → meetings.list_recent (default limit 10).\n- "resume a reunião X" / "que tasks saíram dela" → meetings.list_recent to find the id, then meetings.get_detail with include_transcript=true.\n- "quem me falou de X?" / "o que falamos sobre Y?" → meetings.search_segments with the keyword (>=2 chars). For broader date windows pass since_days.\n- The user cannot start a new recording through chat — direct them to the "Gravar reunião" button in Notes for that. Only answer questions about EXISTING meetings.\nReference meetings by title and date in your reply, never by raw id. When quoting transcript snippets, attribute them to the speaker_label exactly as returned by the tool.',
+      action: 'meeting',
+      aliases: ['/meeting', '/reuniao', '/reunião', '/reunioes', 'reuniao', 'meeting', 'meetings', 'reuniões'],
+    },
+    {
+      id: 'image',
+      command: pt ? '/imagem' : '/image',
+      label: pt ? '/imagem' : '/image',
+      subtitle: pt ? 'Gerar uma imagem a partir de uma descrição' : 'Generate an image from a description',
+      directive: 'Generate an image from the user description with images.generate. Preserve requested visual style, composition, aspect ratio, and text. If the description is missing, ask one short question before calling the tool.',
+      action: 'image',
+      aliases: ['/image', '/imagem', 'imagem', 'image', 'gerar imagem', 'generate image'],
     },
     {
       id: 'reminder',
@@ -386,6 +408,10 @@ export default function CommandPalette({ anchorEl, query, uiLang = 'en', onSelec
                                     ? <GoogleSheetsBrandIcon fontSize="small" />
                                     : item.action === 'slack'
                                       ? <SlackBrandIcon fontSize="small" />
+                                      : item.action === 'image'
+                                        ? <ImageIcon fontSize="small" sx={{ color: '#c084fc' }} />
+                                      : item.action === 'meeting'
+                                        ? <MicIcon fontSize="small" sx={{ color: '#fb7185' }} />
                                       : <EditNoteIcon fontSize="small" sx={{ color: 'success.main' }} />)
                     : item.kind === 'note'
                       ? <NoteIcon fontSize="small" sx={{ color: 'text.secondary' }} />

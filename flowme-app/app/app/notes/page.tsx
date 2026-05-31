@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import NotesTree, { NoteItem, PersonItem } from '@/components/notes/NotesTree';
 import NoteEditor from '@/components/notes/NoteEditor';
 import DeleteConfirmDialog from '@/components/notes/DeleteConfirmDialog';
+import MeetingEntryButton from '@/components/meetings/MeetingEntryButton';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 import { formatDate } from '@/lib/datetime';
 
@@ -29,6 +30,8 @@ export default function NotesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [uiLang, setUiLang] = useState<UiLang>('en');
+  const [focusEditor, setFocusEditor] = useState(false);
+  const dailyBriefingLinkHandled = React.useRef(false);
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
@@ -195,6 +198,15 @@ export default function NotesPage() {
     });
   };
 
+  useEffect(() => {
+    if (loading || dailyBriefingLinkHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('daily_briefing')) return;
+    dailyBriefingLinkHandled.current = true;
+    setFocusEditor(params.get('focus') === 'editor');
+    void handleNewDailyBriefing();
+  }, [loading, notes]);
+
   const handleSave = useCallback(async (data: Parameters<typeof NoteEditor>[0]['onSave'] extends (d: infer D) => unknown ? D : never) => {
     if (!selectedNote?.id) return;
     setSaving(true);
@@ -243,6 +255,7 @@ export default function NotesPage() {
           note={selectedNote}
           onSave={handleSave}
           saving={saving}
+          autoFocus={focusEditor}
           lang={uiLang}
           onRename={selectedNote?.event_id?.startsWith('person:') ? async (newName) => {
             const personId = selectedNote.event_id!.replace('person:', '');
@@ -252,11 +265,16 @@ export default function NotesPage() {
         />
 
         {!selectedNote && (
-          <Tooltip title={UI[uiLang].notes.newNote}>
-            <Fab color="primary" onClick={() => handleNewNote()} sx={{ position: 'absolute', bottom: 24, right: 24 }}>
-              <AddIcon />
-            </Fab>
-          </Tooltip>
+          <>
+            <Box sx={{ position: 'absolute', bottom: 24, right: 24 + 70, zIndex: 1 }} data-testid="record-meeting-entry">
+              <MeetingEntryButton variant="contained" size="medium" />
+            </Box>
+            <Tooltip title={UI[uiLang].notes.newNote}>
+              <Fab color="primary" onClick={() => handleNewNote()} sx={{ position: 'absolute', bottom: 24, right: 24 }}>
+                <AddIcon />
+              </Fab>
+            </Tooltip>
+          </>
         )}
       </Box>
 

@@ -7,6 +7,23 @@
 
 interface SupabaseLike { from(table: string): any }
 
+interface MentionedPerson {
+  id: string;
+  name: string;
+}
+
+interface TipTapNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: TipTapNode[];
+  text?: string;
+}
+
+interface TipTapDoc {
+  type: 'doc';
+  content: TipTapNode[];
+}
+
 export interface FinalizeInput {
   supabase: SupabaseLike;
   userId: string;
@@ -83,50 +100,78 @@ export async function finalizeAndSaveMeeting(input: FinalizeInput): Promise<Fina
     segments: (segments || []) as any[],
     tasks: ((tasks || []) as any[]).filter((t) => t.status !== 'dismissed'),
   });
+  const mentionedPeople = ((speakers || []) as any[])
+    .filter((speaker) => speaker.person_id)
+    .map((speaker) => ({ id: String(speaker.person_id), name: String(speaker.display_label) }));
 
   // 3) Upsert the standalone meeting note.
   const meetingNoteRow: Record<string, unknown> = {
     user_id: userId,
     title: meeting.title,
     content_text: meetingBlock,
-    note_type: 'meeting',
+    content: renderMeetingTipTapDoc(meetingBlock, mentionedPeople),
+    note_type: 'manual',
     note_date: todayIso,
+    event_id: `meeting:${meetingId}`,
   };
   let meetingNoteId: string | null = meeting.note_id;
   if (meetingNoteId) {
-    await supabase.from('notes').update({ ...meetingNoteRow, updated_at: new Date().toISOString() }).eq('id', meetingNoteId);
+    const { error } = await supabase.from('notes').update({ ...meetingNoteRow, updated_at: new Date().toISOString() }).eq('id', meetingNoteId);
+    if (error) throw new Error(error.message);
   } else {
-    const { data } = await supabase.from('notes').insert(meetingNoteRow).select('id').single();
+    const { data, error } = await supabase.from('notes').insert(meetingNoteRow).select('id').single();
+    if (error) throw new Error(error.message);
     meetingNoteId = (data as any)?.id || null;
+    if (!meetingNoteId) throw new Error('meeting_note_create_failed');
   }
 
   // 4) Append a compact block to today's daily briefing note (upsert by date).
   const { data: existingBriefing } = await supabase
     .from('notes')
-    .select('id, content_text')
+    .select('id, content, content_text')
     .eq('user_id', userId)
     .eq('note_type', 'daily_briefing')
     .eq('note_date', todayIso)
     .maybeSingle();
 
   let dailyBriefingNoteId: string | null = (existingBriefing as any)?.id || null;
-  const briefingBlock = `\n\n--- Reunião: ${meeting.title} ---\n${meetingBlock}`;
   if (dailyBriefingNoteId) {
-    const existing = String((existingBriefing as any)?.content_text || '');
-    // Guard against duplicate appends (idempotency on retry)
-    const marker = `--- Reunião: ${meeting.title} ---`;
-    if (!existing.includes(marker)) {
-      await supabase.from('notes').update({ content_text: existing + briefingBlock, updated_at: new Date().toISOString() }).eq('id', dailyBriefingNoteId);
+    const merged = mergeMeetingBlockIntoNote({
+      existingContent: (existingBriefing as any)?.content,
+      existingText: String((existingBriefing as any)?.content_text || ''),
+      meetingTitle: meeting.title,
+      meetingBlock,
+      mentionedPeople,
+    });
+    if (merged.appended) {
+      const { error } = await supabase.from('notes').update({
+        content: merged.content,
+        content_text: merged.contentText,
+        embedding: null,
+        embedding_updated_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', dailyBriefingNoteId);
+      if (error) throw new Error(error.message);
     }
   } else {
-    const { data } = await supabase.from('notes').insert({
+    const merged = mergeMeetingBlockIntoNote({
+      existingContent: null,
+      existingText: '',
+      meetingTitle: meeting.title,
+      meetingBlock,
+      mentionedPeople,
+    });
+    const { data, error } = await supabase.from('notes').insert({
       user_id: userId,
       title: `Daily briefing — ${todayIso}`,
-      content_text: briefingBlock,
+      content: merged.content,
+      content_text: merged.contentText,
       note_type: 'daily_briefing',
       note_date: todayIso,
     }).select('id').single();
+    if (error) throw new Error(error.message);
     dailyBriefingNoteId = (data as any)?.id || null;
+    if (!dailyBriefingNoteId) throw new Error('daily_briefing_note_create_failed');
   }
 
   // 5) Mentions per confirmed person, idempotently.
@@ -180,12 +225,13 @@ export function renderMeetingBlock(input: {
 
   const transcriptLines = input.segments.map((s) => {
     const sp = s.meeting_speaker_id ? speakersById.get(s.meeting_speaker_id) : null;
-    const label = sp ? (sp.person_id ? `@person:${sp.person_id}` : sp.display_label) : 'Falante ?';
+    const label = sp ? (sp.person_id ? `@${sp.display_label}` : sp.display_label) : 'Falante ?';
     return `${label}: ${s.text}`;
   });
 
   const taskLines = input.tasks.map((t) => {
-    const assignee = t.assignee_person_id ? `@person:${t.assignee_person_id} — ` : '';
+    const assigneeSpeaker = input.speakers.find((speaker) => speaker.person_id === t.assignee_person_id);
+    const assignee = assigneeSpeaker ? `@${assigneeSpeaker.display_label} — ` : '';
     const due = t.due_at ? ` (até ${t.due_at})` : '';
     return `- ${assignee}${t.description}${due}`;
   });
@@ -206,4 +252,66 @@ export function renderMeetingBlock(input: {
     lines.push('', 'Tarefas', ...taskLines);
   }
   return lines.join('\n');
+}
+
+export function mergeMeetingBlockIntoNote(input: {
+  existingContent: unknown;
+  existingText: string;
+  meetingTitle: string;
+  meetingBlock: string;
+  mentionedPeople: MentionedPerson[];
+}): { appended: boolean; content: TipTapDoc; contentText: string } {
+  const marker = `--- Reunião: ${input.meetingTitle} ---`;
+  const existingContent = toTipTapDoc(input.existingContent);
+  if (input.existingText.includes(marker)) {
+    return { appended: false, content: existingContent, contentText: input.existingText };
+  }
+
+  const appendedText = `${marker}\n${input.meetingBlock}`;
+  const appendedContent = renderMeetingTipTapDoc(appendedText, input.mentionedPeople);
+  return {
+    appended: true,
+    content: { type: 'doc', content: [...existingContent.content, ...appendedContent.content] },
+    contentText: [input.existingText, appendedText].filter(Boolean).join('\n\n'),
+  };
+}
+
+export function renderMeetingTipTapDoc(text: string, mentionedPeople: MentionedPerson[]): TipTapDoc {
+  return {
+    type: 'doc',
+    content: text.split('\n').map((line) => {
+      if (!line) return { type: 'paragraph' };
+      return { type: 'paragraph', content: buildInlineNodes(line, mentionedPeople) };
+    }),
+  };
+}
+
+function toTipTapDoc(content: unknown): TipTapDoc {
+  if (!content || typeof content !== 'object') return { type: 'doc', content: [] };
+  const doc = content as { type?: unknown; content?: unknown };
+  if (doc.type !== 'doc' || !Array.isArray(doc.content)) return { type: 'doc', content: [] };
+  return { type: 'doc', content: doc.content as TipTapNode[] };
+}
+
+function buildInlineNodes(line: string, mentionedPeople: MentionedPerson[]): TipTapNode[] {
+  const sortedPeople = [...mentionedPeople].sort((a, b) => b.name.length - a.name.length);
+  const nodes: TipTapNode[] = [];
+  let cursor = 0;
+
+  while (cursor < line.length) {
+    const match = sortedPeople
+      .map((person) => ({ person, index: line.indexOf(`@${person.name}`, cursor) }))
+      .filter((candidate) => candidate.index >= 0)
+      .sort((a, b) => a.index - b.index)[0];
+
+    if (!match) {
+      nodes.push({ type: 'text', text: line.slice(cursor) });
+      break;
+    }
+    if (match.index > cursor) nodes.push({ type: 'text', text: line.slice(cursor, match.index) });
+    nodes.push({ type: 'mention', attrs: { id: match.person.id, label: match.person.name } });
+    cursor = match.index + match.person.name.length + 1;
+  }
+
+  return nodes;
 }

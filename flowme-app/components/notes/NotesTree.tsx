@@ -15,6 +15,7 @@ import AddIcon from '@mui/icons-material/Add';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import HubIcon from '@mui/icons-material/Hub';
 import dayjs from 'dayjs';
+import MeetingEntryButton from '@/components/meetings/MeetingEntryButton';
 import { UI, type UiLang } from '@/lib/i18n';
 import { formatDate } from '@/lib/datetime';
 
@@ -24,7 +25,7 @@ export interface NoteItem {
   note_date: string | null;
   event_id: string | null;
   event_title: string | null;
-  note_type: 'event' | 'daily_briefing' | 'manual' | 'person';
+  note_type: 'event' | 'daily_briefing' | 'manual' | 'person' | 'meeting';
   created_at: string;
   note_mentions?: { person_id: string; people: { id: string; name: string } }[];
 }
@@ -132,6 +133,10 @@ export default function NotesTree({ notes, people, selectedId, selectedPersonId,
             </IconButton>
           </Tooltip>
         </Box>
+      </Box>
+      <Divider />
+      <Box sx={{ px: 1.5, py: 1, '& button': { width: '100%' } }}>
+        <MeetingEntryButton variant="contained" size="small" />
       </Box>
       <Divider />
 

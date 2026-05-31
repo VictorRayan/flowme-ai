@@ -7,14 +7,13 @@ import dayjs from 'dayjs';
 import NotesTree, { NoteItem, PersonItem } from '@/components/notes/NotesTree';
 import NoteEditor from '@/components/notes/NoteEditor';
 import DeleteConfirmDialog from '@/components/notes/DeleteConfirmDialog';
-import MeetingEntryButton from '@/components/meetings/MeetingEntryButton';
 import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 import { formatDate } from '@/lib/datetime';
 
 interface FullNote extends Omit<NoteItem, 'note_type'> {
   content: object | null;
   event_start: string | null;
-  note_type: 'event' | 'daily_briefing' | 'manual' | 'person';
+  note_type: 'event' | 'daily_briefing' | 'manual' | 'person' | 'meeting';
 }
 
 type DeleteTarget =
@@ -265,16 +264,11 @@ export default function NotesPage() {
         />
 
         {!selectedNote && (
-          <>
-            <Box sx={{ position: 'absolute', bottom: 24, right: 24 + 70, zIndex: 1 }} data-testid="record-meeting-entry">
-              <MeetingEntryButton variant="contained" size="medium" />
-            </Box>
-            <Tooltip title={UI[uiLang].notes.newNote}>
-              <Fab color="primary" onClick={() => handleNewNote()} sx={{ position: 'absolute', bottom: 24, right: 24 }}>
-                <AddIcon />
-              </Fab>
-            </Tooltip>
-          </>
+          <Tooltip title={UI[uiLang].notes.newNote}>
+            <Fab color="primary" onClick={() => handleNewNote()} sx={{ position: 'absolute', bottom: 24, right: 24 }}>
+              <AddIcon />
+            </Fab>
+          </Tooltip>
         )}
       </Box>
 

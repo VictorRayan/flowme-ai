@@ -49,7 +49,7 @@ interface NoteData {
   event_id: string | null;
   event_title: string | null;
   event_start: string | null;
-  note_type: 'event' | 'daily_briefing' | 'manual' | 'person';
+  note_type: 'event' | 'daily_briefing' | 'manual' | 'person' | 'meeting';
   note_mentions?: { person_id: string; people: { id: string; name: string } }[];
 }
 

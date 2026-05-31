@@ -16,6 +16,11 @@ describe('task type inference', () => {
     expect(route('schedule a meeting tomorrow').taskType).toBe('calendar');
   });
 
+  it('treats task language as calendar commitment intent', () => {
+    expect(route('quais tarefas eu tenho hoje?').taskType).toBe('calendar');
+    expect(route('show my tasks for tomorrow').taskType).toBe('calendar');
+  });
+
   it('detects notes intent', () => {
     expect(route('add a note about the project').taskType).toBe('notes');
   });

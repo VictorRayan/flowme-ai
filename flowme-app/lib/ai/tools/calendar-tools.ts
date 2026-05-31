@@ -4,6 +4,7 @@ import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
 import { createCalendarEvent, deleteCalendarEvent, getCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 import { listCalendarReschedules, recordCalendarReschedule } from '@/lib/calendar/event-reschedule-history';
+import { listEventOutcomes } from '@/lib/today/event-outcomes';
 
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
@@ -171,7 +172,7 @@ export const calendarListEventsTool = defineTool({
   name: 'calendar.list_events',
   description: `Reads events from the user's primary Google Calendar. Returns ALL matching events in the window, sorted by start_at ascending.
 
-WHEN TO USE: user asks "what's on my calendar", "am I free Thursday", "do I have a meeting with X", "find my dentist appointment", "what events do I have today", "what's on tomorrow", "show me everything between hoje e amanhã"; or any time you need event_ids before calling update_event / delete_event / delete_events_batch.
+WHEN TO USE: user asks "what's on my calendar", "what tasks do I have today", "quais tarefas tenho hoje", "am I free Thursday", "do I have a meeting with X", "find my dentist appointment", "what events do I have today", "what's on tomorrow", "show me everything between hoje e amanhã"; or any time you need event_ids before calling update_event / delete_event / delete_events_batch. Treat tasks, tarefas, events, eventos, activities, and compromissos as the same scheduled commitment.
 
 CONTRACT:
 - All inputs optional. If start_iso is omitted, defaults to start of TODAY in the user's timezone. If end_iso is omitted, defaults to start_iso + 14 days.
@@ -292,7 +293,7 @@ export const calendarCreateEventTool = defineTool({
   name: 'calendar.create_event',
   description: `Creates a new event on the user's primary Google Calendar. Writes immediately — there is no preview step.
 
-WHEN TO USE: user says "schedule…", "book…", "put on my calendar…", "add a meeting…", "crie um evento…", "agenda…" with a specific time.
+WHEN TO USE: user says "schedule…", "book…", "put on my calendar…", "add a task…", "crie uma tarefa…", "add a meeting…", "crie um evento…", "agenda…" with a specific time. Treat tasks and events as the same scheduled commitment.
 
 DO NOT USE for standalone reminder notifications like "me lembre amanhã de beber água" or "remind me at 9". Use reminders.create for those. If the user asks to create a calendar event AND be reminded about it, create the Google Calendar event first, then call reminders.create with the calendar event source metadata.
 
@@ -401,6 +402,98 @@ RETURNS human-readable evidence only: titles, movement type, offsets, timing, an
         })),
       },
     };
+  },
+});
+
+export const calendarListExecutionHistoryTool = defineTool({
+  name: 'calendar.list_execution_history',
+  description: `Reads execution history for the user's scheduled commitments. For Balys, tasks, tarefas, events, eventos, activities, and calendar commitments mean the same thing: work the user intended to execute. Reminders remain notifications only.
+
+WHEN TO USE: the user asks what they completed, what they did not complete, why tasks were not done, which commitments are still unanswered, how execution went during a period, or when a weekly review needs deterministic execution evidence.
+
+RETURNS human-readable evidence only: titles, scheduled times, outcomes, reasons, answer status, and aggregates. Never expose technical event IDs.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    from_iso: z.string().optional().describe('Inclusive ISO lower bound. Defaults to seven days before now.'),
+    to_iso: z.string().optional().describe('Exclusive ISO upper bound. Defaults to now.'),
+    account_nickname: z.string().optional().describe('Optional linked Google account nickname/name. Omit to read all active calendar accounts.'),
+    include_upcoming: z.boolean().optional().default(false).describe('Include upcoming commitments that do not yet have an execution outcome. Defaults to false.'),
+    limit: z.number().int().min(1).max(250).optional().default(100).describe('Maximum commitments returned. Defaults to 100.'),
+  }),
+  call: async (args, context) => {
+    const accounts = args.account_nickname
+      ? null
+      : await listGoogleAccounts(context);
+    if (!args.account_nickname && (!accounts || accounts.length === 0)) {
+      return { ok: false, error: 'No active Google account connected.' };
+    }
+    const selectedAccount = args.account_nickname
+      ? await resolveGoogleAccount(context, args.account_nickname, false)
+      : null;
+    if (selectedAccount && !selectedAccount.ok) return { ok: false, error: selectedAccount.error };
+
+    const now = new Date(context.nowIso);
+    const fallbackFrom = new Date(now.getTime() - 7 * 86400000).toISOString();
+    const fromIso = normalizeIsoWithOffset(args.from_iso || fallbackFrom, context.timezone || 'UTC');
+    const toIso = normalizeIsoWithOffset(args.to_iso || context.nowIso, context.timezone || 'UTC');
+    if (!fromIso || !toIso) return { ok: false, error: 'from_iso and to_iso must be valid ISO 8601 datetimes.' };
+    if (new Date(toIso).getTime() <= new Date(fromIso).getTime()) {
+      return { ok: false, error: 'to_iso must be strictly after from_iso' };
+    }
+
+    try {
+      const accountsToRead = selectedAccount?.ok ? [selectedAccount.account] : accounts!;
+      const batches = await Promise.all(accountsToRead.map(async (account) => {
+        const events = await getCalendarEvents(account.id, fromIso, toIso, context);
+        return (events || []).flatMap((event) => {
+          const startAt = event.start?.dateTime || event.start?.date;
+          const endAt = event.end?.dateTime || event.end?.date;
+          if (!event.id || !startAt || !endAt) return [];
+          return [{
+            task_id: `calendar_event:${event.id}`,
+            account_nickname: account.name,
+            title: event.summary || 'Untitled Event',
+            start_at: startAt,
+            end_at: endAt,
+          }];
+        });
+      }));
+      const commitments = batches.flat();
+      const outcomes = await listEventOutcomes(context.supabase, context.user.id, commitments.map(item => item.task_id));
+      const evidence = commitments.flatMap((item) => {
+        const stored = outcomes.get(item.task_id);
+        const ended = new Date(item.end_at).getTime() <= now.getTime();
+        if (!ended && !args.include_upcoming && !stored) return [];
+        const unanswered = ended && (!stored || stored.outcome === 'pending' || stored.outcome === 'incomplete');
+        return [{
+          account_nickname: item.account_nickname,
+          title: item.title,
+          start_at: item.start_at,
+          end_at: item.end_at,
+          outcome: unanswered ? 'incomplete' : (stored?.outcome || 'pending'),
+          outcome_reason: stored?.outcome_reason || null,
+          reason_code: stored?.reason_code || null,
+          answer_status: unanswered ? 'unanswered' : stored ? 'answered' : 'pending',
+          answered_at: stored?.answered_at || null,
+        }];
+      }).sort((a, b) => a.start_at.localeCompare(b.start_at)).slice(0, args.limit);
+
+      return {
+        ok: true,
+        receipt: {
+          count: evidence.length,
+          completed_count: evidence.filter(item => item.outcome === 'completed').length,
+          not_done_count: evidence.filter(item => item.outcome === 'not_done' || item.outcome === 'skipped').length,
+          unanswered_count: evidence.filter(item => item.answer_status === 'unanswered').length,
+          commitments: evidence,
+          window: { start: fromIso, end: toIso },
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to list task execution history';
+      console.error('[calendar.list_execution_history] failed:', error);
+      return { ok: false, error: message };
+    }
   },
 });
 

@@ -50,8 +50,7 @@ export async function GET(req: NextRequest) {
             const date = startAt.slice(0, 10);
             if (!byDate[date]) continue;
             const taskId = e.id || `${account.id}:${startAt}`;
-            collectedEventIds.push(taskId);
-            byDate[date].push({
+            const task = {
               ...normalizeCalendarEventTask({
                 id: taskId,
                 provider_event_id: e.id || null,
@@ -62,7 +61,9 @@ export async function GET(req: NextRequest) {
                 end_at: e.end?.dateTime || e.end?.date || null,
               }, date),
               action_plan_title: null,
-            });
+            };
+            collectedEventIds.push(task.task_id);
+            byDate[date].push(task);
           }
         } catch { /* skip failed account */ }
       }));

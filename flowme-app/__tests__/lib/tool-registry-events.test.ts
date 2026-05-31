@@ -6,6 +6,7 @@ describe('tool registry event domain', () => {
     expect(getToolByName('events.create')).toBeUndefined();
     expect(getToolByName('events.delete')).toBeUndefined();
     expect(getToolByName('calendar.create_event')).toBeDefined();
+    expect(getToolByName('calendar.list_execution_history')).toBeDefined();
     expect(getToolByName('microactivities.list')).toBeUndefined();
     expect(getActiveToolDomains()).toContain('calendar');
     expect(getActiveToolDomains()).not.toContain('events');

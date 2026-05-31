@@ -4,6 +4,7 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { buildDayUnit, normalizeCalendarEventTask } from '@/lib/goals/task-dto';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
+import { listEventOutcomes } from '@/lib/today/event-outcomes';
 
 export async function GET(req: NextRequest) {
   try {
@@ -58,7 +59,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return apiSuccess({ day: buildDayUnit(date, timezone, tasks) });
+    const outcomeMap = await listEventOutcomes(supabase as any, user.id, tasks.map(task => task.task_id));
+    const hydratedTasks = tasks.map(task => {
+      const stored = outcomeMap.get(task.task_id);
+      if (!stored) return task;
+      return {
+        ...task,
+        outcome: stored.outcome,
+        outcome_reason: stored.outcome_reason ?? task.outcome_reason,
+      };
+    });
+
+    return apiSuccess({ day: buildDayUnit(date, timezone, hydratedTasks) });
   } catch (err) {
     if (err instanceof Error && err.message === ErrorCode.UNAUTHORIZED) {
       return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);

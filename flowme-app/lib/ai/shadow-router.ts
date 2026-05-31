@@ -155,8 +155,8 @@ function extractLatestUserMessage(messages: RouterMessage[]): string {
 
 function inferTaskType(text: string): TaskType {
   const isCalendar = hasAny(text, [
-    /\b(calendar|event|events|meeting|schedule)\b/,
-    /\b(calendario|agenda|evento|eventos|reuniao|reuni[aã]o|agendar|marcar)\b/,
+    /\b(calendar|event|events|meeting|schedule|task|tasks|commitment|commitments)\b/,
+    /\b(calendario|agenda|evento|eventos|reuniao|reuni[aã]o|agendar|marcar|tarefa|tarefas|compromisso|compromissos)\b/,
   ]);
   const isNotes = hasAny(text, [
     /\b(note|notes|notebook|journal)\b/,
@@ -230,8 +230,8 @@ function inferNeedsTools(taskType: TaskType, text: string): boolean {
   if (taskType === 'calendar' || taskType === 'notes' || taskType === 'goals') return true;
   if (taskType === 'email' || taskType === 'mixed') return true;
   return hasAny(text, [
-    /\b(calendar|note|notes|goal|goals)\b/,
-    /\b(calendario|agenda|nota|notas|meta|metas)\b/,
+    /\b(calendar|task|tasks|commitment|commitments|note|notes|goal|goals)\b/,
+    /\b(calendario|agenda|tarefa|tarefas|compromisso|compromissos|nota|notas|meta|metas)\b/,
   ]);
 }
 

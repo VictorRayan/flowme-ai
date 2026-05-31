@@ -23,9 +23,14 @@ jest.mock('@/lib/calendar/event-reschedule-history', () => ({
   recordCalendarReschedule: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { calendarCreateEventTool, calendarListEventsTool, calendarListRescheduleHistoryTool } from '@/lib/ai/tools/calendar-tools';
+jest.mock('@/lib/today/event-outcomes', () => ({
+  listEventOutcomes: jest.fn().mockResolvedValue(new Map()),
+}));
+
+import { calendarCreateEventTool, calendarListEventsTool, calendarListExecutionHistoryTool, calendarListRescheduleHistoryTool } from '@/lib/ai/tools/calendar-tools';
 import { createCalendarEvent, getCalendarEvents } from '@/lib/google/google-calendar';
 import { listCalendarReschedules } from '@/lib/calendar/event-reschedule-history';
+import { listEventOutcomes } from '@/lib/today/event-outcomes';
 
 function makeSupabase(accounts = [{ id: 'linked-account-1', name: 'Work', type: 'work' }]) {
   const chain: any = {
@@ -76,6 +81,58 @@ describe('calendar tools', () => {
       changes: [expect.objectContaining({ title: 'Deep work', offset_minutes: 120 })],
     }));
     expect(JSON.stringify(result.receipt)).not.toContain('internal-event-id');
+  });
+
+  it('returns human-readable task execution evidence with outcomes and unanswered commitments', async () => {
+    (getCalendarEvents as jest.Mock).mockResolvedValueOnce([
+      {
+        id: 'done-secret-id',
+        summary: 'Treino',
+        start: { dateTime: '2026-05-05T09:00:00-03:00' },
+        end: { dateTime: '2026-05-05T10:00:00-03:00' },
+      },
+      {
+        id: 'missed-secret-id',
+        summary: 'Estudar inglês',
+        start: { dateTime: '2026-05-06T09:00:00-03:00' },
+        end: { dateTime: '2026-05-06T10:00:00-03:00' },
+      },
+    ]);
+    (listEventOutcomes as jest.Mock).mockResolvedValueOnce(new Map([
+      ['calendar_event:done-secret-id', {
+        event_id: 'calendar_event:done-secret-id',
+        outcome: 'completed',
+        outcome_reason: null,
+        reason_code: null,
+        completed_at: '2026-05-05T10:00:00-03:00',
+        answered_at: '2026-05-05T10:00:00-03:00',
+        answer_source: 'today_ui',
+        linked_account_id: 'linked-account-1',
+      }],
+    ]));
+    const { from } = makeSupabase();
+
+    const result = await calendarListExecutionHistoryTool.call({
+      from_iso: '2026-05-05T00:00:00-03:00',
+      to_iso: '2026-05-07T00:00:00-03:00',
+    }, {
+      supabase: { from },
+      user: { id: 'user-1' },
+      timezone: 'America/Sao_Paulo',
+      nowIso: '2026-05-06T22:10:00-03:00',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.receipt).toEqual(expect.objectContaining({
+      count: 2,
+      completed_count: 1,
+      unanswered_count: 1,
+      commitments: [
+        expect.objectContaining({ title: 'Treino', outcome: 'completed', answer_status: 'answered' }),
+        expect.objectContaining({ title: 'Estudar inglês', outcome: 'incomplete', answer_status: 'unanswered' }),
+      ],
+    }));
+    expect(JSON.stringify(result.receipt)).not.toContain('secret-id');
   });
 
   it('passes the tool context to Google Calendar reads for non-browser auth flows', async () => {

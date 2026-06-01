@@ -747,7 +747,7 @@ function NotDoneDialog({ task, uiLang, saving, onClose, onSave }: {
     }
   }, [task]);
 
-  const canSave = Boolean(reasonCode || reason.trim()) && (reasonCode !== 'other' || Boolean(reason.trim()));
+  const canSave = Boolean(reason.trim());
 
   return (
     <Dialog open={Boolean(task)} onClose={onClose} fullWidth maxWidth="xs">

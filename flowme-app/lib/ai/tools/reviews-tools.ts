@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool } from './Tool';
-import { ensureCurrentWeeklyReview, getLatestWeeklyReview, saveWeeklyBriefingAndRegenerate, type WeeklyReviewRecord } from '@/lib/reviews/weekly-review';
+import { ensureCurrentWeeklyReview, refreshLatestWeeklyReviewIfOutdated, saveWeeklyBriefingAndRegenerate, type WeeklyReviewRecord } from '@/lib/reviews/weekly-review';
 
 function visibleReview(review: WeeklyReviewRecord | null) {
   if (!review) return null;
@@ -51,7 +51,10 @@ RETURNS human-readable evidence and feedback only. Never expose technical IDs.`,
   isReadOnly: true,
   inputSchema: z.object({}),
   call: async (_args, context) => {
-    const review = await getLatestWeeklyReview(context.supabase, context.user.id);
+    const review = await refreshLatestWeeklyReviewIfOutdated(context.supabase, context.user.id, {
+      now: new Date(context.nowIso),
+      timezone: context.timezone,
+    });
     return { ok: true, receipt: visibleReview(review) || { status: 'not_found', needs_weekly_briefing: false } };
   },
 });

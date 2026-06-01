@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
-import { getLatestWeeklyReview } from '@/lib/reviews/weekly-review';
+import { refreshLatestWeeklyReviewIfOutdated } from '@/lib/reviews/weekly-review';
 
 export async function GET(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
-    const review = await getLatestWeeklyReview(supabase, user.id);
+    const review = await refreshLatestWeeklyReviewIfOutdated(supabase, user.id);
     return apiSuccess({ review });
   } catch (error) {
     if (error instanceof Error && error.message === ErrorCode.UNAUTHORIZED) {

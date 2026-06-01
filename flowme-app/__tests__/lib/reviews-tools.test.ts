@@ -1,11 +1,11 @@
 jest.mock('@/lib/reviews/weekly-review', () => ({
   ensureCurrentWeeklyReview: jest.fn(),
-  getLatestWeeklyReview: jest.fn(),
+  refreshLatestWeeklyReviewIfOutdated: jest.fn(),
   saveWeeklyBriefingAndRegenerate: jest.fn(),
 }));
 
 import { reviewsGetLatestTool, reviewsSaveWeeklyBriefingTool, reviewsStartWeeklyReviewTool } from '@/lib/ai/tools/reviews-tools';
-import { ensureCurrentWeeklyReview, getLatestWeeklyReview, saveWeeklyBriefingAndRegenerate } from '@/lib/reviews/weekly-review';
+import { ensureCurrentWeeklyReview, refreshLatestWeeklyReviewIfOutdated, saveWeeklyBriefingAndRegenerate } from '@/lib/reviews/weekly-review';
 
 const context: any = {
   supabase: {},
@@ -32,7 +32,7 @@ describe('reviews tools', () => {
   });
 
   it('asks for a short briefing when qualitative context is missing', async () => {
-    (getLatestWeeklyReview as jest.Mock).mockResolvedValue({
+    (refreshLatestWeeklyReviewIfOutdated as jest.Mock).mockResolvedValue({
       period_start: '2026-05-25',
       period_end: '2026-05-31',
       status: 'awaiting_briefing',

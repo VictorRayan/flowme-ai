@@ -35,6 +35,9 @@ interface RescheduleEvidence {
 interface GoalEvidence {
   title: string;
   status: string;
+  starts_on?: string | null;
+  due_on?: string | null;
+  target_date?: string | null;
 }
 
 interface ActionPlanTaskEvidence {
@@ -64,6 +67,7 @@ export interface WeeklyReviewMetrics {
 }
 
 export interface WeeklyReviewEvidence {
+  evidence_version?: number;
   period: WeeklyReviewPeriod;
   metrics: WeeklyReviewMetrics;
   not_done_reasons: Array<{ reason: string; count: number }>;
@@ -119,6 +123,7 @@ interface CouncilReviewResult {
 }
 
 type SupabaseLike = { from(table: string): any };
+const CURRENT_EVIDENCE_VERSION = 2;
 
 function dateInTimezone(now: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -146,6 +151,29 @@ export function getWeeklyReviewPeriod(now: Date, timezone: string): WeeklyReview
   return { start: addDays(end, -6), end };
 }
 
+function yearFromDate(value: string | null | undefined): string | null {
+  return value?.match(/^\d{4}/)?.[0] || null;
+}
+
+function hasConflictingTitleYear(goal: GoalEvidence): boolean {
+  const structuredYear = yearFromDate(goal.due_on) || yearFromDate(goal.target_date);
+  if (!structuredYear) return false;
+  return Array.from(goal.title.matchAll(/\b(?:19|20)\d{2}\b/g)).some(match => match[0] !== structuredYear);
+}
+
+export function filterGoalsForWeeklyReview(goals: GoalEvidence[], period: WeeklyReviewPeriod): GoalEvidence[] {
+  return goals.filter(goal => {
+    if (goal.status === 'completed' || goal.status === 'cancelled') return false;
+    if (goal.starts_on && goal.starts_on > period.end) return false;
+    if (goal.due_on && goal.due_on < period.start) return false;
+    return !hasConflictingTitleYear(goal);
+  });
+}
+
+export function hasCurrentWeeklyReviewEvidence(evidence: Pick<WeeklyReviewEvidence, 'evidence_version'> | null | undefined): boolean {
+  return evidence?.evidence_version === CURRENT_EVIDENCE_VERSION;
+}
+
 export function buildWeeklyReviewEvidence(input: BuildEvidenceInput): WeeklyReviewEvidence {
   const reasons = new Map<string, number>();
   for (const item of input.commitments) {
@@ -156,6 +184,7 @@ export function buildWeeklyReviewEvidence(input: BuildEvidenceInput): WeeklyRevi
   const dailyBriefings = input.notes.filter(note => note.note_type === 'daily_briefing' && hasText(note.content_text));
   const usefulNotes = input.notes.filter(note => hasText(note.content_text));
   return {
+    evidence_version: CURRENT_EVIDENCE_VERSION,
     period: input.period,
     metrics: {
       commitment_count: input.commitments.length,
@@ -199,9 +228,11 @@ function summarizeGoalImpact(evidence: WeeklyReviewEvidence): string {
   return `Os desvios devem ser avaliados contra ${activeGoals.length} metas ativas: ${activeGoals.map(goal => goal.title).slice(0, 3).join(', ')}.`;
 }
 
-function buildCouncilSituation(evidence: WeeklyReviewEvidence): string {
+export function buildCouncilSituation(evidence: WeeklyReviewEvidence): string {
   return `Faça uma recomendação prática e concisa para a revisão semanal do usuário.
 Não invente fatos. Use somente as evidências abaixo. Identifique o principal padrão, seu impacto e a próxima ação mais útil.
+As reuniões listadas foram gravadas pelo Flow Me após confirmação do usuário: o consentimento dos participantes já foi confirmado. Trate esse consentimento como uma invariante do produto: não levante alertas jurídicos ou éticos sobre ausência de consentimento e não infira ausência de consentimento a partir de falas informais da transcrição, salvo se as próprias evidências disserem explicitamente que ele foi revogado, está ausente ou é contestado.
+As datas estruturadas das metas são autoritativas. Títulos são texto livre e metas com datas textuais conflitantes já foram excluídas desta revisão.
 
 Período: ${evidence.period.start} a ${evidence.period.end}
 Métricas: ${JSON.stringify(evidence.metrics)}
@@ -262,7 +293,7 @@ export async function collectWeeklyReviewEvidence(
     rows<NoteEvidence>(supabase.from('notes').select('title, note_type, note_date, content_text').eq('user_id', userId).eq('is_deleted', false).gte('note_date', period.start).lte('note_date', period.end)),
     rows<{ event_id: string; outcome: string; outcome_reason: string | null; reason_code: string | null }>(supabase.from('calendar_event_outcomes').select('event_id, outcome, outcome_reason, reason_code').eq('user_id', userId).gte('updated_at', `${period.start}T00:00:00Z`).lte('updated_at', `${period.end}T23:59:59Z`)),
     rows<{ event_title: string; movement_type: string; offset_minutes: number; minutes_before_previous_start: number }>(supabase.from('calendar_event_reschedules').select('event_title, movement_type, offset_minutes, minutes_before_previous_start').eq('user_id', userId).gte('changed_at', `${period.start}T00:00:00Z`).lte('changed_at', `${period.end}T23:59:59Z`)),
-    rows<GoalEvidence>(supabase.from('smart_goals').select('title, status').eq('user_id', userId)),
+    rows<GoalEvidence>(supabase.from('smart_goals').select('title, status, starts_on, due_on, target_date').eq('user_id', userId)),
     rows<ActionPlanTaskEvidence>(supabase.from('action_plan_tasks').select('title, outcome').eq('user_id', userId).gte('scheduled_date', period.start).lte('scheduled_date', period.end)),
     rows<ThreadSummaryEvidence>(supabase.from('thread_summaries').select('summary, key_topics').eq('user_id', userId).gte('summarized_at', `${period.start}T00:00:00Z`).lte('summarized_at', `${period.end}T23:59:59Z`).order('summarized_at', { ascending: false }).limit(12)),
     rows<MeetingEvidence>(supabase.from('meeting_recordings').select('title, subject, objective').eq('user_id', userId).gte('meeting_date', period.start).lte('meeting_date', period.end).in('status', ['ready', 'finalization_review'])),
@@ -299,7 +330,7 @@ export async function collectWeeklyReviewEvidence(
     notes,
     commitments: batches.flat(),
     reschedules: reschedules.map(item => ({ title: item.event_title, ...item })),
-    goals,
+    goals: filterGoalsForWeeklyReview(goals, period),
     actionPlanTasks,
     threadSummaries,
     meetings,
@@ -344,6 +375,39 @@ export async function getLatestWeeklyReview(supabase: SupabaseLike, userId: stri
   return null;
 }
 
+export function shouldRefreshWeeklyReview(
+  review: Pick<WeeklyReviewRecord, 'period_end' | 'evidence'> | null,
+  now = new Date(),
+  timezone = 'UTC',
+): boolean {
+  if (!review || hasCurrentWeeklyReviewEvidence(review.evidence)) return false;
+
+  const today = dateInTimezone(now, timezone);
+  const daysSincePeriodEnd = Math.floor(
+    (Date.parse(today) - Date.parse(review.period_end)) / (24 * 60 * 60 * 1000),
+  );
+
+  return daysSincePeriodEnd >= 0 && daysSincePeriodEnd <= 7;
+}
+
+export async function refreshLatestWeeklyReviewIfOutdated(
+  supabase: SupabaseLike,
+  userId: string,
+  options: { now?: Date; timezone?: string } = {},
+): Promise<WeeklyReviewRecord | null> {
+  const latest = await getLatestWeeklyReview(supabase, userId);
+  if (!shouldRefreshWeeklyReview(latest, options.now, options.timezone)) return latest;
+
+  return ensureCurrentWeeklyReview(supabase, userId, {
+    ...options,
+    period: {
+      start: latest!.period_start,
+      end: latest!.period_end,
+    },
+    weeklyBriefing: latest!.evidence.weekly_briefing || undefined,
+  });
+}
+
 export async function ensureCurrentWeeklyReview(
   supabase: SupabaseLike,
   userId: string,
@@ -359,6 +423,7 @@ export async function ensureCurrentWeeklyReview(
     !options.weeklyBriefing &&
     existing &&
     (existing.status === 'ready' || existing.status === 'awaiting_briefing') &&
+    hasCurrentWeeklyReviewEvidence(existing.evidence) &&
     daysSinceExistingPeriod !== null &&
     daysSinceExistingPeriod >= 0 &&
     daysSinceExistingPeriod <= 2

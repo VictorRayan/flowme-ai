@@ -1,14 +1,14 @@
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/weekly-reviews/latest/route';
 import { POST } from '@/app/api/weekly-reviews/briefing/route';
-import { getLatestWeeklyReview, saveWeeklyBriefingAndRegenerate } from '@/lib/reviews/weekly-review';
+import { refreshLatestWeeklyReviewIfOutdated, saveWeeklyBriefingAndRegenerate } from '@/lib/reviews/weekly-review';
 
 jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockResolvedValue({ user: { id: 'user-1' }, supabase: { db: true } }),
 }));
 
 jest.mock('@/lib/reviews/weekly-review', () => ({
-  getLatestWeeklyReview: jest.fn(),
+  refreshLatestWeeklyReviewIfOutdated: jest.fn(),
   saveWeeklyBriefingAndRegenerate: jest.fn(),
 }));
 
@@ -16,7 +16,7 @@ describe('weekly reviews API', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('returns the latest review', async () => {
-    (getLatestWeeklyReview as jest.Mock).mockResolvedValue({ status: 'ready' });
+    (refreshLatestWeeklyReviewIfOutdated as jest.Mock).mockResolvedValue({ status: 'ready' });
     const res = await GET(new NextRequest('http://localhost/api/weekly-reviews/latest'));
     expect(res.status).toBe(200);
     expect((await res.json()).review.status).toBe('ready');

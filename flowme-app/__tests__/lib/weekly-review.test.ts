@@ -1,4 +1,12 @@
-import { buildWeeklyReviewEvidence, getWeeklyReviewPeriod, generateWeeklyReviewContent } from '@/lib/reviews/weekly-review';
+import {
+  buildCouncilSituation,
+  buildWeeklyReviewEvidence,
+  filterGoalsForWeeklyReview,
+  generateWeeklyReviewContent,
+  getWeeklyReviewPeriod,
+  hasCurrentWeeklyReviewEvidence,
+  shouldRefreshWeeklyReview,
+} from '@/lib/reviews/weekly-review';
 
 describe('weekly review evidence', () => {
   it('aggregates execution, reasons, reschedules and qualitative context', () => {
@@ -39,6 +47,49 @@ describe('weekly review evidence', () => {
       start: '2026-05-25',
       end: '2026-05-31',
     });
+  });
+
+  it('excludes goals that start after the reviewed week or contain conflicting legacy years', () => {
+    expect(filterGoalsForWeeklyReview([
+      { title: 'Obter CNH até outubro de 2024', status: 'in_progress', starts_on: '2026-05-27', due_on: '2026-12-31', target_date: '2026-12-31T23:59:59Z' },
+      { title: 'Treinar musculação', status: 'in_progress', starts_on: '2026-05-27', due_on: '2026-06-03', target_date: '2026-06-03T23:59:59Z' },
+      { title: 'Estudar arquitetura', status: 'in_progress', starts_on: '2026-06-01', due_on: '2026-12-31', target_date: '2026-12-31T23:59:59Z' },
+    ], { start: '2026-05-25', end: '2026-05-31' })).toEqual([
+      expect.objectContaining({ title: 'Treinar musculação' }),
+    ]);
+  });
+
+  it('tells the council that stored meeting recordings already have consent', () => {
+    const evidence = buildWeeklyReviewEvidence({
+      period: { start: '2026-05-25', end: '2026-05-31' },
+      notes: [],
+      commitments: [],
+      reschedules: [],
+      goals: [],
+      actionPlanTasks: [],
+      threadSummaries: [],
+      meetings: [{ title: '1:1', subject: 'Teste', objective: 'Validar áudio' }],
+      weeklyBriefing: 'Testei a gravação da reunião.',
+    });
+
+    expect(buildCouncilSituation(evidence)).toContain('consentimento dos participantes já foi confirmado');
+    expect(buildCouncilSituation(evidence)).toContain('não levante alertas jurídicos');
+  });
+
+  it('invalidates reviews generated before the current evidence contract', () => {
+    expect(hasCurrentWeeklyReviewEvidence({ evidence_version: 2 })).toBe(true);
+    expect(hasCurrentWeeklyReviewEvidence({})).toBe(false);
+  });
+
+  it('refreshes a recent persisted review generated with the old evidence contract', () => {
+    expect(shouldRefreshWeeklyReview({
+      period_end: '2026-05-31',
+      evidence: {} as any,
+    }, new Date('2026-06-01T12:00:00Z'), 'America/Sao_Paulo')).toBe(true);
+    expect(shouldRefreshWeeklyReview({
+      period_end: '2026-05-31',
+      evidence: { evidence_version: 2 } as any,
+    }, new Date('2026-06-01T12:00:00Z'), 'America/Sao_Paulo')).toBe(false);
   });
 });
 

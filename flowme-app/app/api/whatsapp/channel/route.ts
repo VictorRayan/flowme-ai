@@ -2,13 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { sendVerificationCode } from '@/lib/whatsapp/evolution-client';
-
-const PHONE_RE = /^\+?[1-9]\d{6,14}$/;
-
-function normalizePhone(raw: string): string {
-  // Strip all non-digits, keep E.164 digits only (no leading +)
-  return raw.replace(/\D/g, '');
-}
+import { parseInternationalPhone } from '@/lib/whatsapp/phone-number';
 
 function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -34,13 +28,14 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = await requireAuth(request);
 
   const body = await request.json().catch(() => ({}));
-  const rawPhone: string = (body?.phone ?? '').trim();
+  const rawPhone = typeof body?.phone === 'string' ? body.phone.trim() : '';
+  const parsedPhone = parseInternationalPhone(rawPhone);
 
-  if (!rawPhone || !PHONE_RE.test(rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`)) {
+  if (!parsedPhone) {
     return apiError(ErrorCode.VALIDATION_ERROR, 'Invalid phone number. Provide a valid international number.', 400);
   }
 
-  const phone = normalizePhone(rawPhone);
+  const phone = parsedPhone.digits;
   const code  = generateCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 

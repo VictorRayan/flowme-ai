@@ -13,6 +13,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import { formatInternationalPhoneInput, parseInternationalPhone } from '@/lib/whatsapp/phone-number';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useRouter } from 'next/navigation';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
@@ -93,6 +94,7 @@ const dict = {
     wa_desc: 'Vincule seu número para o Balys te enviar lembretes dos seus rituais e tarefas direto no WhatsApp. Enviaremos um código de verificação para confirmar o número.',
     wa_phone_label: 'Número do WhatsApp',
     wa_phone_hint: 'Use o formato internacional, ex: +55 11 99999-9999.',
+    wa_phone_invalid: 'Informe um número internacional válido, incluindo o código do país.',
     wa_send_from: 'O código de verificação será enviado de',
     wa_send_code: 'Enviar código',
     wa_sending: 'Enviando código...',
@@ -179,6 +181,7 @@ const dict = {
     wa_desc: 'Link your number so Balys can send reminders for your rituals and goal tasks straight to your WhatsApp. We will send a verification code to confirm the number.',
     wa_phone_label: 'WhatsApp number',
     wa_phone_hint: 'Use the international format, e.g. +1 555 123 4567.',
+    wa_phone_invalid: 'Enter a valid international number, including the country calling code.',
     wa_send_from: 'The verification code will be sent from',
     wa_send_code: 'Send code',
     wa_sending: 'Sending code...',
@@ -290,6 +293,10 @@ export default function OnboardingWizard() {
 
   const sendWhatsappCode = async () => {
     if (!waPhone.trim() || waSubmitting) return;
+    if (!parseInternationalPhone(waPhone)) {
+      setWaError(t.wa_phone_invalid);
+      return;
+    }
     setWaError(null);
     setWaSubmitting(true);
     try {
@@ -787,10 +794,15 @@ export default function OnboardingWizard() {
                   <TextField
                     fullWidth
                     value={waPhone}
-                    onChange={(e) => setWaPhone(e.target.value)}
+                    onChange={(e) => {
+                      setWaPhone(formatInternationalPhoneInput(e.target.value));
+                      setWaError(null);
+                    }}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendWhatsappCode(); } }}
                     label={t.wa_phone_label}
-                    placeholder="+5511999999999"
+                    placeholder="+55 11 99999 9999"
+                    error={Boolean(waPhone && !parseInternationalPhone(waPhone))}
+                    inputProps={{ inputMode: 'tel', autoComplete: 'tel' }}
                     disabled={waSubmitting}
                     sx={{ mb: 1, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
                   />
@@ -801,7 +813,7 @@ export default function OnboardingWizard() {
                   <Button
                     fullWidth variant="contained" size="large"
                     onClick={sendWhatsappCode}
-                    disabled={waSubmitting || !waPhone.trim()}
+                    disabled={waSubmitting || !parseInternationalPhone(waPhone)}
                     startIcon={waSubmitting ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <WhatsAppIcon />}
                     sx={{ py: 2, borderRadius: 3, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', '&.Mui-disabled': { background: 'linear-gradient(135deg, #4338ca 0%, #6d28d9 100%)', color: 'rgba(255,255,255,0.85)' } }}
                   >

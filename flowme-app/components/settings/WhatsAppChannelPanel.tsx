@@ -10,6 +10,11 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { resolveUiLang, type UiLang } from '@/lib/i18n';
 import { intlLocale } from '@/lib/datetime';
+import {
+  formatInternationalPhoneInput,
+  formatStoredInternationalPhone,
+  parseInternationalPhone,
+} from '@/lib/whatsapp/phone-number';
 
 type ChannelStatus = 'none' | 'pending_verification' | 'active';
 
@@ -39,6 +44,7 @@ const STRINGS = {
     enterNumber: 'Enter your WhatsApp number in international format (e.g. +5511999999999).',
     willSendFrom: (phone: string) => ` Balys will send a verification code from ${phone}.`,
     numberLabel: 'WhatsApp number',
+    invalidNumber: 'Enter a valid international number, including the country calling code.',
     sendCode: 'Send verification code',
     footerNote: 'Once verified, send any message to Balys on WhatsApp — text, image, or voice note — and Balys will reply with your full context and tools.',
     balysMessages: 'Balys messages',
@@ -65,6 +71,7 @@ const STRINGS = {
     enterNumber: 'Digite seu número do WhatsApp no formato internacional (ex: +5511999999999).',
     willSendFrom: (phone: string) => ` O Balys enviará um código de verificação de ${phone}.`,
     numberLabel: 'Número do WhatsApp',
+    invalidNumber: 'Informe um número internacional válido, incluindo o código do país.',
     sendCode: 'Enviar código de verificação',
     footerNote: 'Uma vez verificado, envie qualquer mensagem ao Balys pelo WhatsApp — texto, imagem ou nota de voz — e o Balys responderá com seu contexto e ferramentas completos.',
     balysMessages: 'Mensagens do Balys',
@@ -120,6 +127,10 @@ export default function WhatsAppChannelPanel() {
   useEffect(() => { fetchChannel(); }, [fetchChannel]);
 
   const handleRegister = async () => {
+    if (!parseInternationalPhone(phone)) {
+      setError(t.invalidNumber);
+      return;
+    }
     setError(null);
     setSuccess(null);
     setSaving(true);
@@ -226,7 +237,7 @@ export default function WhatsAppChannelPanel() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <CheckCircleIcon color="success" />
               <Box>
-                <Typography fontWeight={600}>+{channel.phone}</Typography>
+                <Typography fontWeight={600}>{formatStoredInternationalPhone(channel.phone)}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {channel.verified_at
                     ? t.connected(new Date(channel.verified_at).toLocaleDateString(intlLocale(uiLang)))
@@ -329,16 +340,22 @@ export default function WhatsAppChannelPanel() {
             <TextField
               label={t.numberLabel}
               size="small"
-              placeholder="+5511999999999"
+              placeholder="+55 11 99999 9999"
               value={phone}
-              onChange={e => setPhone(e.target.value)}
+              onChange={e => {
+                setPhone(formatInternationalPhoneInput(e.target.value));
+                setError(null);
+              }}
+              error={Boolean(phone && !parseInternationalPhone(phone))}
+              helperText={phone && !parseInternationalPhone(phone) ? t.invalidNumber : undefined}
+              inputProps={{ inputMode: 'tel', autoComplete: 'tel' }}
               sx={{ width: 240 }}
             />
             <Button
               variant="contained"
               startIcon={<WhatsAppIcon />}
               onClick={handleRegister}
-              disabled={saving || !phone.trim()}
+              disabled={saving || !parseInternationalPhone(phone)}
             >
               {saving ? <CircularProgress size={18} /> : t.sendCode}
             </Button>

@@ -88,13 +88,18 @@ describe('POST /api/whatsapp/channel', () => {
   });
 
   it('registers valid phone and sends code', async () => {
-    const res  = await POST(makeReq({ phone: '+55 (11) 99122-6950' }));
+    const res  = await POST(makeReq({ phone: '+55 (11) 99122-6950', language: 'pt' }));
     const data = await res.json();
     expect(res.status).toBe(200);
     expect(data.ok).toBe(true);
     expect(data.sent).toBe(true);
     expect(data.phone).toBe('5511991226950');
-    expect(sendVerificationCode).toHaveBeenCalledWith('5511991226950', expect.stringMatching(/^\d{6}$/));
+    expect(sendVerificationCode).toHaveBeenCalledWith('5511991226950', expect.stringMatching(/^\d{6}$/), 'pt');
+  });
+
+  it('rejects unsupported verification message languages', async () => {
+    const res = await POST(makeReq({ phone: '+55 (11) 99122-6950', language: 'es' }));
+    expect(res.status).toBe(400);
   });
 
   it('returns 409 when phone is taken by another user', async () => {

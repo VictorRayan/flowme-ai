@@ -30,9 +30,13 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const rawPhone = typeof body?.phone === 'string' ? body.phone.trim() : '';
   const parsedPhone = parseInternationalPhone(rawPhone);
+  const language = body?.language ?? 'en';
 
   if (!parsedPhone) {
     return apiError(ErrorCode.VALIDATION_ERROR, 'Invalid phone number. Provide a valid international number.', 400);
+  }
+  if (language !== 'en' && language !== 'pt') {
+    return apiError(ErrorCode.VALIDATION_ERROR, 'Unsupported verification message language.', 400);
   }
 
   const phone = parsedPhone.digits;
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await sendVerificationCode(phone, code);
+    await sendVerificationCode(phone, code, language);
   } catch (e: any) {
     // Roll back to avoid a stuck pending state
     await supabase.from('whatsapp_channels').delete().eq('user_id', user.id);

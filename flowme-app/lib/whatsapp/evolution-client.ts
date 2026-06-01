@@ -51,8 +51,14 @@ export async function downloadMedia(
  * Send a verification code to a phone number via WhatsApp text.
  * The number must be in E.164 format without the leading +, e.g. "5511999999999".
  */
-export async function sendVerificationCode(phone: string, code: string): Promise<void> {
-  await sendText(phone, `Your Flowme / Balys verification code is: *${code}*\n\nIt expires in 10 minutes.`);
+export function verificationCodeMessage(code: string, language: 'en' | 'pt'): string {
+  return language === 'pt'
+    ? `Seu código de verificação do Flowme / Balys é: *${code}*\n\nEle expira em 10 minutos.`
+    : `Your Flowme / Balys verification code is: *${code}*\n\nIt expires in 10 minutes.`;
+}
+
+export async function sendVerificationCode(phone: string, code: string, language: 'en' | 'pt' = 'en'): Promise<void> {
+  await sendText(phone, verificationCodeMessage(code, language));
 }
 
 /** Resolve a raw phone number from an Evolution webhook sender JID to E.164 digits only. */

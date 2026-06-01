@@ -110,6 +110,7 @@ const dict = {
     wa_error_verify: 'Código incorreto ou expirado. Tente novamente.',
     wa_connected: 'WhatsApp conectado',
     wa_not_connected: 'Você pode conectar depois nas configurações.',
+    change_language: 'Alterar idioma',
   },
   en: {
     welcome: 'Welcome to Flow-me.',
@@ -197,6 +198,7 @@ const dict = {
     wa_error_verify: 'Wrong or expired code. Please try again.',
     wa_connected: 'WhatsApp connected',
     wa_not_connected: 'You can connect it later in settings.',
+    change_language: 'Change language',
   }
 };
 
@@ -303,7 +305,7 @@ export default function OnboardingWizard() {
       const res = await fetch('/api/whatsapp/channel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: waPhone }),
+        body: JSON.stringify({ phone: waPhone, language: lang }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) throw new Error(data?.error?.message || t.wa_error_send);
@@ -509,7 +511,17 @@ export default function OnboardingWizard() {
     }}>
       
       {/* Top Nav */}
-      <Box sx={{ p: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80 }}>
+      <Box sx={{ p: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80, position: 'relative' }}>
+        {step > 0 && (
+          <Button
+            variant="text"
+            startIcon={<LanguageIcon />}
+            onClick={() => setStep(0)}
+            sx={{ position: 'absolute', left: { xs: 8, md: 24 }, color: 'text.secondary', textTransform: 'none' }}
+          >
+            {t.change_language}
+          </Button>
+        )}
         {step > 1 && (
           <Box sx={{ display: 'flex', gap: 1 }}>
             {[2,3,4,5,6,7].map((i) => (

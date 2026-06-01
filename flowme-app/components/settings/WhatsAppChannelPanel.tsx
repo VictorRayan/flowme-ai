@@ -138,7 +138,7 @@ export default function WhatsAppChannelPanel() {
       const res  = await fetch('/api/whatsapp/channel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, language: uiLang }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to send code');

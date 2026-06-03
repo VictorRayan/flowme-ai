@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineTool } from './Tool';
 import { ensureCurrentWeeklyReview, refreshLatestWeeklyReviewIfOutdated, saveWeeklyBriefingAndRegenerate, type WeeklyReviewRecord } from '@/lib/reviews/weekly-review';
+import { ensureMonthlyReview, getLatestMonthlyReview, type MonthlyReviewRecord } from '@/lib/reviews/monthly-review';
 
 function visibleReview(review: WeeklyReviewRecord | null) {
   if (!review) return null;
@@ -16,6 +17,18 @@ function visibleReview(review: WeeklyReviewRecord | null) {
     not_done_reasons: review.evidence?.not_done_reasons || [],
     feedback: review.review_content,
     suggested_action_plan: review.suggested_action_plan,
+  };
+}
+
+function visibleMonthlyReview(review: MonthlyReviewRecord | null) {
+  if (!review) return null;
+  const summary = review.evidence?.financial_summary || null;
+  return {
+    period: { start: review.period_start, end: review.period_end },
+    status: review.status,
+    financial_summary: summary,
+    alerts: review.evidence?.alerts || [],
+    feedback: review.review_content,
   };
 }
 
@@ -82,8 +95,43 @@ CONTRACT:
   },
 });
 
+export const reviewsStartMonthlyReviewTool = defineTool({
+  name: 'reviews.start_monthly_review',
+  description: `Generates the user's latest Monthly Finance Review from deterministic financial data for the month that just closed.
+
+WHEN TO USE: the user asks for monthly review, revisão mensal, fechamento do mês, or financial month analysis.
+
+CONTRACT:
+- Evidence comes from finance transactions and monthly summary only.
+- Never invent totals.
+- If income is missing, avoid precise investment recommendations.
+- Never expose technical IDs.`,
+  isReadOnly: false,
+  inputSchema: z.object({}),
+  call: async (_args, context) => {
+    const review = await ensureMonthlyReview(context.supabase, context.user.id, {
+      now: new Date(context.nowIso),
+      timezone: context.timezone,
+    });
+    return { ok: true, receipt: visibleMonthlyReview(review) };
+  },
+});
+
+export const reviewsGetLatestMonthlyTool = defineTool({
+  name: 'reviews.get_latest_monthly',
+  description: `Reads the user's latest Monthly Finance Review. Use when the user asks what Balys learned from their last month or latest monthly financial review.`,
+  isReadOnly: true,
+  inputSchema: z.object({}),
+  call: async (_args, context) => {
+    const review = await getLatestMonthlyReview(context.supabase, context.user.id);
+    return { ok: true, receipt: visibleMonthlyReview(review) || { status: 'not_found' } };
+  },
+});
+
 export const REVIEWS_TOOLS = [
   reviewsStartWeeklyReviewTool,
   reviewsGetLatestTool,
   reviewsSaveWeeklyBriefingTool,
+  reviewsStartMonthlyReviewTool,
+  reviewsGetLatestMonthlyTool,
 ];

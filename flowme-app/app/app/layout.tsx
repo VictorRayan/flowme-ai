@@ -17,6 +17,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ElectricalServicesIcon from '@mui/icons-material/ElectricalServices';
 import SchoolIcon from '@mui/icons-material/School';
 import RateReviewIcon from '@mui/icons-material/RateReview';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -84,6 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today' },
     { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals' },
     { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar' },
+    { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance' },
     { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
     { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews' },
     { text: nav.balysAi,    icon: <SmartToyIcon          sx={{ fontSize: 20 }} />, path: '/app/ai' },

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense, useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Button, Paper, List, ListItem, ListItemText, IconButton, Switch, Divider, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Box, Typography, Button, Paper, List, ListItem, ListItemText, IconButton, Switch, Divider, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel, TextField } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import LinkIcon from '@mui/icons-material/Link';
@@ -30,12 +30,17 @@ const AI_LANGUAGES = [
   { code: 'zh', label: '中文' },
 ];
 
+const FINANCE_CURRENCIES = ['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'MXN'];
+
 function SettingsPageContent() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [aiLanguage, setAiLanguage] = useState('en');
   const [uiLanguage, setUiLanguage] = useState<UiLang>('en');
   const [councilMode, setCouncilMode] = useState<'cheap' | 'best'>('cheap');
   const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [defaultCurrency, setDefaultCurrency] = useState('BRL');
+  const [monthlyReviewTime, setMonthlyReviewTime] = useState('18:30');
+  const [financeSaving, setFinanceSaving] = useState(false);
   const [aiBehaviorSaving, setAiBehaviorSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +105,57 @@ function SettingsPageContent() {
         }
       })
       .catch(() => { /* ignore — keeps defaults */ });
+
+    fetch('/api/finance/profile')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.ok && d.profile?.default_currency) setDefaultCurrency(d.profile.default_currency);
+      })
+      .catch(() => { /* ignore — keeps defaults */ });
+
+    fetch('/api/briefings/preferences')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.ok && d.preferences?.monthly_review_time) setMonthlyReviewTime(d.preferences.monthly_review_time);
+      })
+      .catch(() => { /* ignore — keeps defaults */ });
   }, [fetchAccounts]);
+
+  const updateFinanceProfile = useCallback(async (currency: string) => {
+    setFinanceSaving(true);
+    try {
+      const res = await fetch('/api/finance/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default_currency: currency }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to save finance settings');
+      setSuccess(t.financeSaved);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFinanceSaving(false);
+    }
+  }, [t]);
+
+  const updateMonthlyReviewTime = useCallback(async (time: string) => {
+    setFinanceSaving(true);
+    try {
+      const res = await fetch('/api/briefings/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monthly_review_enabled: true, monthly_review_time: time }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Failed to save monthly review settings');
+      setSuccess(t.financeSaved);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFinanceSaving(false);
+    }
+  }, [t]);
 
   const updateAiBehavior = useCallback(async (patch: Partial<{ council_mode: 'cheap' | 'best'; memory_enabled: boolean }>) => {
     setAiBehaviorSaving(true);
@@ -321,6 +376,57 @@ function SettingsPageContent() {
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
               {t.memoryCaption}
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+
+      {/* Finance */}
+      <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box>
+            <Typography variant="h6" fontWeight="bold">{t.finance}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t.financeDesc}
+            </Typography>
+          </Box>
+          {financeSaving && <CircularProgress size={18} />}
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>{t.defaultCurrency}</InputLabel>
+            <Select
+              value={defaultCurrency}
+              label={t.defaultCurrency}
+              onChange={e => {
+                const currency = e.target.value;
+                setDefaultCurrency(currency);
+                updateFinanceProfile(currency);
+              }}
+            >
+              {FINANCE_CURRENCIES.map(currency => (
+                <MenuItem key={currency} value={currency}>{currency}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Box>
+            <TextField
+              type="time"
+              size="small"
+              label={t.monthlyReviewTime}
+              value={monthlyReviewTime}
+              onChange={e => {
+                setMonthlyReviewTime(e.target.value);
+                updateMonthlyReviewTime(e.target.value);
+              }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              {t.monthlyReviewDesc}
             </Typography>
           </Box>
         </Box>

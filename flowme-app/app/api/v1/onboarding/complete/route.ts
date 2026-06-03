@@ -4,6 +4,9 @@ import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent } from '@/lib/google/google-calendar';
+import { isFinanceCurrency } from '@/lib/finance/currency';
+import { upsertFinancialProfile } from '@/lib/finance/finance';
+import type { FinanceCurrency } from '@/lib/finance/types';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const isRateLimit = (err: any) => err?.code === 403 || err?.status === 403 || /rate limit/i.test(String(err?.message || ''));
@@ -13,12 +16,16 @@ export async function POST(req: NextRequest) {
     const { supabase, user } = await requireAuth(req);
     const body = await req.json();
     const { morningTime, eveningTime, goalProposals } = body;
+    const defaultCurrency = body.defaultCurrency || body.default_currency || 'BRL';
     const timezone = typeof body.timezone === 'string' && body.timezone.trim()
       ? body.timezone.trim()
       : 'UTC';
 
     if (!morningTime || !eveningTime) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'Missing morningTime or eveningTime');
+    }
+    if (!isFinanceCurrency(defaultCurrency)) {
+      return apiError(ErrorCode.VALIDATION_ERROR, 'Invalid default currency');
     }
 
     // Upsert user settings
@@ -37,6 +44,10 @@ export async function POST(req: NextRequest) {
       console.error('[Onboarding Complete API] Upsert Error:', error);
       return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
     }
+
+    await upsertFinancialProfile(supabase, user.id, {
+      default_currency: String(defaultCurrency).toUpperCase() as FinanceCurrency,
+    });
 
     const proposals = Array.isArray(goalProposals) ? goalProposals : [];
     let linkedAccountId: string | null = null;

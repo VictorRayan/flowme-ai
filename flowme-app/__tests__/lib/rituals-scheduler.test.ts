@@ -11,6 +11,9 @@ const profile: RitualProfile = {
   weekly_review_weekday: 0,
   weekly_review_time: '18:00',
   weekly_review_channels: ['push'],
+  monthly_review_enabled: true,
+  monthly_review_time: '18:30',
+  monthly_review_channels: ['push'],
 };
 
 describe('isRitualDue', () => {
@@ -37,6 +40,15 @@ describe('buildRitualPrompts', () => {
       ritual_kind: 'weekly_review',
       occurrence_key: '2026-05-31',
       url: '/app/ai?prompt=Iniciar%20Revis%C3%A3o%20semanal&autofocus=1',
+    })]);
+  });
+
+  it('builds a localized monthly review prompt on the last day of the month', () => {
+    const prompts = buildRitualPrompts(profile, new Date('2026-06-30T21:30:00.000Z'));
+    expect(prompts).toEqual([expect.objectContaining({
+      ritual_kind: 'monthly_review',
+      occurrence_key: '2026-06-30',
+      url: '/app/ai?prompt=Iniciar%20revis%C3%A3o%20mensal%20financeira&autofocus=1',
     })]);
   });
 });

@@ -1,4 +1,6 @@
 import { runAiCouncilPipeline } from '@/lib/ai/council-agents';
+import { buildFinanceSummary, getFinancialProfile, getFinanceMonthlySummary, listFinancialTransactions } from '@/lib/finance/finance';
+import type { FinancialGoalAlignment } from '@/lib/finance/types';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
@@ -56,6 +58,22 @@ interface MeetingEvidence {
   objective: string | null;
 }
 
+export interface FinancialReviewEvidence {
+  currency: string;
+  period_income: number;
+  period_expenses: number;
+  period_invested: number;
+  month_to_date_income: number;
+  month_to_date_expenses: number;
+  month_to_date_invested: number;
+  investment_rate_month_to_date: number | null;
+  top_categories: Array<{ category: string; amount: number; share: number }>;
+  largest_expenses: Array<{ label: string; amount: number; occurred_on: string; category: string }>;
+  goal_alignment: FinancialGoalAlignment[];
+  needs_review_count: number;
+  alerts: string[];
+}
+
 export interface WeeklyReviewMetrics {
   commitment_count: number;
   completed_count: number;
@@ -79,6 +97,7 @@ export interface WeeklyReviewEvidence {
   action_plan_tasks: ActionPlanTaskEvidence[];
   thread_summaries: ThreadSummaryEvidence[];
   meetings: MeetingEvidence[];
+  financial: FinancialReviewEvidence | null;
   weekly_briefing: string | null;
   has_narrative_context: boolean;
 }
@@ -114,6 +133,7 @@ interface BuildEvidenceInput {
   actionPlanTasks: ActionPlanTaskEvidence[];
   threadSummaries: ThreadSummaryEvidence[];
   meetings: MeetingEvidence[];
+  financial?: FinancialReviewEvidence | null;
   weeklyBriefing: string | null;
 }
 
@@ -123,7 +143,7 @@ interface CouncilReviewResult {
 }
 
 type SupabaseLike = { from(table: string): any };
-const CURRENT_EVIDENCE_VERSION = 2;
+const CURRENT_EVIDENCE_VERSION = 3;
 
 function dateInTimezone(now: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -204,6 +224,7 @@ export function buildWeeklyReviewEvidence(input: BuildEvidenceInput): WeeklyRevi
     action_plan_tasks: input.actionPlanTasks,
     thread_summaries: input.threadSummaries,
     meetings: input.meetings,
+    financial: input.financial || null,
     weekly_briefing: input.weeklyBriefing,
     has_narrative_context: usefulNotes.length > 0 || hasText(input.weeklyBriefing),
   };
@@ -228,6 +249,46 @@ function summarizeGoalImpact(evidence: WeeklyReviewEvidence): string {
   return `Os desvios devem ser avaliados contra ${activeGoals.length} metas ativas: ${activeGoals.map(goal => goal.title).slice(0, 3).join(', ')}.`;
 }
 
+async function collectFinancialReviewEvidence(
+  supabase: SupabaseLike,
+  userId: string,
+  period: WeeklyReviewPeriod,
+): Promise<FinancialReviewEvidence | null> {
+  try {
+    const profile = await getFinancialProfile(supabase, userId);
+    const month = period.end.slice(0, 7);
+    const periodTransactions = await listFinancialTransactions(supabase, userId, { start: period.start, end: period.end, limit: 500 });
+    const periodSummary = buildFinanceSummary(periodTransactions, { month, currency: profile.default_currency });
+    const monthSummary = await getFinanceMonthlySummary(supabase, userId, month);
+    const alerts: string[] = [];
+    if (monthSummary.needs_review_count > 0) alerts.push(`${monthSummary.needs_review_count} lançamentos financeiros precisam de revisão.`);
+    if (monthSummary.total_income <= 0 && monthSummary.total_expenses > 0) alerts.push('Renda mensal não registrada; recomendações de investimento devem ser conservadoras.');
+    return {
+      currency: profile.default_currency,
+      period_income: periodSummary.total_income,
+      period_expenses: periodSummary.total_expenses,
+      period_invested: periodSummary.total_invested,
+      month_to_date_income: monthSummary.total_income,
+      month_to_date_expenses: monthSummary.total_expenses,
+      month_to_date_invested: monthSummary.total_invested,
+      investment_rate_month_to_date: monthSummary.investment_rate,
+      top_categories: monthSummary.category_breakdown.slice(0, 5),
+      goal_alignment: monthSummary.goal_alignment,
+      largest_expenses: monthSummary.largest_transactions.map(item => ({
+        label: item.merchant || item.description || item.category_name,
+        amount: Number(item.amount),
+        occurred_on: item.occurred_on,
+        category: item.category_name,
+      })),
+      needs_review_count: monthSummary.needs_review_count,
+      alerts,
+    };
+  } catch (error) {
+    console.error('[weekly-review] financial evidence fetch failed:', error);
+    return null;
+  }
+}
+
 export function buildCouncilSituation(evidence: WeeklyReviewEvidence): string {
   return `Faça uma recomendação prática e concisa para a revisão semanal do usuário.
 Não invente fatos. Use somente as evidências abaixo. Identifique o principal padrão, seu impacto e a próxima ação mais útil.
@@ -242,6 +303,7 @@ Realocações: ${JSON.stringify(evidence.reschedules.slice(0, 20))}
 Metas: ${JSON.stringify(evidence.goals.slice(0, 12))}
 Tarefas de planos: ${JSON.stringify(evidence.action_plan_tasks.slice(0, 20))}
 Reuniões: ${JSON.stringify(evidence.meetings.slice(0, 12))}
+Finanças pessoais: ${JSON.stringify(evidence.financial)}
 Resumos de conversas: ${JSON.stringify(evidence.thread_summaries.slice(0, 8))}
 Briefing semanal adicional: ${evidence.weekly_briefing || 'não informado'}`;
 }
@@ -289,7 +351,7 @@ export async function collectWeeklyReviewEvidence(
   period: WeeklyReviewPeriod,
   options: { weeklyBriefing?: string | null; now?: Date } = {},
 ): Promise<WeeklyReviewEvidence> {
-  const [notes, outcomes, reschedules, goals, actionPlanTasks, threadSummaries, meetings, accounts] = await Promise.all([
+  const [notes, outcomes, reschedules, goals, actionPlanTasks, threadSummaries, meetings, accounts, financial] = await Promise.all([
     rows<NoteEvidence>(supabase.from('notes').select('title, note_type, note_date, content_text').eq('user_id', userId).eq('is_deleted', false).gte('note_date', period.start).lte('note_date', period.end)),
     rows<{ event_id: string; outcome: string; outcome_reason: string | null; reason_code: string | null }>(supabase.from('calendar_event_outcomes').select('event_id, outcome, outcome_reason, reason_code').eq('user_id', userId).gte('updated_at', `${period.start}T00:00:00Z`).lte('updated_at', `${period.end}T23:59:59Z`)),
     rows<{ event_title: string; movement_type: string; offset_minutes: number; minutes_before_previous_start: number }>(supabase.from('calendar_event_reschedules').select('event_title, movement_type, offset_minutes, minutes_before_previous_start').eq('user_id', userId).gte('changed_at', `${period.start}T00:00:00Z`).lte('changed_at', `${period.end}T23:59:59Z`)),
@@ -298,6 +360,7 @@ export async function collectWeeklyReviewEvidence(
     rows<ThreadSummaryEvidence>(supabase.from('thread_summaries').select('summary, key_topics').eq('user_id', userId).gte('summarized_at', `${period.start}T00:00:00Z`).lte('summarized_at', `${period.end}T23:59:59Z`).order('summarized_at', { ascending: false }).limit(12)),
     rows<MeetingEvidence>(supabase.from('meeting_recordings').select('title, subject, objective').eq('user_id', userId).gte('meeting_date', period.start).lte('meeting_date', period.end).in('status', ['ready', 'finalization_review'])),
     rows<{ id: string; name: string }>(supabase.from('linked_accounts').select('id, name').eq('user_id', userId).eq('is_active', true).eq('is_deleted', false).eq('provider', 'google')),
+    collectFinancialReviewEvidence(supabase, userId, period),
   ]);
 
   const outcomeById = new Map(outcomes.map(item => [item.event_id, item]));
@@ -334,6 +397,7 @@ export async function collectWeeklyReviewEvidence(
     actionPlanTasks,
     threadSummaries,
     meetings,
+    financial,
     weeklyBriefing: options.weeklyBriefing || null,
   });
 }

@@ -1,7 +1,7 @@
 import { sendText } from '@/lib/whatsapp/evolution-client';
 import { sendWebPush } from '@/lib/web-push/send';
 
-export type RitualKind = 'daily_briefing_note' | 'weekly_review';
+export type RitualKind = 'daily_briefing_note' | 'weekly_review' | 'monthly_review';
 export type RitualChannel = 'push' | 'whatsapp';
 
 export interface RitualProfile {
@@ -15,6 +15,9 @@ export interface RitualProfile {
   weekly_review_weekday: number;
   weekly_review_time: string | null;
   weekly_review_channels: string[];
+  monthly_review_enabled: boolean;
+  monthly_review_time: string | null;
+  monthly_review_channels: string[];
 }
 
 export interface RitualPrompt {
@@ -72,6 +75,12 @@ function due(time: string | null, nowMinutes: number): boolean {
   return target !== null && Math.abs(target - nowMinutes) <= 1;
 }
 
+function isLastDayOfMonth(date: string): boolean {
+  const parsed = new Date(`${date}T12:00:00.000Z`);
+  const last = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 0, 12)).toISOString().slice(0, 10);
+  return date === last;
+}
+
 function supportedChannels(channels: string[]): RitualChannel[] {
   return channels.filter((channel): channel is RitualChannel => channel === 'push' || channel === 'whatsapp');
 }
@@ -106,6 +115,19 @@ export function buildRitualPrompts(profile: RitualProfile, now: Date): RitualPro
     });
   }
 
+  if (profile.monthly_review_enabled && isLastDayOfMonth(clock.date) && due(profile.monthly_review_time, clock.minutes)) {
+    const message = isPt ? 'Iniciar revisão mensal financeira' : 'Start Monthly Finance Review';
+    prompts.push({
+      user_id: profile.user_id,
+      ritual_kind: 'monthly_review',
+      occurrence_key: clock.date,
+      channels: supportedChannels(profile.monthly_review_channels),
+      title: isPt ? 'Hora da sua revisão mensal financeira' : 'Time for your Monthly Finance Review',
+      body: isPt ? 'Abra a Balys para revisar o fechamento financeiro do mês.' : 'Open Balys to review the month-end finance summary.',
+      url: `/app/ai?prompt=${encodeURIComponent(message)}&autofocus=1`,
+    });
+  }
+
   return prompts;
 }
 
@@ -130,7 +152,7 @@ export async function deliverDueRitualPrompts(
   now = new Date(),
 ): Promise<{ inspected: number; sent: number; failed: number; skipped: number }> {
   const { data: profiles, error } = await (supabase.from('user_profile') as ProfileQuery)
-    .select('user_id, briefing_timezone, notification_language, daily_briefing_note_prompt_enabled, daily_briefing_note_time, daily_briefing_note_channels, weekly_review_enabled, weekly_review_weekday, weekly_review_time, weekly_review_channels');
+    .select('user_id, briefing_timezone, notification_language, daily_briefing_note_prompt_enabled, daily_briefing_note_time, daily_briefing_note_channels, weekly_review_enabled, weekly_review_weekday, weekly_review_time, weekly_review_channels, monthly_review_enabled, monthly_review_time, monthly_review_channels');
   if (error) throw new Error(error.message);
 
   const prompts = (profiles || []).flatMap(profile => buildRitualPrompts(profile, now));

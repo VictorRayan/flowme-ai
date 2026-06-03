@@ -18,6 +18,10 @@ function makeChain() {
       data: currentTable === 'linked_accounts' ? [{ id: 'google-1' }] : null,
       error: null,
     }).then(resolve as any, reject as any);
+  chain.single = jest.fn().mockImplementation(() => Promise.resolve({
+    data: currentTable === 'financial_profiles' ? { user_id: 'user-1', default_currency: 'BRL' } : null,
+    error: null,
+  }));
   return chain;
 }
 
@@ -81,6 +85,7 @@ describe('POST /api/v1/onboarding/complete', () => {
       body: JSON.stringify({
         morningTime: '08:00',
         eveningTime: '20:00',
+        defaultCurrency: 'BRL',
         timezone: 'America/Sao_Paulo',
         goalProposals: [{
           annual_smart_goal: 'Reach R$ 20k monthly revenue by December',
@@ -176,5 +181,13 @@ describe('POST /api/v1/onboarding/complete', () => {
 
     expect(res.status).toBe(400);
     expect(body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects invalid default currency', async () => {
+    const res = await POST(new NextRequest('http://localhost/api/v1/onboarding/complete', {
+      method: 'POST',
+      body: JSON.stringify({ morningTime: '08:00', eveningTime: '20:00', defaultCurrency: 'BTC' }),
+    }));
+    expect(res.status).toBe(400);
   });
 });

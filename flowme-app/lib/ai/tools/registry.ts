@@ -14,6 +14,7 @@ import { SLACK_TOOLS } from './slack-tools';
 import { imagesGenerateTool } from './image-tools';
 import { MEETINGS_TOOLS } from './meeting-tools';
 import { REVIEWS_TOOLS } from './reviews-tools';
+import { FINANCE_TOOLS } from './finance-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
@@ -62,6 +63,7 @@ export const ALL_TOOLS: Tool[] = [
   ...SLACK_TOOLS,
   ...MEETINGS_TOOLS,
   ...REVIEWS_TOOLS,
+  ...FINANCE_TOOLS,
 ];
 
 const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
@@ -81,9 +83,10 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   slack: 'slack.',
   meetings: 'meetings.',
   reviews: 'reviews.',
+  finance: 'finance.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'images' | 'slack' | 'meetings' | 'reviews' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'images' | 'slack' | 'meetings' | 'reviews' | 'finance' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

@@ -27,6 +27,7 @@ describe('weekly review evidence', () => {
       actionPlanTasks: [{ title: 'Prospecção', outcome: 'not_done' }],
       threadSummaries: [{ summary: 'Usuário relatou dificuldade para proteger blocos de foco.', key_topics: ['foco'] }],
       meetings: [{ title: '1:1', subject: 'Planejamento', objective: 'Priorizar semana' }],
+      financial: null,
       weeklyBriefing: null,
     });
 
@@ -69,15 +70,31 @@ describe('weekly review evidence', () => {
       actionPlanTasks: [],
       threadSummaries: [],
       meetings: [{ title: '1:1', subject: 'Teste', objective: 'Validar áudio' }],
+      financial: {
+        currency: 'BRL',
+        period_income: 0,
+        period_expenses: 120,
+        period_invested: 0,
+        month_to_date_income: 0,
+        month_to_date_expenses: 120,
+        month_to_date_invested: 0,
+        investment_rate_month_to_date: null,
+        top_categories: [{ category: 'alimentação', amount: 120, share: 1 }],
+        goal_alignment: [],
+        largest_expenses: [{ label: 'almoço', amount: 120, occurred_on: '2026-05-30', category: 'alimentação' }],
+        needs_review_count: 0,
+        alerts: ['Renda mensal não registrada; recomendações de investimento devem ser conservadoras.'],
+      },
       weeklyBriefing: 'Testei a gravação da reunião.',
     });
 
     expect(buildCouncilSituation(evidence)).toContain('consentimento dos participantes já foi confirmado');
     expect(buildCouncilSituation(evidence)).toContain('não levante alertas jurídicos');
+    expect(buildCouncilSituation(evidence)).toContain('Finanças pessoais');
   });
 
   it('invalidates reviews generated before the current evidence contract', () => {
-    expect(hasCurrentWeeklyReviewEvidence({ evidence_version: 2 })).toBe(true);
+    expect(hasCurrentWeeklyReviewEvidence({ evidence_version: 3 })).toBe(true);
     expect(hasCurrentWeeklyReviewEvidence({})).toBe(false);
   });
 
@@ -88,7 +105,7 @@ describe('weekly review evidence', () => {
     }, new Date('2026-06-01T12:00:00Z'), 'America/Sao_Paulo')).toBe(true);
     expect(shouldRefreshWeeklyReview({
       period_end: '2026-05-31',
-      evidence: { evidence_version: 2 } as any,
+      evidence: { evidence_version: 3 } as any,
     }, new Date('2026-06-01T12:00:00Z'), 'America/Sao_Paulo')).toBe(false);
   });
 });
@@ -107,6 +124,7 @@ describe('weekly review generation', () => {
       action_plan_tasks: [],
       thread_summaries: [],
       meetings: [],
+      financial: null,
       weekly_briefing: null,
       has_narrative_context: false,
     });
@@ -128,6 +146,7 @@ describe('weekly review generation', () => {
       action_plan_tasks: [],
       thread_summaries: [],
       meetings: [],
+      financial: null,
       weekly_briefing: null,
       has_narrative_context: true,
     }, async () => ({ directive: 'Proteja dois blocos de foco e reduza reuniões ad hoc.', mode: 'plan' }));

@@ -73,6 +73,9 @@ services:
           curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] generate-weekly-reviews %{http_code}\n" \
             -H "Authorization: Bearer $$CRON_SECRET" \
             http://flowme-app:3000/api/cron/generate-weekly-reviews || true
+          curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] generate-monthly-reviews %{http_code}\n" \
+            -H "Authorization: Bearer $$CRON_SECRET" \
+            http://flowme-app:3000/api/cron/generate-monthly-reviews || true
           # Meeting pipeline — runs every minute. The endpoint short-circuits
           # when no meeting is in `processing` or `reanalyzing`.
           curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] process-meetings %{http_code}\n" \

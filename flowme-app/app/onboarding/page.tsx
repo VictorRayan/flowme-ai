@@ -51,6 +51,10 @@ const dict = {
     weekly_review_desc: 'Uma vez por semana, a Balys revisa sua execução, identifica padrões e te ajuda a corrigir a rota.',
     weekly_review_day: 'Dia da semana',
     weekly_review_time: 'Horário',
+    monthly_review_sync: 'Revisão Mensal Financeira',
+    monthly_review_desc: 'No último dia do mês, a Balys consolida seus gastos, investimentos e saúde financeira do mês que fecha.',
+    monthly_review_day: 'Último dia do mês',
+    monthly_review_time: 'Horário',
     weekdays: ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'],
     
     btn_continue: 'Continuar',
@@ -110,6 +114,9 @@ const dict = {
     wa_error_verify: 'Código incorreto ou expirado. Tente novamente.',
     wa_connected: 'WhatsApp conectado',
     wa_not_connected: 'Você pode conectar depois nas configurações.',
+    finance_currency_title: 'Moeda principal',
+    finance_currency_desc: 'Usaremos essa moeda no dashboard financeiro, no Balys e nas revisões.',
+    finance_currency_label: 'Moeda',
     change_language: 'Alterar idioma',
   },
   en: {
@@ -139,6 +146,10 @@ const dict = {
     weekly_review_desc: 'Once a week, Balys reviews your execution, identifies patterns, and helps you correct course.',
     weekly_review_day: 'Weekday',
     weekly_review_time: 'Time',
+    monthly_review_sync: 'Monthly Finance Review',
+    monthly_review_desc: 'On the last day of the month, Balys consolidates spending, investments, and financial health for the month that closes.',
+    monthly_review_day: 'Last day of the month',
+    monthly_review_time: 'Time',
     weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
     
     btn_continue: 'Continue',
@@ -198,6 +209,9 @@ const dict = {
     wa_error_verify: 'Wrong or expired code. Please try again.',
     wa_connected: 'WhatsApp connected',
     wa_not_connected: 'You can connect it later in settings.',
+    finance_currency_title: 'Main currency',
+    finance_currency_desc: 'We will use this currency in the finance dashboard, Balys, and reviews.',
+    finance_currency_label: 'Currency',
     change_language: 'Change language',
   }
 };
@@ -231,6 +245,8 @@ export default function OnboardingWizard() {
   const [eveningTime, setEveningTime] = React.useState('20:00');
   const [weeklyReviewWeekday, setWeeklyReviewWeekday] = React.useState('0');
   const [weeklyReviewTime, setWeeklyReviewTime] = React.useState('18:00');
+  const [monthlyReviewTime, setMonthlyReviewTime] = React.useState('18:30');
+  const [defaultCurrency, setDefaultCurrency] = React.useState('BRL');
   const [newsTopics, setNewsTopics] = React.useState<string[]>([]);
   const [topicDraft, setTopicDraft] = React.useState('');
   const [briefingCity, setBriefingCity] = React.useState('');
@@ -375,7 +391,7 @@ export default function OnboardingWizard() {
       const res = await fetch('/api/v1/onboarding/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ morningTime, eveningTime, goalProposals: proposalsToPersist.filter(Boolean), timezone })
+        body: JSON.stringify({ morningTime, eveningTime, goalProposals: proposalsToPersist.filter(Boolean), timezone, defaultCurrency })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) {
@@ -411,6 +427,9 @@ export default function OnboardingWizard() {
           weekly_review_weekday: Number(weeklyReviewWeekday),
           weekly_review_time: weeklyReviewTime,
           weekly_review_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
+          monthly_review_enabled: true,
+          monthly_review_time: monthlyReviewTime,
+          monthly_review_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
           post_event_checkin_enabled: true,
           post_event_checkin_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
           mirror_calendar_reminders_to_whatsapp: whatsappLinked && mirrorCalendarWhatsapp,
@@ -900,6 +919,26 @@ export default function OnboardingWizard() {
                 {t.step3_desc}
               </Typography>
 
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700 }}>{t.finance_currency_title}</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{t.finance_currency_desc}</Typography>
+                  </Box>
+                  <TextField
+                    select
+                    value={defaultCurrency}
+                    onChange={(e) => setDefaultCurrency(e.target.value)}
+                    label={t.finance_currency_label}
+                    sx={{ minWidth: { xs: '100%', sm: 160 }, '& .MuiOutlinedInput-root': { color: '#fff' }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
+                  >
+                    {['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'MXN'].map(currency => (
+                      <MenuItem key={currency} value={currency}>{currency}</MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              </Box>
+
               {/* Morning Ritual Card */}
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -969,6 +1008,29 @@ export default function OnboardingWizard() {
                     label={t.weekly_review_time}
                     value={weeklyReviewTime}
                     onChange={(e) => setWeeklyReviewTime(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ minWidth: 150 }}
+                  />
+                </Stack>
+              </Box>
+
+              <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
+                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>{t.monthly_review_sync}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6, mb: 2 }}>
+                  {t.monthly_review_desc}
+                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    fullWidth
+                    label={t.monthly_review_day}
+                    value={t.monthly_review_day}
+                    disabled
+                  />
+                  <TextField
+                    type="time"
+                    label={t.monthly_review_time}
+                    value={monthlyReviewTime}
+                    onChange={(e) => setMonthlyReviewTime(e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     sx={{ minWidth: 150 }}
                   />

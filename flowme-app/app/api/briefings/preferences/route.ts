@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const { supabase, user } = await requireAuth(req);
     const { data, error } = await supabase
       .from('user_profile')
-      .select('morning_briefing_time, afternoon_briefing_time, evening_briefing_time, briefing_timezone, news_topics, briefing_delivery, daily_routine_enabled, briefing_city, daily_briefing_note_prompt_enabled, daily_briefing_note_time, daily_briefing_note_channels, weekly_review_enabled, weekly_review_weekday, weekly_review_time, weekly_review_channels, post_event_checkin_enabled, post_event_checkin_channels, mirror_calendar_reminders_to_whatsapp, notification_language, voice_profiles_enabled')
+      .select('morning_briefing_time, afternoon_briefing_time, evening_briefing_time, briefing_timezone, news_topics, briefing_delivery, daily_routine_enabled, briefing_city, daily_briefing_note_prompt_enabled, daily_briefing_note_time, daily_briefing_note_channels, weekly_review_enabled, weekly_review_weekday, weekly_review_time, weekly_review_channels, monthly_review_enabled, monthly_review_time, monthly_review_channels, post_event_checkin_enabled, post_event_checkin_channels, mirror_calendar_reminders_to_whatsapp, notification_language, voice_profiles_enabled')
       .eq('user_id', user.id)
       .maybeSingle();
     if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
@@ -99,6 +99,19 @@ export async function PATCH(req: NextRequest) {
     }
     if (Array.isArray(body.weekly_review_channels)) {
       update.weekly_review_channels = body.weekly_review_channels
+        .filter((channel: unknown): channel is string => typeof channel === 'string' && ALLOWED_RITUAL_CHANNELS.has(channel));
+    }
+    if (typeof body.monthly_review_enabled === 'boolean') {
+      update.monthly_review_enabled = body.monthly_review_enabled;
+    }
+    if (typeof body.monthly_review_time === 'string' || body.monthly_review_time === null) {
+      if (body.monthly_review_time !== null && !TIME_RE.test(body.monthly_review_time)) {
+        return apiError(ErrorCode.VALIDATION_ERROR, 'monthly_review_time must be HH:MM');
+      }
+      update.monthly_review_time = body.monthly_review_time;
+    }
+    if (Array.isArray(body.monthly_review_channels)) {
+      update.monthly_review_channels = body.monthly_review_channels
         .filter((channel: unknown): channel is string => typeof channel === 'string' && ALLOWED_RITUAL_CHANNELS.has(channel));
     }
     if (typeof body.post_event_checkin_enabled === 'boolean') {

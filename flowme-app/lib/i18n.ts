@@ -16,6 +16,7 @@ export const UI = {
       today: 'Today',
       goals: 'Goals',
       calendar: 'Calendar',
+      finance: 'Finance',
       notes: 'Notes',
       reviews: 'Review',
       balysAi: 'BalysAI',
@@ -71,6 +72,12 @@ export const UI = {
         internal: 'An unexpected error occurred. Please try again.',
       },
       googleConnectedSuccess: 'Google Calendar connected successfully!',
+      finance: 'Finance',
+      financeDesc: 'Default currency and targets used by the dashboard, Balys, and reviews.',
+      defaultCurrency: 'Default currency',
+      monthlyReviewTime: 'Monthly review time',
+      monthlyReviewDesc: 'Runs on the last day of each month.',
+      financeSaved: 'Finance settings saved',
     },
 
     // ── Today ────────────────────────────────────────────────────────────────
@@ -284,6 +291,7 @@ export const UI = {
       today: 'Hoje',
       goals: 'Metas',
       calendar: 'Calendário',
+      finance: 'Finanças',
       notes: 'Notas',
       reviews: 'Revisão',
       balysAi: 'BalysAI',
@@ -339,6 +347,12 @@ export const UI = {
         internal: 'Ocorreu um erro inesperado. Tente novamente.',
       },
       googleConnectedSuccess: 'Google Calendar conectado com sucesso!',
+      finance: 'Finanças',
+      financeDesc: 'Moeda padrão e metas usadas pelo dashboard, Balys e revisões.',
+      defaultCurrency: 'Moeda padrão',
+      monthlyReviewTime: 'Horário da revisão mensal',
+      monthlyReviewDesc: 'Executa no último dia de cada mês.',
+      financeSaved: 'Configurações financeiras salvas',
     },
 
     // ── Today ────────────────────────────────────────────────────────────────

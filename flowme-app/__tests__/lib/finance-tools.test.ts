@@ -1,5 +1,6 @@
 import {
   financeAnalyzeHealthTool,
+  financeGetRecurringExpensesTool,
   financeGetHealthTrendTool,
   financeGetMonthSummaryTool,
   financeGetPeriodSummaryTool,
@@ -105,6 +106,16 @@ describe('finance tools', () => {
     const result = await financeAnalyzeHealthTool.call({ month: '2026-06' }, context);
     expect(result.ok).toBe(true);
     expect(JSON.stringify(result.receipt)).toContain('cut_candidates');
+    expect(JSON.stringify(result.receipt)).toContain('recurring_expenses');
+  });
+
+  it('returns recurring expense evidence for explicit questions', async () => {
+    const result = await financeGetRecurringExpensesTool.call({ month: '2026-06' }, context);
+    expect(result.ok).toBe(true);
+    expect(result.receipt).toEqual(expect.objectContaining({
+      month: '2026-06',
+      recurring_expenses: expect.any(Array),
+    }));
   });
 
   it('returns multi-month financial health trend', async () => {

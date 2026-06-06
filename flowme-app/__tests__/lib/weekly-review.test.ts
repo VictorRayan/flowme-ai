@@ -81,6 +81,7 @@ describe('weekly review evidence', () => {
         investment_rate_month_to_date: null,
         top_categories: [{ category: 'alimentação', amount: 120, share: 1 }],
         goal_alignment: [],
+        recurring_expenses: [],
         largest_expenses: [{ label: 'almoço', amount: 120, occurred_on: '2026-05-30', category: 'alimentação' }],
         needs_review_count: 0,
         alerts: ['Renda mensal não registrada; recomendações de investimento devem ser conservadoras.'],
@@ -94,7 +95,7 @@ describe('weekly review evidence', () => {
   });
 
   it('invalidates reviews generated before the current evidence contract', () => {
-    expect(hasCurrentWeeklyReviewEvidence({ evidence_version: 3 })).toBe(true);
+    expect(hasCurrentWeeklyReviewEvidence({ evidence_version: 4 })).toBe(true);
     expect(hasCurrentWeeklyReviewEvidence({})).toBe(false);
   });
 
@@ -106,7 +107,7 @@ describe('weekly review evidence', () => {
     expect(shouldRefreshWeeklyReview({
       period_end: '2026-05-31',
       evidence: { evidence_version: 3 } as any,
-    }, new Date('2026-06-01T12:00:00Z'), 'America/Sao_Paulo')).toBe(false);
+    }, new Date('2026-06-01T12:00:00Z'), 'America/Sao_Paulo')).toBe(true);
   });
 });
 

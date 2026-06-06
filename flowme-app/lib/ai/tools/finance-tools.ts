@@ -121,6 +121,17 @@ RETURNS human-readable totals only. Never expose IDs.`,
           adherence: item.adherence,
           status: item.status,
         })),
+        recurring_expenses: summary.recurring_expenses.map(item => ({
+          label: item.label,
+          category: item.category,
+          average_amount: formatFinanceAmount(item.average_amount, item.currency),
+          latest_amount: formatFinanceAmount(item.latest_amount, item.currency),
+          monthly_impact: formatFinanceAmount(item.monthly_impact, item.currency),
+          occurrences: item.occurrences,
+          months_seen: item.months_seen,
+          status: item.status,
+          confidence: item.confidence,
+        })),
         needs_review_count: summary.needs_review_count,
       },
     };
@@ -222,6 +233,19 @@ Returns evidence only; Balys should explain naturally without inventing totals.`
         investment_rate: summary.investment_rate,
         top_categories: topCategories.map(item => ({ category: item.category, amount: formatFinanceAmount(item.amount, summary.currency), share: item.share })),
         cut_candidates: cutCandidates.map(item => ({ category: item.category, amount: formatFinanceAmount(item.amount, summary.currency), share: item.share })),
+        recurring_expenses: summary.recurring_expenses.map(item => ({
+          label: item.label,
+          category: item.category,
+          average_amount: formatFinanceAmount(item.average_amount, item.currency),
+          monthly_impact: formatFinanceAmount(item.monthly_impact, item.currency),
+          occurrences: item.occurrences,
+          months_seen: item.months_seen,
+          status: item.status,
+        })),
+        recurring_monthly_impact: formatFinanceAmount(
+          summary.recurring_expenses.reduce((total, item) => total + item.monthly_impact, 0),
+          summary.currency,
+        ),
         goal_alignment: summary.goal_alignment.map(item => ({
           goal: item.goal_title,
           monthly_target: formatFinanceAmount(item.monthly_target, item.currency),
@@ -234,6 +258,44 @@ Returns evidence only; Balys should explain naturally without inventing totals.`
           ...(summary.total_income <= 0 && summary.total_expenses > 0 ? ['income_missing'] : []),
           ...(summary.needs_review_count > 0 ? ['transactions_need_review'] : []),
         ],
+      },
+    };
+  },
+});
+
+export const financeGetRecurringExpensesTool = defineTool({
+  name: 'finance.get_recurring_expenses',
+  description: `Reads deterministic recurring expense candidates detected from repeated monthly transactions.
+
+WHEN TO USE: the user asks "quais gastos recorrentes eu tenho?", "assinaturas", "custos fixos", or wants recurring expenses detected.
+
+Returns evidence only; Balys should explain naturally and say they are detected candidates, not bank-confirmed subscriptions.`,
+  isReadOnly: true,
+  inputSchema: z.object({
+    month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  }),
+  call: async (args, context) => {
+    const summary = await getFinanceMonthlySummary(context.supabase, context.user.id, args.month || currentMonth(context.nowIso));
+    return {
+      ok: true,
+      receipt: {
+        month: summary.month,
+        recurring_monthly_impact: formatFinanceAmount(
+          summary.recurring_expenses.reduce((total, item) => total + item.monthly_impact, 0),
+          summary.currency,
+        ),
+        recurring_expenses: summary.recurring_expenses.map(item => ({
+          label: item.label,
+          category: item.category,
+          average_amount: formatFinanceAmount(item.average_amount, item.currency),
+          latest_amount: formatFinanceAmount(item.latest_amount, item.currency),
+          monthly_impact: formatFinanceAmount(item.monthly_impact, item.currency),
+          occurrences: item.occurrences,
+          months_seen: item.months_seen,
+          last_seen: item.last_seen,
+          status: item.status,
+          confidence: item.confidence,
+        })),
       },
     };
   },
@@ -314,6 +376,7 @@ export const FINANCE_TOOLS = [
   financeListTransactionsTool,
   financeGetPeriodSummaryTool,
   financeAnalyzeHealthTool,
+  financeGetRecurringExpensesTool,
   financeGetHealthTrendTool,
   financeUpdateLatestTransactionTool,
 ];

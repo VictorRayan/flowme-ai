@@ -82,6 +82,8 @@ export default function FinancePage() {
   };
 
   const categories = summary?.category_breakdown || [];
+  const recurringExpenses = summary?.recurring_expenses || [];
+  const recurringImpact = recurringExpenses.reduce((total: number, item: any) => total + Number(item.monthly_impact || 0), 0);
   const hasTransactions = (summary?.recent_transactions || []).length > 0;
   const previousDelta = summary?.previous_month?.delta_expenses;
   const deltaLabel = useMemo(() => {
@@ -144,6 +146,48 @@ export default function FinancePage() {
                     sx={{ height: 8, borderRadius: 1 }}
                   />
                 </Box>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {recurringExpenses.length > 0 && (
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2 }}>
+              <Box>
+                <Typography fontWeight={800}>Custos recorrentes detectados</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Impacto mensal estimado de {money(recurringImpact, summary.currency)}
+                </Typography>
+              </Box>
+              <Chip size="small" label={`${recurringExpenses.length} padrões`} />
+            </Stack>
+            <Stack spacing={1.25}>
+              {recurringExpenses.slice(0, 5).map((item: any) => (
+                <Stack
+                  key={`${item.label}-${item.category}`}
+                  direction={{ xs: 'column', sm: 'row' }}
+                  justifyContent="space-between"
+                  spacing={1}
+                  sx={{ py: 1, borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography fontWeight={700} sx={{ wordBreak: 'break-word' }}>{item.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.category} · {item.occurrences} ocorrências · {item.months_seen.join(', ')}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" alignItems="center" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
+                    <Typography fontWeight={800}>{money(item.monthly_impact, item.currency)}</Typography>
+                    <Chip
+                      size="small"
+                      color={item.status === 'active' ? 'success' : 'default'}
+                      label={item.status === 'active' ? 'ativo' : 'possível'}
+                    />
+                  </Stack>
+                </Stack>
               ))}
             </Stack>
           </CardContent>

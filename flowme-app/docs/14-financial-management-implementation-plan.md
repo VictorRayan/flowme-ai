@@ -572,6 +572,7 @@ Progress:
 - [x] Phase 6 - Monthly Review
 - [x] Phase 7 - Financial Goal Alignment
 - [x] Phase 8 - Proactive Finance Queries
+- [x] Phase 9 - Recurring Expense Detection
 
 ### Phase 1 - Finance Foundation
 
@@ -718,6 +719,25 @@ Acceptance criteria:
 - [x] User can ask "o que deveria cortar?"
 - [x] User can ask "como evoluiu minha saúde financeira nos últimos meses?"
 
+### Phase 9 - Recurring Expense Detection
+
+Deliverables:
+
+- [x] deterministic recurring expense detector from repeated monthly transactions
+- [x] recurring expense evidence in monthly finance summary
+- [x] recurring expense evidence in Balys health analysis
+- [x] dedicated Balys tool for explicit recurring expense questions
+- [x] recurring cost section in `/app/finance`
+- [x] Weekly Review and Monthly Review evidence include recurring costs
+- [x] tests for recurring detection and finance tools
+
+Acceptance criteria:
+
+- [x] User can ask "quais são meus gastos recorrentes?"
+- [x] Dashboard shows detected recurring costs and estimated monthly impact.
+- [x] Reviews can use recurring costs as cost-cutting evidence.
+- [x] The system treats detections as candidates, not confirmed bank subscriptions.
+
 ## Testing Requirements
 
 Follow the repo TDD rule.
@@ -784,7 +804,7 @@ Defer:
 - [ ] bank/card import
 - [ ] automatic exchange rates
 - [ ] category budgets
-- [ ] recurring expense detection
+- [x] recurring expense detection
 - [x] dedicated Monthly Review
 
 This first release is already useful: the user records spending naturally, sees the month consolidated on the platform, and starts receiving better financial advice in Weekly Review.

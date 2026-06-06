@@ -1,6 +1,6 @@
 import { runAiCouncilPipeline } from '@/lib/ai/council-agents';
 import { buildFinanceSummary, getFinancialProfile, getFinanceMonthlySummary, listFinancialTransactions } from '@/lib/finance/finance';
-import type { FinancialGoalAlignment } from '@/lib/finance/types';
+import type { FinanceRecurringExpense, FinancialGoalAlignment } from '@/lib/finance/types';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 
@@ -70,6 +70,7 @@ export interface FinancialReviewEvidence {
   top_categories: Array<{ category: string; amount: number; share: number }>;
   largest_expenses: Array<{ label: string; amount: number; occurred_on: string; category: string }>;
   goal_alignment: FinancialGoalAlignment[];
+  recurring_expenses: FinanceRecurringExpense[];
   needs_review_count: number;
   alerts: string[];
 }
@@ -143,7 +144,7 @@ interface CouncilReviewResult {
 }
 
 type SupabaseLike = { from(table: string): any };
-const CURRENT_EVIDENCE_VERSION = 3;
+const CURRENT_EVIDENCE_VERSION = 4;
 
 function dateInTimezone(now: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -263,6 +264,10 @@ async function collectFinancialReviewEvidence(
     const alerts: string[] = [];
     if (monthSummary.needs_review_count > 0) alerts.push(`${monthSummary.needs_review_count} lançamentos financeiros precisam de revisão.`);
     if (monthSummary.total_income <= 0 && monthSummary.total_expenses > 0) alerts.push('Renda mensal não registrada; recomendações de investimento devem ser conservadoras.');
+    if (monthSummary.recurring_expenses.length > 0) {
+      const recurringTotal = monthSummary.recurring_expenses.reduce((total, item) => total + item.monthly_impact, 0);
+      alerts.push(`Custos recorrentes detectados: ${recurringTotal.toFixed(2)} ${profile.default_currency}/mês estimados.`);
+    }
     return {
       currency: profile.default_currency,
       period_income: periodSummary.total_income,
@@ -274,6 +279,7 @@ async function collectFinancialReviewEvidence(
       investment_rate_month_to_date: monthSummary.investment_rate,
       top_categories: monthSummary.category_breakdown.slice(0, 5),
       goal_alignment: monthSummary.goal_alignment,
+      recurring_expenses: monthSummary.recurring_expenses,
       largest_expenses: monthSummary.largest_transactions.map(item => ({
         label: item.merchant || item.description || item.category_name,
         amount: Number(item.amount),

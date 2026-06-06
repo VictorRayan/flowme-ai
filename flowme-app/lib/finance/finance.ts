@@ -1,6 +1,6 @@
 import { normalizeFinanceCurrency } from './currency';
 import { buildFinancialGoalAlignment, type FinanceGoalCandidate } from './goal-alignment';
-import type { FinanceCurrency, FinanceHealthTrendPoint, FinanceMonthlySummary, FinancePeriodSummary, FinancialProfile, FinancialTransaction, FinanceTransactionSource, FinanceTransactionStatus, FinanceTransactionType } from './types';
+import type { FinanceCurrency, FinanceHealthTrendPoint, FinanceMonthlySummary, FinancePeriodSummary, FinanceRecurringExpense, FinancialProfile, FinancialTransaction, FinanceTransactionSource, FinanceTransactionStatus, FinanceTransactionType } from './types';
 
 type SupabaseLike = { from(table: string): any };
 
@@ -165,9 +165,79 @@ function sumByType(transactions: FinancialTransaction[], type: FinanceTransactio
     .reduce((total, item) => total + Number(item.converted_amount ?? item.amount), 0) * 100) / 100;
 }
 
+function normalizeRecurringKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function transactionRecurringLabel(item: FinancialTransaction): string | null {
+  const label = item.merchant?.trim() || item.description?.trim() || null;
+  if (!label || normalizeRecurringKey(label).length < 3) return null;
+  return label;
+}
+
+function monthDistance(fromMonth: string, toMonth: string): number {
+  const [fromYear, from] = fromMonth.split('-').map(Number);
+  const [toYear, to] = toMonth.split('-').map(Number);
+  return (toYear - fromYear) * 12 + (to - from);
+}
+
+export function detectRecurringExpenses(
+  transactions: FinancialTransaction[],
+  input: { month: string; currency: FinanceCurrency },
+): FinanceRecurringExpense[] {
+  const groups = new Map<string, FinancialTransaction[]>();
+  for (const item of transactions) {
+    if (item.type !== 'expense' || item.status !== 'confirmed') continue;
+    const label = transactionRecurringLabel(item);
+    if (!label) continue;
+    const key = `${normalizeRecurringKey(label)}:${normalizeRecurringKey(item.category_name)}:${item.currency}`;
+    groups.set(key, [...(groups.get(key) || []), item]);
+  }
+
+  const recurring: FinanceRecurringExpense[] = [];
+  for (const group of groups.values()) {
+    const months = Array.from(new Set(group.map(item => item.occurred_on.slice(0, 7)))).sort();
+    if (months.length < 2) continue;
+
+    const sorted = group.slice().sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
+    const amounts = sorted.map(item => Number(item.converted_amount ?? item.amount));
+    const average = amounts.reduce((total, amount) => total + amount, 0) / amounts.length;
+    const latest = sorted[sorted.length - 1];
+    const latestAmount = Number(latest.converted_amount ?? latest.amount);
+    const variance = average > 0
+      ? amounts.reduce((largest, amount) => Math.max(largest, Math.abs(amount - average) / average), 0)
+      : 0;
+    const lastMonthSeen = latest.occurred_on.slice(0, 7);
+    const isActive = monthDistance(lastMonthSeen, input.month) <= 1;
+    const confidence = Math.max(0.45, Math.min(0.98, 0.58 + (months.length * 0.1) - Math.min(0.25, variance)));
+
+    recurring.push({
+      label: transactionRecurringLabel(latest) || latest.category_name,
+      category: latest.category_name,
+      currency: latest.currency,
+      average_amount: Math.round(average * 100) / 100,
+      latest_amount: Math.round(latestAmount * 100) / 100,
+      monthly_impact: Math.round(average * 100) / 100,
+      occurrences: group.length,
+      months_seen: months,
+      last_seen: latest.occurred_on,
+      frequency: 'monthly',
+      confidence: Math.round(confidence * 1000) / 1000,
+      status: isActive ? 'active' : 'possible',
+    });
+  }
+
+  return recurring.sort((a, b) => b.monthly_impact - a.monthly_impact).slice(0, 12);
+}
+
 export function buildFinanceSummary(
   transactions: FinancialTransaction[],
-  input: { month: string; currency: FinanceCurrency; previousMonthTransactions?: FinancialTransaction[]; goals?: FinanceGoalCandidate[] },
+  input: { month: string; currency: FinanceCurrency; previousMonthTransactions?: FinancialTransaction[]; recurringLookbackTransactions?: FinancialTransaction[]; goals?: FinanceGoalCandidate[] },
 ): FinanceMonthlySummary {
   const confirmedExpenses = transactions.filter(item => item.type === 'expense' && item.status === 'confirmed');
   const totalIncome = sumByType(transactions, 'income');
@@ -215,6 +285,10 @@ export function buildFinanceSummary(
       total_invested: totalInvested,
       net_balance: Math.round((totalIncome - totalExpenses - totalInvested) * 100) / 100,
     }),
+    recurring_expenses: detectRecurringExpenses(input.recurringLookbackTransactions || transactions, {
+      month: input.month,
+      currency: input.currency,
+    }),
     previous_month: input.previousMonthTransactions ? {
       total_expenses: previousTotal,
       delta_expenses: Math.round((totalExpenses - previousTotal) * 100) / 100,
@@ -244,6 +318,7 @@ export function buildFinancePeriodSummary(
     recent_transactions: summary.recent_transactions,
     needs_review_count: summary.needs_review_count,
     goal_alignment: summary.goal_alignment,
+    recurring_expenses: summary.recurring_expenses,
     transaction_count: transactions.filter(item => item.status === 'confirmed').length,
   };
 }
@@ -268,14 +343,18 @@ export async function getFinanceMonthlySummary(
   const prevDate = new Date(`${month}-01T12:00:00.000Z`);
   prevDate.setUTCMonth(prevDate.getUTCMonth() - 1);
   const previousMonth = prevDate.toISOString().slice(0, 7);
-  const [previous, goals] = await Promise.all([
+  const recurringStartMonth = addMonths(month, -5);
+  const recurringEnd = monthRange(month).end;
+  const [previous, recurringLookback, goals] = await Promise.all([
     listFinancialTransactions(supabase, userId, { month: previousMonth, limit: 500 }),
+    listFinancialTransactions(supabase, userId, { start: `${recurringStartMonth}-01`, end: recurringEnd, limit: 2000 }),
     listActiveFinanceGoals(supabase, userId),
   ]);
   return buildFinanceSummary(current, {
     month,
     currency: profile.default_currency,
     previousMonthTransactions: previous,
+    recurringLookbackTransactions: recurringLookback,
     goals,
   });
 }

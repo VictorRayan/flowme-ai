@@ -22,6 +22,29 @@ const baseTransaction = {
 };
 
 describe('finance summary', () => {
+  it('detects recurring monthly expenses from repeated merchants', () => {
+    const summary = buildFinanceSummary([
+      { ...baseTransaction, id: 'netflix-1', amount: 39.9, occurred_on: '2026-04-05', merchant: 'Netflix', category_name: 'assinaturas' },
+      { ...baseTransaction, id: 'netflix-2', amount: 39.9, occurred_on: '2026-05-05', merchant: 'Netflix', category_name: 'assinaturas' },
+      { ...baseTransaction, id: 'netflix-3', amount: 42.9, occurred_on: '2026-06-05', merchant: 'Netflix', category_name: 'assinaturas' },
+      { ...baseTransaction, id: 'lunch', amount: 50, occurred_on: '2026-06-10', merchant: 'Restaurante', category_name: 'alimentação' },
+    ], {
+      month: '2026-06',
+      currency: 'BRL',
+    });
+
+    expect(summary.recurring_expenses).toEqual([
+      expect.objectContaining({
+        label: 'Netflix',
+        category: 'assinaturas',
+        occurrences: 3,
+        months_seen: ['2026-04', '2026-05', '2026-06'],
+        status: 'active',
+      }),
+    ]);
+    expect(summary.recurring_expenses[0].average_amount).toBe(40.9);
+  });
+
   it('includes financial goal alignment in monthly summary', () => {
     const summary = buildFinanceSummary([
       { ...baseTransaction, type: 'income', amount: 3000, category_name: 'salário' },

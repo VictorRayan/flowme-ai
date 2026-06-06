@@ -16,6 +16,8 @@
   - Android: Google Play Billing.
 - [ ] Backend entitlements are shared across web, iOS, and Android so the user has one subscription state.
 - [ ] Payment failures from Stripe trigger in-app, push, and WhatsApp notifications when channels are available.
+- [ ] Mobile push notifications use APNs on iOS and FCM on Android as delivery transports only.
+- [ ] Do not use Firebase as application backend, datastore, auth provider, or Cloud Functions layer for push.
 - [ ] Apple/Google IAP billing-state changes are handled through store server notifications and backend reconciliation.
 - [ ] Add a Support section guided by Balys with product knowledge, quick questions, and a cancellation request funnel.
 
@@ -427,9 +429,42 @@
 ### Channels
 
 - [ ] In-app notification banner.
-- [ ] Push notification.
+- [ ] Web push notification through existing browser Web Push/VAPID channel.
+- [ ] Mobile push notification:
+  - iOS: APNs.
+  - Android: FCM.
+  - Backend Flow Me stores device tokens and dispatches notifications.
+  - FCM/APNs are transport only; no Firebase backend, Firestore, Auth, or Cloud Functions dependency.
 - [ ] WhatsApp message if connected.
 - [ ] Optional email later.
+
+### Mobile Push Token Registry
+
+- [ ] Add `mobile_push_tokens` table:
+  - `id`
+  - `user_id`
+  - `platform`: `ios`, `android`
+  - `provider`: `apns`, `fcm`
+  - `device_token`
+  - `device_id`
+  - `app_version`
+  - `os_version`
+  - `locale`
+  - `timezone`
+  - `enabled`
+  - `last_seen_at`
+  - `created_at`
+  - `updated_at`
+- [ ] Add API routes:
+  - `POST /api/mobile/push-tokens`
+  - `DELETE /api/mobile/push-tokens`
+- [ ] Mobile app registers token after Google sign-in.
+- [ ] Mobile app refreshes token when APNs/FCM rotates it.
+- [ ] Backend marks invalid tokens disabled after provider delivery failure.
+- [ ] Notification delivery code must choose:
+  - browser Web Push for `web_push_subscriptions`
+  - APNs for iOS `mobile_push_tokens`
+  - FCM for Android `mobile_push_tokens`
 
 ### Stripe Site Subscription
 
@@ -668,11 +703,23 @@
 ### Phase 5 - Billing Failure Notifications
 
 - [ ] In-app billing alert model.
-- [ ] Push notification on Stripe failure.
+- [ ] Push notification on Stripe failure:
+  - browser Web Push when available.
+  - APNs for iOS mobile app.
+  - FCM for Android mobile app.
 - [ ] WhatsApp failure notification if connected.
 - [ ] Billing Portal CTA.
 - [ ] Recovery clearing on `invoice.paid`.
 - [ ] Tests for notification event creation.
+
+### Phase 5.1 - Mobile Push Delivery Foundation
+
+- [ ] Migration for `mobile_push_tokens`.
+- [ ] Mobile push token registration API.
+- [ ] Provider-neutral push dispatch interface.
+- [ ] APNs adapter placeholder/config contract.
+- [ ] FCM adapter placeholder/config contract.
+- [ ] Tests for token registration, validation, ownership, and soft-delete.
 
 ### Phase 6 - Support Section
 

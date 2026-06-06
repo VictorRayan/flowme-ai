@@ -11,6 +11,26 @@ function resolveAspectRatio(size?: '1024x1024' | '1536x1024' | '1024x1536'): '1:
   return '1:1';
 }
 
+function noImageError(response: any): string {
+  const candidate = response?.candidates?.[0];
+  const text = candidate?.content?.parts
+    ?.map((part: any) => part.text)
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const details = [
+    candidate?.finishReason ? `finishReason=${candidate.finishReason}` : '',
+    candidate?.finishMessage ? `finishMessage="${String(candidate.finishMessage).slice(0, 300)}"` : '',
+    response?.promptFeedback?.blockReason ? `promptBlock=${response.promptFeedback.blockReason}` : '',
+    Array.isArray(candidate?.safetyRatings) && candidate.safetyRatings.length > 0
+      ? `safety=${candidate.safetyRatings.map((item: any) => `${item.category}:${item.probability}`).join(',')}`
+      : '',
+    text ? `text="${text.slice(0, 240)}"` : '',
+  ].filter(Boolean).join(' | ');
+  return details ? `Gemini returned no image. ${details}` : 'Gemini returned no image.';
+}
+
 export function buildGeneratedImageKey(userId: string, imageId: string): string {
   return `users/${userId}/generated-images/${imageId.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 }
@@ -51,7 +71,7 @@ CONTRACT:
         },
       });
       const generated = response.candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData;
-      if (!generated?.data) return { ok: false, error: 'The image provider returned no image.' };
+      if (!generated?.data) return { ok: false, error: noImageError(response) };
       const mimeType = generated.mimeType || 'image/png';
       const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png';
 

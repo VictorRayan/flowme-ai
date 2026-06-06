@@ -13,7 +13,6 @@ import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import NoteIcon from '@mui/icons-material/Note';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ElectricalServicesIcon from '@mui/icons-material/ElectricalServices';
 import SchoolIcon from '@mui/icons-material/School';
 import RateReviewIcon from '@mui/icons-material/RateReview';
@@ -25,6 +24,7 @@ import { UI, type UiLang, resolveUiLang } from '@/lib/i18n';
 import { applyDayjsLocale } from '@/lib/datetime';
 import RecordingProvider from '@/components/meetings/RecordingProvider';
 import FloatingRecorderPopup from '@/components/meetings/FloatingRecorderPopup';
+import BalysIcon from '@/components/brand/BalysIcon';
 
 const drawerWidth = 240;
 
@@ -81,6 +81,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const nav = UI[uiLang].nav;
 
+  const openBalysFreshChat = React.useCallback(() => {
+    if (pathname.startsWith('/app/ai')) {
+      window.dispatchEvent(new CustomEvent('balys:new-chat'));
+      router.replace(`/app/ai?new=${Date.now()}`, { scroll: false });
+      return;
+    }
+    router.push(`/app/ai?new=${Date.now()}`);
+  }, [pathname, router]);
+
   const menuItems = [
     { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today' },
     { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals' },
@@ -88,7 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance' },
     { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
     { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews' },
-    { text: nav.balysAi,    icon: <SmartToyIcon          sx={{ fontSize: 20 }} />, path: '/app/ai' },
+    { text: nav.balysAi,    icon: <BalysIcon             sx={{ fontSize: 20 }} />, path: '/app/ai' },
     { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors' },
     { text: nav.tutorials,  icon: <SchoolIcon             sx={{ fontSize: 20 }} />, path: '/app/tutorials' },
     { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
@@ -133,7 +142,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 component={Link}
                 href={item.path}
                 selected={active}
-                onClick={() => isMobile && setMobileOpen(false)}
+                onClick={(event) => {
+                  if (item.path === '/app/ai') {
+                    event.preventDefault();
+                    openBalysFreshChat();
+                  }
+                  if (isMobile) setMobileOpen(false);
+                }}
                 sx={{ py: 1, pl: active ? '13px' : '16px' }}
               >
                 <ListItemIcon sx={{ color: active ? 'primary.light' : 'text.secondary', minWidth: 36 }}>

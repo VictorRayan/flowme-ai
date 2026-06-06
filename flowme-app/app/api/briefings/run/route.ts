@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { composeBriefing } from '@/lib/briefings/composer';
-import { upsertBriefing, markDelivered, hasDeliveredChannel } from '@/lib/briefings/persist';
+import { getBriefing, upsertBriefing, markDelivered, hasDeliveredChannel } from '@/lib/briefings/persist';
+import { shouldReuseBriefing } from '@/lib/briefings/reuse';
 import { deliverWhatsapp, deliverWebPush } from '@/lib/briefings/deliver';
 import { findDueSlots } from '@/lib/briefings/scheduler';
 
@@ -25,30 +26,36 @@ export async function GET(req: NextRequest) {
   let generated = 0;
   let delivered = 0;
   let failed = 0;
+  let reused = 0;
 
   for (const slot of due) {
     try {
-      const sections = await composeBriefing({
-        supabase: admin as any,
-        user: { id: slot.user.user_id } as any,
-        timezone: slot.user.briefing_timezone || 'UTC',
-        nowIso: new Date().toISOString(),
-      } as any, {
-        slot: slot.slot,
-        news_topics: slot.user.news_topics,
-        city: slot.user.briefing_city,
-      });
+      let saved = await getBriefing(admin as any, slot.user.user_id, slot.slot, slot.briefing_date);
+      if (saved && shouldReuseBriefing(saved.sections)) {
+        reused += 1;
+      } else {
+        const sections = await composeBriefing({
+          supabase: admin as any,
+          user: { id: slot.user.user_id } as any,
+          timezone: slot.user.briefing_timezone || 'UTC',
+          nowIso: new Date().toISOString(),
+        } as any, {
+          slot: slot.slot,
+          news_topics: slot.user.news_topics,
+          city: slot.user.briefing_city,
+        });
 
-      const saved = await upsertBriefing(admin as any, slot.user.user_id, {
-        slot: slot.slot,
-        briefing_date: slot.briefing_date,
-        sections,
-      });
+        saved = await upsertBriefing(admin as any, slot.user.user_id, {
+          slot: slot.slot,
+          briefing_date: slot.briefing_date,
+          sections,
+        });
+        generated += 1;
+      }
       if (!saved) { failed += 1; continue; }
-      generated += 1;
 
       if (slot.user.briefing_delivery.includes('whatsapp') && !hasDeliveredChannel(saved, 'whatsapp')) {
-        const r = await deliverWhatsapp(admin as any, slot.user.user_id, slot.slot, sections);
+        const r = await deliverWhatsapp(admin as any, slot.user.user_id, slot.slot, saved.sections);
         if (r.ok) { await markDelivered(admin as any, saved.id, 'whatsapp'); delivered += 1; }
       }
       if (slot.user.briefing_delivery.includes('push') && !hasDeliveredChannel(saved, 'push')) {
@@ -61,5 +68,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, inspected: due.length, generated, delivered, failed });
+  return NextResponse.json({ ok: true, inspected: due.length, generated, reused, delivered, failed });
 }

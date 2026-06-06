@@ -67,6 +67,46 @@ describe('images.generate', () => {
     expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
+  it('surfaces diagnostic details when Gemini returns no image', async () => {
+    mockGenerateContent.mockResolvedValue({
+      candidates: [{
+        finishReason: 'SAFETY',
+        finishMessage: 'Unable to show the generated image. Try rephrasing the prompt.',
+        safetyRatings: [{ category: 'HARM_CATEGORY_CIVIC_INTEGRITY', probability: 'LOW' }],
+        content: { parts: [{ text: 'I cannot generate that image.' }] },
+      }],
+    });
+
+    const result = await imagesGenerateTool.call({ prompt: 'Cristiano Ronaldo' }, context);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Gemini returned no image');
+    expect(result.error).toContain('finishReason=SAFETY');
+    expect(result.error).toContain('Unable to show the generated image');
+    expect(result.error).toContain('I cannot generate that image.');
+  });
+
+  it('surfaces IMAGE_OTHER finish messages from Gemini image generation', async () => {
+    mockGenerateContent.mockResolvedValue({
+      candidates: [{
+        content: {},
+        finishReason: 'IMAGE_OTHER',
+        finishMessage: 'Unable to show the generated image. The model could not generate the image based on the prompt provided. You will not be charged for this request. Try rephrasing the prompt.',
+      }],
+      usageMetadata: {
+        promptTokenCount: 3,
+        candidatesTokenCount: 10,
+        totalTokenCount: 13,
+      },
+    });
+
+    const result = await imagesGenerateTool.call({ prompt: 'Cristiano Ronaldo' }, context);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('finishReason=IMAGE_OTHER');
+    expect(result.error).toContain('You will not be charged for this request');
+  });
+
   it('builds stable storage keys and encoded URLs', () => {
     const key = buildGeneratedImageKey('user-1', 'image-1.png');
     expect(key).toBe('users/user-1/generated-images/image-1.png');

@@ -8,7 +8,6 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -32,9 +31,13 @@ import EmailIcon from '@mui/icons-material/Email';
 import DescriptionIcon from '@mui/icons-material/Description';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import FolderIcon from '@mui/icons-material/Folder';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DownloadIcon from '@mui/icons-material/Download';
 import CommandPalette, { ContextItem, type CommandAction } from '@/components/ai/CommandPalette';
 import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 import { UI, resolveUiLang } from '@/lib/i18n';
+import { ensureFreshEntryThread } from '@/lib/ai/thread-entry';
+import BalysIcon from '@/components/brand/BalysIcon';
 
 // ── Note edit block parsing ───────────────────────────────────────────────────
 const NOTE_EDIT_RE = /%%NOTE_EDIT_START(?::([^%]+))?%%([\s\S]*?)%%NOTE_EDIT_END%%/g;
@@ -239,6 +242,17 @@ function stripThreadAttachmentData(t: Thread[]): Thread[] {
   }));
 }
 
+function imageAttachmentSource(att: Attachment): string {
+  return att.dataUrl || att.url || '';
+}
+
+function imageAttachmentFileName(att: Attachment): string {
+  const raw = att.name?.trim() || `balys-image-${Date.now()}`;
+  if (/\.(png|jpe?g|webp|gif)$/i.test(raw)) return raw;
+  const extension = att.mimeType === 'image/jpeg' ? 'jpg' : att.mimeType === 'image/webp' ? 'webp' : 'png';
+  return `${raw}.${extension}`;
+}
+
 function pendingActionIcon(action: CommandAction): React.ReactElement | undefined {
   const iconSx = { fontSize: '14px !important' };
   if (action === 'weather') return <WbSunnyIcon sx={iconSx} />;
@@ -269,6 +283,7 @@ export default function AIPage() {
   const [cmdQuery, setCmdQuery] = useState('');
   const [pendingAction, setPendingAction] = useState<{ id: string; label: string; directive: string; action: CommandAction } | null>(null);
   const [destructiveDialog, setDestructiveDialog] = useState<DestructiveDialog>(null);
+  const [copiedImageKey, setCopiedImageKey] = useState<string | null>(null);
   const [uiLang, setUiLang] = useState<Lang>('en');
   const [interfaceLang, setInterfaceLang] = useState<'en' | 'pt'>('en');
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number; name?: string } | null>(null);
@@ -397,6 +412,8 @@ export default function AIPage() {
       // - Both empty → start fresh.
       const alreadyMigrated = localStorage.getItem('balysai_threads_migrated') === '1';
 
+      const shouldStartFresh = new URLSearchParams(window.location.search).has('new');
+
       if (serverThreads.length > 0) {
         const localById = new Map(localThreads.map((t) => [t.id, t]));
         const merged = serverThreads.map((s) => ({
@@ -404,8 +421,14 @@ export default function AIPage() {
           messages: localById.get(s.id)?.messages || [],
         }));
         if (!cancelled) {
-          setThreads(merged);
-          setActiveThreadId(merged[0].id);
+          const initial = shouldStartFresh
+            ? ensureFreshEntryThread(merged, newThread)
+            : { threads: merged, activeThreadId: merged[0].id };
+          setThreads(initial.threads);
+          setActiveThreadId(initial.activeThreadId);
+          if (shouldStartFresh) {
+            try { localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripThreadAttachmentData(initial.threads))); } catch {}
+          }
         }
         return;
       }
@@ -425,8 +448,14 @@ export default function AIPage() {
       if (cancelled) return;
 
       if (localThreads.length > 0) {
-        setThreads(localThreads);
-        setActiveThreadId(localThreads[0].id);
+        const initial = shouldStartFresh
+          ? ensureFreshEntryThread(localThreads, newThread)
+          : { threads: localThreads, activeThreadId: localThreads[0].id };
+        setThreads(initial.threads);
+        setActiveThreadId(initial.activeThreadId);
+        if (shouldStartFresh) {
+          try { localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(stripThreadAttachmentData(initial.threads))); } catch {}
+        }
       } else {
         const t = newThread();
         setThreads([t]);
@@ -500,6 +529,51 @@ export default function AIPage() {
     setActiveThreadId(t.id);
     setError(null);
   };
+
+  const copyImageAttachment = useCallback(async (att: Attachment) => {
+    const src = imageAttachmentSource(att);
+    if (!src) return;
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error('image clipboard unavailable');
+      }
+      const mimeType = blob.type || att.mimeType || 'image/png';
+      await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })]);
+      setCopiedImageKey(src);
+      window.setTimeout(() => setCopiedImageKey((current) => current === src ? null : current), 1400);
+    } catch {
+      setError('Não consegui copiar a imagem neste navegador. Use o botão de salvar.');
+    }
+  }, []);
+
+  const saveImageAttachment = useCallback((att: Attachment) => {
+    const src = imageAttachmentSource(att);
+    if (!src) return;
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = imageAttachmentFileName(att);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }, []);
+
+  const openFreshEntryThread = useCallback(() => {
+    setThreads((prev) => {
+      const next = ensureFreshEntryThread(prev, newThread);
+      persistThreads(next.threads);
+      setActiveThreadId(next.activeThreadId);
+      return next.threads;
+    });
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    const onFreshEntry = () => openFreshEntryThread();
+    window.addEventListener('balys:new-chat', onFreshEntry);
+    return () => window.removeEventListener('balys:new-chat', onFreshEntry);
+  }, [openFreshEntryThread]);
 
   const requestDeleteThread = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1004,7 +1078,7 @@ Rules:
           </Tooltip>
           {activeIsWhatsAppThread
             ? <WhatsAppIcon sx={{ color: '#25D366', fontSize: 20 }} />
-            : <SmartToyIcon color="secondary" fontSize="small" />}
+            : <BalysIcon color="secondary" fontSize="small" />}
           <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
           <Box sx={{ flex: 1 }} />
           <Tooltip title={at.clearChat}>
@@ -1020,7 +1094,7 @@ Rules:
         <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, md: 3 }, py: 2 }}>
           {(!activeThread || activeThread.messages.length === 0) && (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 2 }}>
-              <SmartToyIcon sx={{ fontSize: 64, opacity: 0.12 }} />
+              <BalysIcon sx={{ fontSize: 64, opacity: 0.18, color: '#818cf8' }} />
               <Typography variant="h6" color="text.secondary">{at.howCanIHelp}</Typography>
               <Typography variant="body2" color="text.disabled">{at.sendMessageHint}</Typography>
             </Box>
@@ -1036,12 +1110,64 @@ Rules:
               return (
                 <Box key={i} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexDirection: isUser ? 'row-reverse' : 'row' }}>
                   <Avatar sx={{ width: 28, height: 28, bgcolor: isUser ? 'primary.main' : 'rgba(99,102,241,0.2)', flexShrink: 0 }}>
-                    {isUser ? <PersonIcon sx={{ fontSize: 15 }} /> : <SmartToyIcon sx={{ fontSize: 15, color: '#818cf8' }} />}
+                    {isUser ? <PersonIcon sx={{ fontSize: 15 }} /> : <BalysIcon sx={{ fontSize: 17, color: '#818cf8' }} />}
                   </Avatar>
                   <Box sx={{ maxWidth: { xs: '85%', md: '75%' }, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                     {msg.attachments?.map((att, ai) => (
                       <Box key={ai}>
-                        {att.type === 'image' && (att.dataUrl || att.url) && <Box component="img" src={att.dataUrl || att.url} alt={att.name} sx={{ maxWidth: 360, maxHeight: 360, borderRadius: 2 }} />}
+                        {att.type === 'image' && (att.dataUrl || att.url) && (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 0.75 }}>
+                            <Box
+                              component="img"
+                              src={att.dataUrl || att.url}
+                              alt={att.name}
+                              sx={{
+                                width: 'min(100%, 648px)',
+                                maxWidth: { xs: '100%', md: 648 },
+                                maxHeight: { xs: 420, md: 648 },
+                                objectFit: 'contain',
+                                borderRadius: 2,
+                                display: 'block',
+                              }}
+                            />
+                            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                              <Tooltip title={copiedImageKey === imageAttachmentSource(att) ? 'Copiado' : 'Copiar imagem'}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => copyImageAttachment(att)}
+                                  sx={{
+                                    width: 30,
+                                    height: 30,
+                                    bgcolor: 'rgba(99,102,241,0.14)',
+                                    border: '1px solid',
+                                    borderColor: 'rgba(129,140,248,0.32)',
+                                    color: copiedImageKey === imageAttachmentSource(att) ? '#34d399' : '#c7d2fe',
+                                    '&:hover': { bgcolor: 'rgba(99,102,241,0.24)' },
+                                  }}
+                                >
+                                  <ContentCopyIcon sx={{ fontSize: 15 }} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Salvar imagem">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => saveImageAttachment(att)}
+                                  sx={{
+                                    width: 30,
+                                    height: 30,
+                                    bgcolor: 'rgba(34,211,238,0.1)',
+                                    border: '1px solid',
+                                    borderColor: 'rgba(34,211,238,0.26)',
+                                    color: '#a5f3fc',
+                                    '&:hover': { bgcolor: 'rgba(34,211,238,0.18)' },
+                                  }}
+                                >
+                                  <DownloadIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </Box>
+                        )}
                         {att.type === 'image' && !att.dataUrl && !att.url && <Chip icon={<ImageIcon />} label={att.name || 'Image'} size="small" variant="outlined" />}
                         {att.type === 'audio' && att.dataUrl && <Box component="audio" controls src={att.dataUrl} sx={{ display: 'block', maxWidth: 240 }} />}
                         {att.type === 'audio' && !att.dataUrl && <Chip icon={<AudioFileIcon />} label={att.name || 'Voice note'} size="small" variant="outlined" />}
@@ -1120,7 +1246,7 @@ Rules:
           {loading && (!activeThread?.messages.length || activeThread.messages[activeThread.messages.length - 1]?.role !== 'assistant') && (
             <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', mt: 2 }}>
               <Avatar sx={{ width: 28, height: 28, bgcolor: 'grey.300', flexShrink: 0 }}>
-                <SmartToyIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
+                <BalysIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
               </Avatar>
               <Paper elevation={0} sx={{ px: 2, py: 1.5, bgcolor: 'grey.100', borderRadius: '18px 18px 18px 4px', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <CircularProgress size={13} thickness={5} />

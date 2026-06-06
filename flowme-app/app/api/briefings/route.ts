@@ -3,8 +3,8 @@ import { requireAuth } from '@/lib/api/auth';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import { composeBriefing } from '@/lib/briefings/composer';
 import { getBriefing, upsertBriefing } from '@/lib/briefings/persist';
+import { shouldReuseBriefing } from '@/lib/briefings/reuse';
 import type { BriefingSlot } from '@/lib/briefings/types';
-import type { BriefingSections } from '@/lib/briefings/types';
 
 function todayInTimezone(timezone: string): string {
   try {
@@ -32,18 +32,6 @@ function inferSlot(timezone: string): BriefingSlot {
   } catch {
     return slotForHour(new Date().getHours());
   }
-}
-
-function hasNewsItems(sections: BriefingSections | null | undefined): boolean {
-  return Boolean(sections?.news?.ok && sections.news.data?.by_topic?.some((topic) => topic.items.length > 0));
-}
-
-function hasTrendItems(sections: BriefingSections | null | undefined): boolean {
-  return Boolean(sections?.trends?.ok && sections.trends.data?.trends?.length);
-}
-
-function shouldReuseBriefing(sections: BriefingSections | null | undefined): boolean {
-  return hasNewsItems(sections) && hasTrendItems(sections);
 }
 
 export async function GET(req: NextRequest) {

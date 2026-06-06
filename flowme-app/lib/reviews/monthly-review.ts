@@ -39,7 +39,7 @@ export interface MonthlyReviewRecord {
 }
 
 type SupabaseLike = { from(table: string): any };
-const CURRENT_EVIDENCE_VERSION = 1;
+const CURRENT_EVIDENCE_VERSION = 2;
 
 function dateInTimezone(now: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -92,9 +92,14 @@ async function rows<T>(query: PromiseLike<{ data: T[] | null; error: unknown }>)
 
 export function buildMonthlyReviewEvidence(summary: FinanceMonthlySummary): MonthlyReviewEvidence {
   const alerts: string[] = [];
+  const recurringExpenses = summary.recurring_expenses || [];
   if (summary.needs_review_count > 0) alerts.push(`${summary.needs_review_count} lançamentos precisam de revisão.`);
   if (summary.total_income <= 0 && summary.total_expenses > 0) alerts.push('Renda mensal não registrada; não calcule recomendação precisa de investimento.');
   if (summary.category_breakdown[0]?.share >= 0.4) alerts.push(`Categoria dominante: ${summary.category_breakdown[0].category}.`);
+  if (recurringExpenses.length > 0) {
+    const recurringTotal = recurringExpenses.reduce((total, item) => total + item.monthly_impact, 0);
+    alerts.push(`Custos recorrentes detectados: ${recurringTotal.toFixed(2)} ${summary.currency}/mês estimados.`);
+  }
   for (const alignment of summary.goal_alignment || []) {
     if (alignment.status === 'behind') {
       alerts.push(`Meta financeira abaixo do ritmo: ${alignment.goal_title}. Faltaram ${Math.abs(alignment.gap)} ${alignment.currency} no mês.`);
@@ -130,6 +135,7 @@ function fallbackContent(evidence: MonthlyReviewEvidence, council: { directive: 
   const summary = evidence.financial_summary;
   const top = summary.category_breakdown[0];
   const behindGoal = summary.goal_alignment.find(item => item.status === 'behind');
+  const topRecurring = summary.recurring_expenses?.[0];
   return {
     financial_health: summary.total_income > 0
       ? `O mês fechou com saldo de ${summary.net_balance} ${summary.currency} e taxa de investimento de ${summary.investment_rate === null ? 0 : Math.round(summary.investment_rate * 100)}%.`
@@ -138,7 +144,9 @@ function fallbackContent(evidence: MonthlyReviewEvidence, council: { directive: 
     investment_guidance: summary.total_income > 0
       ? council.directive
       : 'Antes de definir quanto investir, registre sua renda mensal. Enquanto isso, controle categorias variáveis e preserve caixa.',
-    cuts_to_consider: top ? `Revise ${top.category} primeiro, porque é onde um ajuste pequeno pode ter maior impacto.` : 'Sem cortes específicos detectados.',
+    cuts_to_consider: topRecurring
+      ? `Revise primeiro o custo recorrente "${topRecurring.label}", estimado em ${topRecurring.monthly_impact} ${topRecurring.currency}/mês. Depois compare com ${top?.category || 'as maiores categorias'} para cortes variáveis.`
+      : top ? `Revise ${top.category} primeiro, porque é onde um ajuste pequeno pode ter maior impacto.` : 'Sem cortes específicos detectados.',
     next_month_focus: behindGoal
       ? `Recuperar aderência à meta "${behindGoal.goal_title}": alvo mensal ${behindGoal.monthly_target} ${behindGoal.currency}, realizado ${behindGoal.actual_saved} ${behindGoal.currency}. ${council.directive}`
       : council.directive,

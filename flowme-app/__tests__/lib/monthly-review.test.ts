@@ -20,6 +20,7 @@ const summary: FinanceMonthlySummary = {
   recent_transactions: [],
   needs_review_count: 2,
   goal_alignment: [],
+  recurring_expenses: [],
 };
 
 describe('monthly review', () => {
@@ -71,6 +72,30 @@ describe('monthly review', () => {
     const result = await generateMonthlyReviewContent(evidence, async () => ({ directive: 'Corte R$250 em gastos variáveis.', mode: 'plan' }));
     expect(result.review_content?.next_month_focus).toContain('Poupar R$12K ao ano');
     expect(result.review_content?.next_month_focus).toContain('realizado 750 BRL');
+  });
+
+  it('uses recurring expenses as cost-cutting evidence', async () => {
+    const evidence = buildMonthlyReviewEvidence({
+      ...summary,
+      recurring_expenses: [{
+        label: 'Netflix',
+        category: 'assinaturas',
+        currency: 'BRL',
+        average_amount: 42.9,
+        latest_amount: 42.9,
+        monthly_impact: 42.9,
+        occurrences: 3,
+        months_seen: ['2026-04', '2026-05', '2026-06'],
+        last_seen: '2026-06-05',
+        frequency: 'monthly',
+        confidence: 0.88,
+        status: 'active',
+      }],
+    });
+
+    expect(evidence.alerts.join(' ')).toContain('Custos recorrentes detectados');
+    const result = await generateMonthlyReviewContent(evidence, async () => ({ directive: 'Revise assinaturas.', mode: 'plan' }));
+    expect(result.review_content?.cuts_to_consider).toContain('Netflix');
   });
 
   it('generates due reviews only on the last day at configured time', async () => {

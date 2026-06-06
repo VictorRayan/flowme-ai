@@ -60,6 +60,7 @@ export interface FinanceMonthlySummary {
   recent_transactions: FinancialTransaction[];
   needs_review_count: number;
   goal_alignment: FinancialGoalAlignment[];
+  recurring_expenses: FinanceRecurringExpense[];
   previous_month?: {
     total_expenses: number;
     delta_expenses: number;
@@ -79,6 +80,21 @@ export interface FinanceHealthTrendPoint {
   net_balance: number;
   investment_rate: number | null;
   goal_alignment: FinancialGoalAlignment[];
+}
+
+export interface FinanceRecurringExpense {
+  label: string;
+  category: string;
+  currency: FinanceCurrency;
+  average_amount: number;
+  latest_amount: number;
+  monthly_impact: number;
+  occurrences: number;
+  months_seen: string[];
+  last_seen: string;
+  frequency: 'monthly';
+  confidence: number;
+  status: 'active' | 'possible';
 }
 
 export interface FinancialGoalAlignment {

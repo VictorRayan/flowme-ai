@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import {
   appBaseUrl,
@@ -10,14 +11,15 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth(req);
+    const { user } = await requireAuth(req);
+    const admin = getSupabaseAdmin();
     const body = await req.json().catch(() => ({}));
     const interval = normalizeBillingInterval(body.interval || 'monthly');
     if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
 
     const price = stripePriceIdForInterval(interval);
     const stripe = getStripeClient();
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await admin
       .from('user_subscriptions')
       .select('provider_customer_id')
       .eq('user_id', user.id)
@@ -25,6 +27,7 @@ export async function POST(req: NextRequest) {
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (existingError) return apiError(ErrorCode.SUPABASE_ERROR, existingError.message, 500);
 
     let customerId = existing?.provider_customer_id || null;
     if (!customerId) {
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
         metadata: { user_id: user.id },
       });
       customerId = customer.id;
-      const { error } = await supabase.from('user_subscriptions').upsert({
+      const { error } = await admin.from('user_subscriptions').upsert({
         user_id: user.id,
         plan_code: 'pro',
         billing_provider: 'stripe',

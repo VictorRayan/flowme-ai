@@ -4,6 +4,7 @@ import { POST } from '@/app/api/billing/checkout/route';
 const mockCustomersCreate = jest.fn().mockResolvedValue({ id: 'cus_123' });
 const mockSessionsCreate = jest.fn().mockResolvedValue({ url: 'https://checkout.stripe.test/session' });
 const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+const mockAdminFrom = jest.fn(() => makeChain());
 
 jest.mock('stripe', () => ({
   __esModule: true,
@@ -33,9 +34,13 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockImplementation(() =>
     Promise.resolve({
       user: { id: 'user-1', email: 'user@example.com' },
-      supabase: { from: jest.fn(() => makeChain()) },
+      supabase: {},
     })
   ),
+}));
+
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({ from: mockAdminFrom })),
 }));
 
 describe('POST /api/billing/checkout', () => {
@@ -79,6 +84,7 @@ describe('POST /api/billing/checkout', () => {
     expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
       provider_customer_id: 'cus_123',
     }), { onConflict: 'billing_provider,provider_customer_id' });
+    expect(mockAdminFrom).toHaveBeenCalledWith('user_subscriptions');
   });
 
   it('rejects invalid intervals', async () => {

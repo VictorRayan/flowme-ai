@@ -43,9 +43,13 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockImplementation(() =>
     Promise.resolve({
       user: { id: 'user-1' },
-      supabase: { from: mockFrom },
+      supabase: {},
     })
   ),
+}));
+
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({ from: mockFrom })),
 }));
 
 describe('POST /api/support/cancellation-requests', () => {

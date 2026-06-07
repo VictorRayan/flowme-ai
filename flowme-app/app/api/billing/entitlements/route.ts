@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import { computeEntitlementsFromSubscription } from '@/lib/billing/entitlements';
 
@@ -11,8 +12,9 @@ function managementSurface(provider: string | null | undefined, hasPro: boolean)
 
 export async function GET(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth(req);
-    const { data, error } = await supabase
+    const { user } = await requireAuth(req);
+    const admin = getSupabaseAdmin();
+    const { data, error } = await admin
       .from('user_subscriptions')
       .select('plan_code,billing_provider,status,current_period_end,grace_period_ends_at,cancel_at_period_end,updated_at')
       .eq('user_id', user.id)

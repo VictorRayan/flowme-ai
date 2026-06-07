@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/billing/portal/route';
 
 const mockPortalCreate = jest.fn().mockResolvedValue({ url: 'https://billing.stripe.test/session' });
+const mockAdminFrom = jest.fn(() => makeChain());
 
 jest.mock('stripe', () => ({
   __esModule: true,
@@ -29,9 +30,13 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockImplementation(() =>
     Promise.resolve({
       user: { id: 'user-1' },
-      supabase: { from: jest.fn(() => makeChain()) },
+      supabase: {},
     })
   ),
+}));
+
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({ from: mockAdminFrom })),
 }));
 
 describe('POST /api/billing/portal', () => {

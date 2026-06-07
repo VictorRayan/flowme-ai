@@ -1,12 +1,14 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import { getStripeClient } from '@/lib/billing/stripe-adapter';
 
 export async function GET(req: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth(req);
-    const { data, error } = await supabase
+    const { user } = await requireAuth(req);
+    const admin = getSupabaseAdmin();
+    const { data, error } = await admin
       .from('user_subscriptions')
       .select('provider_customer_id')
       .eq('user_id', user.id)

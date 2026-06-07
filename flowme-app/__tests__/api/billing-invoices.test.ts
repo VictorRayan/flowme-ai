@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/billing/invoices/route';
 
 const mockInvoicesList = jest.fn();
+const mockAdminFrom = jest.fn(() => makeChain());
 
 jest.mock('stripe', () => ({
   __esModule: true,
@@ -29,9 +30,13 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockImplementation(() =>
     Promise.resolve({
       user: { id: 'user-1' },
-      supabase: { from: jest.fn(() => makeChain()) },
+      supabase: {},
     })
   ),
+}));
+
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({ from: mockAdminFrom })),
 }));
 
 describe('GET /api/billing/invoices', () => {

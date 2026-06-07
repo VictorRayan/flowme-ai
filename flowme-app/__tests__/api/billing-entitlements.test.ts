@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/billing/entitlements/route';
 
 let subscriptionRow: any = null;
+const mockAdminFrom = jest.fn(() => makeSelectChain());
 
 function makeSelectChain() {
   const chain: any = {
@@ -22,15 +23,18 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockImplementation(() =>
     Promise.resolve({
       user: { id: 'user-1' },
-      supabase: {
-        from: jest.fn(() => makeSelectChain()),
-      },
+      supabase: {},
     })
   ),
 }));
 
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({ from: mockAdminFrom })),
+}));
+
 describe('GET /api/billing/entitlements', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     subscriptionRow = null;
   });
 

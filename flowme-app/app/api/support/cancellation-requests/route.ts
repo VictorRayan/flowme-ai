@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
+import { logSupabaseRouteError } from '@/lib/api/supabase-error-log';
 
 const VALID_SOURCES = ['support_balys', 'billing_page', 'mobile'] as const;
 
@@ -36,7 +37,10 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (subscriptionError) return apiError(ErrorCode.SUPABASE_ERROR, subscriptionError.message, 500);
+    if (subscriptionError) {
+      logSupabaseRouteError('/api/support/cancellation-requests', 'user_subscriptions', subscriptionError);
+      return apiError(ErrorCode.SUPABASE_ERROR, subscriptionError.message, 500);
+    }
 
     const { data, error } = await admin
       .from('subscription_cancellation_requests')
@@ -54,7 +58,10 @@ export async function POST(req: NextRequest) {
       .select('id,status,created_at')
       .single();
 
-    if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+    if (error) {
+      logSupabaseRouteError('/api/support/cancellation-requests', 'subscription_cancellation_requests', error);
+      return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+    }
     return apiSuccess({ request: data });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === ErrorCode.UNAUTHORIZED) {

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
+import { logSupabaseRouteError } from '@/lib/api/supabase-error-log';
 import { appBaseUrl, getStripeClient } from '@/lib/billing/stripe-adapter';
 
 export async function POST(req: NextRequest) {
@@ -17,7 +18,10 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+    if (error) {
+      logSupabaseRouteError('/api/billing/portal', 'user_subscriptions', error);
+      return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+    }
     if (!data?.provider_customer_id) return apiError(ErrorCode.VALIDATION_ERROR, 'No Stripe customer found', 400);
 
     const stripe = getStripeClient();

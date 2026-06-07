@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
+import { logSupabaseRouteError } from '@/lib/api/supabase-error-log';
 import {
   appBaseUrl,
   getStripeClient,
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest) {
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (existingError) return apiError(ErrorCode.SUPABASE_ERROR, existingError.message, 500);
+    if (existingError) {
+      logSupabaseRouteError('/api/billing/checkout', 'user_subscriptions', existingError);
+      return apiError(ErrorCode.SUPABASE_ERROR, existingError.message, 500);
+    }
 
     let customerId = existing?.provider_customer_id || null;
     if (!customerId) {
@@ -45,7 +49,10 @@ export async function POST(req: NextRequest) {
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'billing_provider,provider_customer_id' });
-      if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+      if (error) {
+        logSupabaseRouteError('/api/billing/checkout', 'user_subscriptions', error);
+        return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+      }
     }
 
     const base = appBaseUrl(req.url);

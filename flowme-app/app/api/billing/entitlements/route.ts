@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
+import { logSupabaseRouteError } from '@/lib/api/supabase-error-log';
 import { computeEntitlementsFromSubscription } from '@/lib/billing/entitlements';
 
 function managementSurface(provider: string | null | undefined, hasPro: boolean) {
@@ -22,7 +23,10 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+    if (error) {
+      logSupabaseRouteError('/api/billing/entitlements', 'user_subscriptions', error);
+      return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
+    }
 
     const entitlements = computeEntitlementsFromSubscription(user.id, data);
     return apiSuccess({

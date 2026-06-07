@@ -1,5 +1,7 @@
 import {
+  assertStripeProPrice,
   normalizeStripeSubscriptionStatus,
+  stripeSubscriptionToRow,
   stripePriceEnvName,
   stripePriceIdForInterval,
 } from '@/lib/billing/stripe-adapter';
@@ -42,5 +44,27 @@ describe('stripe billing adapter', () => {
     expect(normalizeStripeSubscriptionStatus('canceled')).toBe('canceled');
     expect(normalizeStripeSubscriptionStatus('incomplete')).toBe('incomplete');
     expect(normalizeStripeSubscriptionStatus('incomplete_expired')).toBe('expired');
+  });
+
+  it('accepts only configured Pro price IDs before mapping a subscription row', () => {
+    process.env.STRIPE_PRO_MONTHLY_PRICE_ID = 'price_monthly';
+    process.env.STRIPE_PRO_ANNUAL_PRICE_ID = 'price_annual';
+
+    expect(assertStripeProPrice('price_monthly')).toBe('price_monthly');
+    expect(() => assertStripeProPrice('price_other')).toThrow('Stripe subscription price is not configured for Pro: price_other');
+
+    const row = stripeSubscriptionToRow({
+      id: 'sub_123',
+      customer: 'cus_123',
+      status: 'active',
+      cancel_at_period_end: false,
+      metadata: { user_id: 'user-1' },
+      current_period_start: 1780704000,
+      current_period_end: 1783296000,
+      items: { data: [{ price: { id: 'price_annual' } }] },
+    } as any);
+
+    expect(row.plan_code).toBe('pro');
+    expect(row.metadata.price_id).toBe('price_annual');
   });
 });

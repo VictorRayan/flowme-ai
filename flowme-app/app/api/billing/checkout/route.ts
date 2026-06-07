@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         status: 'incomplete',
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,billing_provider,provider_customer_id' });
+      }, { onConflict: 'billing_provider,provider_customer_id' });
       if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
     }
 

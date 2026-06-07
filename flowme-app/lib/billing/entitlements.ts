@@ -78,7 +78,8 @@ const PRO_FEATURES: FeatureMap = FEATURE_KEYS.reduce((acc, key) => {
   return acc;
 }, {} as FeatureMap);
 
-const ACTIVE_PRO_STATUSES = new Set<SubscriptionStatus>(['trialing', 'active', 'past_due', 'grace_period']);
+const ACTIVE_PRO_STATUSES = new Set<SubscriptionStatus>(['trialing', 'active']);
+const GRACE_PRO_STATUSES = new Set<SubscriptionStatus>(['past_due', 'grace_period']);
 
 export function normalizeSubscriptionStatus(status: string | null | undefined): SubscriptionStatus {
   const value = String(status || '').trim().toLowerCase();
@@ -106,12 +107,28 @@ export function getDefaultFreeEntitlements(userId: string): UserEntitlements {
   };
 }
 
-export function computeEntitlementsFromSubscription(userId: string, subscription: SubscriptionLike | null): UserEntitlements {
+function isFutureDate(value: string | null | undefined, now: Date): boolean {
+  if (!value) return false;
+  const time = Date.parse(value);
+  return Number.isFinite(time) && time > now.getTime();
+}
+
+function shouldGrantPro(subscription: SubscriptionLike, status: SubscriptionStatus, now: Date): boolean {
+  if (subscription.plan_code !== 'pro') return false;
+  if (ACTIVE_PRO_STATUSES.has(status)) {
+    return !subscription.current_period_end || isFutureDate(subscription.current_period_end, now);
+  }
+  if (GRACE_PRO_STATUSES.has(status)) {
+    return isFutureDate(subscription.grace_period_ends_at || subscription.current_period_end, now);
+  }
+  return false;
+}
+
+export function computeEntitlementsFromSubscription(userId: string, subscription: SubscriptionLike | null, now = new Date()): UserEntitlements {
   if (!subscription) return getDefaultFreeEntitlements(userId);
 
   const status = normalizeSubscriptionStatus(subscription.status);
-  const requestedPlan = subscription.plan_code === 'pro' ? 'pro' : 'free';
-  const hasPro = requestedPlan === 'pro' && ACTIVE_PRO_STATUSES.has(status);
+  const hasPro = shouldGrantPro(subscription, status, now);
   if (!hasPro) return { ...getDefaultFreeEntitlements(userId), billing_state: status };
 
   return {

@@ -260,10 +260,11 @@
 - [ ] Use Stripe Checkout in subscription mode for the simplest PCI path.
 - [ ] Use Stripe-hosted Checkout to keep card data out of Flow Me.
 - [ ] Use Stripe Billing for recurring payments.
-- [ ] Use Stripe Customer Portal for:
-  - Update payment method.
-  - View invoices.
-  - Manage/cancel web subscription if we allow direct portal cancellation.
+- [ ] Use Stripe-hosted surfaces only for PCI-sensitive actions:
+  - Update payment method through a focused Stripe payment method update flow.
+  - Keep broad subscription management out of the primary UX.
+- [ ] View invoices/receipts inside Flow Me using Stripe invoice APIs.
+- [ ] Route web subscription cancellation requests to Balys Support retention funnel instead of direct broad Stripe Portal cancellation.
 - [ ] Configure products/prices in Stripe:
   - Product: Flow Me Pro.
   - Price: Pro Monthly BRL R$59,90.
@@ -279,9 +280,12 @@
   - Creates Checkout Session with `mode: subscription`.
   - Adds metadata: `user_id`, `plan_code`.
   - Returns checkout URL.
-- [ ] `POST /api/billing/portal`
+- [x] `POST /api/billing/portal`
   - Requires auth.
-  - Creates Billing Portal session for the user's Stripe Customer.
+  - Creates focused payment method update session for the user's Stripe Customer.
+- [x] `GET /api/billing/invoices`
+  - Requires auth.
+  - Lists recent Stripe invoices/receipts for the user's Stripe Customer.
 - [ ] `POST /api/webhooks/stripe`
   - Raw body signature verification.
   - Idempotency with `billing_events`.
@@ -369,6 +373,40 @@
 - [ ] Add `FeatureGate` component.
 - [ ] Add `UpgradeDialog`.
 - [ ] Add `AiCreditMeter`.
+
+### Platform Billing UX
+
+- [ ] Use one product/plan presentation across web, iOS, and Android:
+  - Free.
+  - Pro Monthly.
+  - Pro Annual.
+- [ ] Route payment actions by runtime platform:
+  - Web browser: Stripe Checkout and Stripe Customer Portal.
+  - iOS native app: App Store In-App Purchase and Apple subscription management.
+  - Android native app: Google Play Billing and Google Play subscription management.
+- [ ] The web app may show Stripe checkout CTAs.
+- [ ] The iOS app must not send users to Stripe or an external website to buy the digital subscription.
+- [ ] The Android app must not force users outside Google Play Billing for in-app digital subscription purchase.
+- [ ] If a user subscribed on web and opens mobile:
+  - Show Pro active.
+  - Do not ask the user to subscribe again through IAP.
+  - Management CTA explains the subscription is managed on web/Stripe.
+- [ ] If a user subscribed through Apple/Google and opens web:
+  - Show Pro active.
+  - Hide Stripe checkout for the active subscription.
+  - Management CTA explains the subscription is managed through App Store or Google Play.
+- [ ] Pricing display:
+  - Web prices come from Flow Me/Stripe config.
+  - Mobile prices should come from App Store / Google Play product metadata because stores may apply local pricing, taxes, and currency rules.
+- [ ] Backend entitlement response should expose:
+  - `billing_provider`.
+  - `billing_state`.
+  - `current_period_end`.
+  - `management_surface`: `stripe`, `apple`, `google`, or `none`.
+- [ ] UI copy should be provider-aware:
+  - Stripe: "Gerenciar assinatura".
+  - Apple: "Gerenciar na App Store".
+  - Google: "Gerenciar no Google Play".
 
 ### Free Navigation
 
@@ -491,15 +529,15 @@
 
 ### Product Surface
 
-- [ ] Add route `app/app/support/page.tsx`.
-- [ ] Add sidebar item "Suporte".
+- [x] Add route `app/app/support/page.tsx`.
+- [x] Add sidebar item "Suporte".
 - [ ] Support page layout:
   - Balys support chat as primary panel.
   - Quick questions grid.
   - Account/billing state card.
   - Recent support requests/cancellation requests if any.
 - [ ] Support Balys should not execute destructive account changes directly.
-- [ ] Support Balys can create support/cancellation requests in DB.
+- [x] Support Balys can create support/cancellation requests in DB.
 
 ### Support Knowledge Base
 
@@ -535,7 +573,7 @@
 
 ### Quick Questions
 
-- [ ] Add quick question buttons:
+- [x] Add quick question buttons:
   - "Como eu começo no Flow Me?"
   - "Como usar o BalysAI melhor?"
   - "Como funcionam os créditos de IA?"
@@ -582,7 +620,7 @@
   - "unsubscribe"
   - "cancel subscription"
 - [ ] Do not immediately cancel.
-- [ ] Start guided cancellation form.
+- [x] Start guided cancellation form.
 
 ### Required Questions
 
@@ -598,12 +636,12 @@
 - [ ] Question 4:
   - "Se um suporte humano te instruir melhor, você daria uma segunda chance?"
   - Required yes/no.
-- [ ] Submit creates an open request.
+- [x] Submit creates an open request.
 - [ ] Do not auto-cancel until request is reviewed, unless product/legal decision later requires immediate self-service cancellation.
 
 ### Cancellation Database
 
-- [ ] Create `subscription_cancellation_requests`:
+- [x] Create `subscription_cancellation_requests`:
   - `id`
   - `user_id`
   - `subscription_id`
@@ -656,11 +694,11 @@
 
 ### Phase 1 - Entitlements Foundation
 
-- [ ] Migration for plans, prices, subscriptions, entitlements, billing events.
-- [ ] Entitlement library.
-- [ ] `/api/billing/entitlements`.
-- [ ] Default Free entitlements.
-- [ ] Tests for entitlement mapping.
+- [x] Migration for plans, prices, subscriptions, entitlements, billing events.
+- [x] Entitlement library.
+- [x] `/api/billing/entitlements`.
+- [x] Default Free entitlements.
+- [x] Tests for entitlement mapping.
 - [ ] Route/API feature gates for obvious paid surfaces.
 
 ### Phase 2 - AI Credits
@@ -675,28 +713,32 @@
 
 ### Phase 3 - Stripe Web Billing
 
-- [ ] Install/configure Stripe SDK.
-- [ ] Env vars:
+- [x] Install/configure Stripe SDK.
+- [x] Env vars:
   - `STRIPE_SECRET_KEY`
   - `STRIPE_WEBHOOK_SECRET`
   - `STRIPE_PRO_MONTHLY_PRICE_ID`
   - `STRIPE_PRO_ANNUAL_PRICE_ID`
   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` if needed.
-- [ ] Checkout route.
-- [ ] Portal route.
-- [ ] Stripe webhook route.
+- [x] Checkout route.
+- [x] Portal route.
+- [x] Stripe webhook route.
 - [ ] Local Stripe CLI webhook test.
 - [ ] Checkout success/cancel pages or query states.
-- [ ] Tests for webhook idempotency and entitlement changes.
+- [x] Tests for webhook idempotency and entitlement changes.
 
 ### Phase 4 - Pricing and Upgrade UX
 
 - [ ] Pricing page or modal.
+- [x] Platform-aware billing UI:
+  - Web uses Stripe Checkout/Portal.
+  - iOS uses App Store IAP purchase/management.
+  - Android uses Google Play Billing purchase/management.
 - [ ] Upgrade CTA from locked routes.
 - [ ] Upgrade CTA from credit exhaustion.
-- [ ] Billing page in settings.
+- [x] Billing page in settings.
 - [ ] Annual/monthly toggle.
-- [ ] Stripe redirect.
+- [x] Stripe redirect.
 - [ ] Post-checkout entitlement refresh.
 - [ ] Tests for locked API responses.
 
@@ -714,36 +756,36 @@
 
 ### Phase 5.1 - Mobile Push Delivery Foundation
 
-- [ ] Migration for `mobile_push_tokens`.
-- [ ] Mobile push token registration API.
+- [x] Migration for `mobile_push_tokens`.
+- [x] Mobile push token registration API.
 - [ ] Provider-neutral push dispatch interface.
 - [ ] APNs adapter placeholder/config contract.
 - [ ] FCM adapter placeholder/config contract.
-- [ ] Tests for token registration, validation, ownership, and soft-delete.
+- [x] Tests for token registration, validation, ownership, and soft-delete.
 
 ### Phase 6 - Support Section
 
-- [ ] Support route/page.
+- [x] Support route/page.
 - [ ] Support KB.
-- [ ] Quick questions.
+- [x] Quick questions.
 - [ ] Support chat route.
-- [ ] Support request model.
+- [x] Support request model.
 - [ ] Billing-aware support answers.
 - [ ] Tests for KB prompt and support route validation.
 
 ### Phase 7 - Cancellation Funnel
 
-- [ ] Cancellation intent detector.
-- [ ] Guided form state.
-- [ ] Validation:
+- [x] Cancellation intent detector.
+- [x] Guided form state.
+- [x] Validation:
   - Reason min 100 chars.
   - Features min 10 chars.
   - Expectation required.
   - Second chance yes/no required.
-- [ ] Cancellation request API.
+- [x] Cancellation request API.
 - [ ] Open request status UI.
 - [ ] Dev/admin notification.
-- [ ] Tests for cancellation validation.
+- [x] Tests for cancellation validation.
 
 ### Phase 8 - Mobile Billing Integration Contract
 

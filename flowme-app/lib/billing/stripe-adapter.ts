@@ -14,6 +14,21 @@ export function stripePriceIdForInterval(interval: BillingInterval): string {
   return value;
 }
 
+export function configuredStripeProPriceIds(): string[] {
+  return [
+    process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+    process.env.STRIPE_PRO_ANNUAL_PRICE_ID,
+  ].filter((value): value is string => Boolean(value));
+}
+
+export function assertStripeProPrice(priceId: string | null | undefined): string {
+  if (!priceId) throw new Error('Stripe subscription price is missing');
+  const configured = configuredStripeProPriceIds();
+  if (configured.length === 0) throw new Error('Stripe Pro price IDs are not configured');
+  if (!configured.includes(priceId)) throw new Error(`Stripe subscription price is not configured for Pro: ${priceId}`);
+  return priceId;
+}
+
 export function normalizeBillingInterval(value: unknown): BillingInterval | null {
   return value === 'monthly' || value === 'annual' ? value : null;
 }
@@ -52,6 +67,7 @@ export function stripeSubscriptionToRow(subscription: Stripe.Subscription, userI
   const raw = subscription as any;
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || null;
   const metadataUserId = subscription.metadata?.user_id || userId || null;
+  const priceId = assertStripeProPrice(subscription.items.data[0]?.price?.id || null);
   return {
     user_id: metadataUserId,
     plan_code: 'pro',
@@ -69,7 +85,7 @@ export function stripeSubscriptionToRow(subscription: Stripe.Subscription, userI
     updated_at: new Date().toISOString(),
     metadata: {
       stripe_status: subscription.status,
-      price_id: subscription.items.data[0]?.price?.id || null,
+      price_id: priceId,
     },
   };
 }

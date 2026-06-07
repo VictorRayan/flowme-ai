@@ -76,6 +76,9 @@ describe('POST /api/billing/checkout', () => {
       customer: 'cus_123',
       line_items: [{ price: 'price_monthly', quantity: 1 }],
     }));
+    expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      provider_customer_id: 'cus_123',
+    }), { onConflict: 'billing_provider,provider_customer_id' });
   });
 
   it('rejects invalid intervals', async () => {

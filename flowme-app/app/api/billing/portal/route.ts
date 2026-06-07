@@ -19,9 +19,19 @@ export async function POST(req: NextRequest) {
     if (!data?.provider_customer_id) return apiError(ErrorCode.VALIDATION_ERROR, 'No Stripe customer found', 400);
 
     const stripe = getStripeClient();
+    const returnUrl = `${appBaseUrl(req.url)}/app/settings?billing=portal_return`;
     const session = await stripe.billingPortal.sessions.create({
       customer: data.provider_customer_id,
-      return_url: `${appBaseUrl(req.url)}/app/settings?billing=portal_return`,
+      return_url: returnUrl,
+      flow_data: {
+        type: 'payment_method_update',
+        after_completion: {
+          type: 'redirect',
+          redirect: {
+            return_url: returnUrl,
+          },
+        },
+      },
     });
 
     return apiSuccess({ url: session.url });

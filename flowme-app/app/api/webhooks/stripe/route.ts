@@ -12,7 +12,7 @@ function adminClient() {
 }
 
 async function persistSubscription(admin: any, row: ReturnType<typeof stripeSubscriptionToRow>) {
-  if (!row.user_id) return;
+  if (!row.user_id) throw new Error('Unable to resolve user for Stripe subscription');
   const { error } = await admin.from('user_subscriptions').upsert(row, {
     onConflict: 'billing_provider,provider_subscription_id',
   });
@@ -42,11 +42,28 @@ async function recordEvent(admin: any, event: Stripe.Event): Promise<boolean> {
     provider_customer_id: typeof object.customer === 'string' ? object.customer : object.customer?.id || null,
     provider_subscription_id: typeof object.subscription === 'string' ? object.subscription : object.id?.startsWith?.('sub_') ? object.id : null,
     payload: event as any,
-    processed_at: new Date().toISOString(),
   });
   if (!error) return true;
-  if (error.code === '23505') return false;
+  if (error.code === '23505') {
+    const { data, error: lookupError } = await admin
+      .from('billing_events')
+      .select('processed_at')
+      .eq('provider', 'stripe')
+      .eq('event_id', event.id)
+      .maybeSingle();
+    if (lookupError) throw new Error(lookupError.message);
+    return !data?.processed_at;
+  }
   throw new Error(error.message);
+}
+
+async function markEventProcessed(admin: any, event: Stripe.Event) {
+  const { error } = await admin
+    .from('billing_events')
+    .update({ processed_at: new Date().toISOString() })
+    .eq('provider', 'stripe')
+    .eq('event_id', event.id);
+  if (error) throw new Error(error.message);
 }
 
 async function resolveUserId(admin: any, subscription: Stripe.Subscription): Promise<string | null> {
@@ -102,6 +119,7 @@ export async function POST(req: NextRequest) {
       await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
     }
 
+    await markEventProcessed(admin, event);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to process Stripe webhook';

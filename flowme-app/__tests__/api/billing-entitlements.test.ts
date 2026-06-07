@@ -43,13 +43,22 @@ describe('GET /api/billing/entitlements', () => {
     expect(body.entitlements.plan_code).toBe('free');
     expect(body.entitlements.features.notes).toBe(true);
     expect(body.entitlements.features.finance).toBe(false);
+    expect(body.billing).toEqual({
+      provider: null,
+      state: 'free',
+      current_period_end: null,
+      cancel_at_period_end: false,
+      management_surface: 'none',
+    });
   });
 
   it('returns Pro entitlements for active Pro subscription', async () => {
     subscriptionRow = {
       plan_code: 'pro',
+      billing_provider: 'stripe',
       status: 'active',
       current_period_end: '2026-07-06T00:00:00.000Z',
+      cancel_at_period_end: false,
     };
 
     const res = await GET(new NextRequest('http://localhost/api/billing/entitlements'));
@@ -59,5 +68,12 @@ describe('GET /api/billing/entitlements', () => {
     expect(body.entitlements.plan_code).toBe('pro');
     expect(body.entitlements.has_pro).toBe(true);
     expect(body.entitlements.features.connectors).toBe(true);
+    expect(body.billing).toEqual({
+      provider: 'stripe',
+      state: 'active',
+      current_period_end: '2026-07-06T00:00:00.000Z',
+      cancel_at_period_end: false,
+      management_surface: 'stripe',
+    });
   });
 });

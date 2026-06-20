@@ -1,3 +1,23 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: (...args: unknown[]) => mockRequireFeature(...args),
+  };
+});
+
 jest.mock('@/lib/google/google-gmail', () => ({
   searchEmails: jest.fn().mockResolvedValue([{ id: 'm1', threadId: 't1', snippet: 'hello', subject: 'Subject', from: 'a@example.com', date: 'today' }]),
   readEmailMessage: jest.fn().mockResolvedValue({
@@ -37,6 +57,7 @@ function makeContext() {
 describe('gmail connector tools', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { connectors: true } });
   });
 
   it('passes tool context to Gmail search for WhatsApp/backend auth flows', async () => {

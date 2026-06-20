@@ -36,6 +36,7 @@ export type FeatureMap = Record<FeatureKey, boolean>;
 
 export interface SubscriptionLike {
   plan_code?: string | null;
+  billing_provider?: string | null;
   status?: string | null;
   current_period_end?: string | null;
   grace_period_ends_at?: string | null;
@@ -54,6 +55,32 @@ export interface UserEntitlements {
     label: string;
   };
 }
+
+export class FeatureLockedError extends Error {
+  feature: FeatureKey;
+  required_plan = 'pro' as const;
+
+  constructor(feature: FeatureKey) {
+    super('Feature requires Flow Me Pro');
+    this.name = 'FeatureLockedError';
+    this.feature = feature;
+  }
+}
+
+type SupabaseBillingFilter = {
+  eq(column: string, value: string): SupabaseBillingFilter;
+  order(column: string, options: { ascending: boolean }): SupabaseBillingFilter;
+  limit(count: number): SupabaseBillingFilter;
+  maybeSingle(): Promise<{ data: SubscriptionLike | null; error: { message?: string } | null }>;
+};
+
+type SupabaseBillingQuery = {
+  select(columns: string): SupabaseBillingFilter;
+};
+
+type SupabaseBillingClient = {
+  from(table: string): Pick<SupabaseBillingQuery, 'select'>;
+};
 
 const FREE_FEATURES: FeatureMap = {
   notes: true,
@@ -148,4 +175,31 @@ export function computeEntitlementsFromSubscription(userId: string, subscription
 
 export function isFeatureAllowed(entitlements: Pick<UserEntitlements, 'features'>, feature: FeatureKey): boolean {
   return entitlements.features[feature] === true;
+}
+
+export async function getUserEntitlements(
+  supabase: unknown,
+  userId: string,
+  now = new Date(),
+): Promise<UserEntitlements> {
+  const client = supabase as SupabaseBillingClient;
+  const query = client
+    .from('user_subscriptions')
+    .select('plan_code,billing_provider,status,current_period_end,grace_period_ends_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(error.message || 'Failed to load user entitlements');
+  return computeEntitlementsFromSubscription(userId, data, now);
+}
+
+export async function requireFeature(
+  supabase: unknown,
+  userId: string,
+  feature: FeatureKey,
+): Promise<UserEntitlements> {
+  const entitlements = await getUserEntitlements(supabase, userId);
+  if (!isFeatureAllowed(entitlements, feature)) throw new FeatureLockedError(feature);
+  return entitlements;
 }

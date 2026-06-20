@@ -1,10 +1,14 @@
 import { z } from 'zod';
-import { defineTool, ToolContext } from './Tool';
+import { defineFeatureTool, ToolContext, type Tool } from './Tool';
 import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
 import { createCalendarEvent, deleteCalendarEvent, getCalendarEvent, getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 import { listCalendarReschedules, recordCalendarReschedule } from '@/lib/calendar/event-reschedule-history';
 import { listEventOutcomes } from '@/lib/today/event-outcomes';
+
+function defineCalendarTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('calendar', 'Calendar requires Flow Me Pro.', tool);
+}
 
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
@@ -168,7 +172,7 @@ async function resolveGoogleAccount(
   return { ok: true, account: accounts[0] };
 }
 
-export const calendarListEventsTool = defineTool({
+export const calendarListEventsTool = defineCalendarTool({
   name: 'calendar.list_events',
   description: `Reads events from the user's primary Google Calendar. Returns ALL matching events in the window, sorted by start_at ascending.
 
@@ -289,7 +293,7 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
   }
 });
 
-export const calendarCreateEventTool = defineTool({
+export const calendarCreateEventTool = defineCalendarTool({
   name: 'calendar.create_event',
   description: `Creates a new event on the user's primary Google Calendar. Writes immediately — there is no preview step.
 
@@ -364,7 +368,7 @@ ASK THE USER FIRST IF: time is ambiguous, the user explicitly named someone but 
   }
 });
 
-export const calendarListRescheduleHistoryTool = defineTool({
+export const calendarListRescheduleHistoryTool = defineCalendarTool({
   name: 'calendar.list_reschedule_history',
   description: `Reads the user's calendar reschedule history so Balys can identify execution patterns.
 
@@ -405,7 +409,7 @@ RETURNS human-readable evidence only: titles, movement type, offsets, timing, an
   },
 });
 
-export const calendarListExecutionHistoryTool = defineTool({
+export const calendarListExecutionHistoryTool = defineCalendarTool({
   name: 'calendar.list_execution_history',
   description: `Reads execution history for the user's scheduled commitments. For Balys, tasks, tarefas, events, eventos, activities, and calendar commitments mean the same thing: work the user intended to execute. Reminders remain notifications only.
 
@@ -497,7 +501,7 @@ RETURNS human-readable evidence only: titles, scheduled times, outcomes, reasons
   },
 });
 
-export const calendarUpdateEventTool = defineTool({
+export const calendarUpdateEventTool = defineCalendarTool({
   name: 'calendar.update_event',
   description: `Modifies an existing calendar event. Partial update — only the fields you pass are changed.
 
@@ -580,7 +584,7 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
   }
 });
 
-export const calendarDeleteEventTool = defineTool({
+export const calendarDeleteEventTool = defineCalendarTool({
   name: 'calendar.delete_event',
   description: `Permanently cancels a calendar event. DESTRUCTIVE and irreversible.
 
@@ -636,7 +640,7 @@ ALWAYS ASK THE USER FIRST IF: the cancellation has invitees, the event is recurr
   }
 });
 
-export const calendarDeleteEventsBatchTool = defineTool({
+export const calendarDeleteEventsBatchTool = defineCalendarTool({
   name: 'calendar.delete_events_batch',
   description: `Cancels MULTIPLE calendar events in one call. DESTRUCTIVE and irreversible.
 

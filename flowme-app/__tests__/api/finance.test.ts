@@ -3,6 +3,7 @@ import { GET as getProfile, PATCH as patchProfile } from '@/app/api/finance/prof
 import { GET as getTransactions, POST as postTransaction } from '@/app/api/finance/transactions/route';
 import { DELETE, PATCH } from '@/app/api/finance/transactions/[id]/route';
 import { GET as getSummary } from '@/app/api/finance/summary/route';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 const transaction = {
   id: 'txn-1',
@@ -63,6 +64,33 @@ jest.mock('@/lib/api/auth', () => ({
   ),
 }));
 
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({})),
+}));
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: jest.fn().mockResolvedValue({ features: { finance: true } }),
+  };
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (requireFeature as jest.Mock).mockResolvedValue({ features: { finance: true } });
+});
+
 const req = (url: string, body?: object, method = 'POST') => new NextRequest(url, {
   method,
   headers: { 'Content-Type': 'application/json' },
@@ -75,6 +103,18 @@ describe('finance API', () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.profile.default_currency).toBe('BRL');
+  });
+
+  it('blocks the financial profile for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('finance' as any));
+
+    const res = await getProfile(new NextRequest('http://localhost/api/finance/profile'));
+    const body = await res.json();
+
+    expect(res.status).toBe(402);
+    expect(body.error.code).toBe('FEATURE_LOCKED');
+    expect(body.required_plan).toBe('pro');
+    expect(body.feature_key).toBe('finance');
   });
 
   it('updates the financial profile currency', async () => {

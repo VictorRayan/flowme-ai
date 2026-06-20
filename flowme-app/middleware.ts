@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { featureForApiPath, featureForAppPath } from '@/lib/billing/feature-routes';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -69,9 +71,56 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(appUrl);
   }
 
+  const requiredFeature = featureForApiPath(pathname) || featureForAppPath(pathname);
+  if (user && requiredFeature) {
+    try {
+      const entitlements = await getUserEntitlements(supabase, user.id);
+      if (!isFeatureAllowed(entitlements, requiredFeature)) {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json({
+            ok: false,
+            error: { code: 'FEATURE_LOCKED', message: 'This feature requires Flow Me Pro' },
+            required_plan: 'pro',
+            feature_key: requiredFeature,
+            checkout_available: true,
+          }, { status: 402 });
+        }
+        const upgradeUrl = new URL('/app/settings', request.url);
+        upgradeUrl.searchParams.set('upgrade', requiredFeature);
+        return NextResponse.redirect(upgradeUrl);
+      }
+    } catch {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({
+          ok: false,
+          error: { code: 'INTERNAL_ERROR', message: 'Failed to verify feature access' },
+        }, { status: 500 });
+      }
+    }
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/login', '/signup', '/api/v1/:path*'],
+  matcher: [
+    '/app/:path*',
+    '/login',
+    '/signup',
+    '/api/v1/:path*',
+    '/api/calendar/:path*',
+    '/api/events/:path*',
+    '/api/tasks/:path*',
+    '/api/action-plans/:path*',
+    '/api/goals/:path*',
+    '/api/finance/:path*',
+    '/api/connectors/:path*',
+    '/api/weekly-reviews/:path*',
+    '/api/monthly-reviews/:path*',
+    '/api/briefings/:path*',
+    '/api/reminders/:path*',
+    '/api/meetings/:path*',
+    '/api/ai/images/:path*',
+    '/api/whatsapp/channel/:path*',
+  ],
 };

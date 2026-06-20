@@ -4,6 +4,7 @@ import { POST } from '@/app/api/support/cancellation-requests/route';
 const mockInsert = jest.fn();
 const mockSelectAfterInsert = jest.fn();
 const mockSingle = jest.fn();
+const mockAlertInsert = jest.fn();
 
 function makeSubscriptionChain() {
   const chain: any = {
@@ -36,6 +37,7 @@ function makeCancellationChain() {
 const mockFrom = jest.fn((table: string) => {
   if (table === 'user_subscriptions') return makeSubscriptionChain();
   if (table === 'subscription_cancellation_requests') return makeCancellationChain();
+  if (table === 'billing_admin_alerts') return { insert: mockAlertInsert };
   return {};
 });
 
@@ -59,6 +61,7 @@ describe('POST /api/support/cancellation-requests', () => {
       data: { id: 'cancel-1', status: 'open', created_at: '2026-06-06T00:00:00.000Z' },
       error: null,
     });
+    mockAlertInsert.mockResolvedValue({ error: null });
   });
 
   it('creates an open cancellation request with the active subscription context', async () => {
@@ -84,6 +87,11 @@ describe('POST /api/support/cancellation-requests', () => {
       billing_provider: 'stripe',
       source: 'billing_page',
       status: 'open',
+    }));
+    expect(mockAlertInsert).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'cancellation_request',
+      user_id: 'user-1',
+      provider: 'stripe',
     }));
   });
 

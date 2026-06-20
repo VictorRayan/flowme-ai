@@ -3,6 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { computeEntitlementsFromSubscription } from '@/lib/billing/entitlements';
 import { getStripeClient, stripeSubscriptionToRow } from '@/lib/billing/stripe-adapter';
+import { recordBillingAdminAlert, resolvePaymentFailureAdminAlerts } from '@/lib/billing/admin-alerts';
+import {
+  clearBillingFailureNotifications,
+  createBillingNotification,
+  type BillingNotificationKind,
+} from '@/lib/billing/notifications';
+
+type StripeInvoiceObject = {
+  id: string;
+  customer?: string | { id?: string } | null;
+  subscription?: string | { id?: string } | null;
+  metadata?: Record<string, string> | null;
+  parent?: { subscription_details?: { subscription?: string | { id?: string } | null } | null } | null;
+};
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -81,6 +95,55 @@ async function resolveUserId(admin: any, subscription: Stripe.Subscription): Pro
   return data?.user_id || null;
 }
 
+function invoiceSubscriptionId(invoice: StripeInvoiceObject): string | null {
+  const subscription = invoice.subscription || invoice.parent?.subscription_details?.subscription;
+  return typeof subscription === 'string' ? subscription : subscription?.id || null;
+}
+
+async function resolveInvoiceContext(admin: any, invoice: StripeInvoiceObject) {
+  const subscriptionId = invoiceSubscriptionId(invoice);
+  if (subscriptionId) {
+    const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
+    const userId = await resolveUserId(admin, subscription);
+    if (userId) await persistSubscription(admin, stripeSubscriptionToRow(subscription, userId));
+    return { userId, subscriptionId };
+  }
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id || null;
+  if (!customerId) return { userId: invoice.metadata?.user_id || null, subscriptionId: null };
+  const { data, error } = await admin.from('user_subscriptions')
+    .select('user_id,provider_subscription_id')
+    .eq('billing_provider', 'stripe')
+    .eq('provider_customer_id', customerId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return { userId: data?.user_id || invoice.metadata?.user_id || null, subscriptionId: data?.provider_subscription_id || null };
+}
+
+async function notifyInvoiceFailure(
+  admin: any,
+  invoice: StripeInvoiceObject,
+  kind: BillingNotificationKind,
+) {
+  const context = await resolveInvoiceContext(admin, invoice);
+  if (!context.userId) throw new Error('Unable to resolve user for Stripe invoice');
+  await createBillingNotification(admin, {
+    userId: context.userId,
+    kind,
+    provider: 'stripe',
+    metadata: { invoice_id: invoice.id, provider_subscription_id: context.subscriptionId },
+  });
+  await recordBillingAdminAlert(admin, {
+    kind: 'payment_failure',
+    severity: kind === 'payment_failed' ? 'critical' : 'warning',
+    userId: context.userId,
+    provider: 'stripe',
+    dedupeKey: `stripe-invoice:${invoice.id}:${kind}`,
+    metadata: { invoice_id: invoice.id, event_kind: kind },
+  });
+}
+
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) return NextResponse.json({ ok: false, error: 'STRIPE_WEBHOOK_SECRET not configured' }, { status: 500 });
@@ -119,11 +182,36 @@ export async function POST(req: NextRequest) {
       await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
     }
 
+    if (event.type === 'invoice.payment_failed') {
+      await notifyInvoiceFailure(admin, event.data.object as unknown as StripeInvoiceObject, 'payment_failed');
+    }
+
+    if (event.type === 'invoice.payment_action_required') {
+      await notifyInvoiceFailure(admin, event.data.object as unknown as StripeInvoiceObject, 'payment_action_required');
+    }
+
+    if (event.type === 'invoice.finalization_failed') {
+      await notifyInvoiceFailure(admin, event.data.object as unknown as StripeInvoiceObject, 'invoice_finalization_failed');
+    }
+
+    if (event.type === 'invoice.paid') {
+      const context = await resolveInvoiceContext(admin, event.data.object as unknown as StripeInvoiceObject);
+      if (context.userId) {
+        await clearBillingFailureNotifications(admin, context.userId);
+        await resolvePaymentFailureAdminAlerts(admin, context.userId);
+      }
+    }
+
     await markEventProcessed(admin, event);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to process Stripe webhook';
     console.error('[stripe-webhook] failed:', error);
+    await recordBillingAdminAlert(adminClient(), {
+      kind: 'webhook_failure', severity: 'critical', provider: 'stripe',
+      dedupeKey: `stripe-webhook:${event.id}`,
+      metadata: { event_id: event.id, event_type: event.type, error: message },
+    });
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

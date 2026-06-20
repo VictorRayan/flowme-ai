@@ -2,7 +2,9 @@ import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/connectors/route';
 import { PATCH, DELETE } from '@/app/api/connectors/[id]/route';
 import { POST as CONNECT } from '@/app/api/connectors/[id]/connect/route';
+import { POST as DISCONNECT } from '@/app/api/connectors/[id]/disconnect/route';
 import { requireAuth } from '@/lib/api/auth';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 const MOCK_CONNECTOR = {
   id: 'conn-1',
@@ -38,6 +40,34 @@ jest.mock('@/lib/api/auth', () => ({
   ),
 }));
 
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({})),
+}));
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: jest.fn().mockResolvedValue({ features: { connectors: true } }),
+  };
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (requireAuth as jest.Mock).mockResolvedValue({ user: { id: 'user-1' }, supabase: makeChain() });
+  (requireFeature as jest.Mock).mockResolvedValue({ features: { connectors: true } });
+});
+
 describe('GET /api/connectors', () => {
   it('returns connector list with ok:true', async () => {
     const req = new NextRequest('http://localhost/api/connectors');
@@ -46,6 +76,18 @@ describe('GET /api/connectors', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(Array.isArray(body.connectors)).toBe(true);
+  });
+
+  it('returns FEATURE_LOCKED for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('connectors' as any));
+
+    const res = await GET(new NextRequest('http://localhost/api/connectors'));
+    const body = await res.json();
+
+    expect(res.status).toBe(402);
+    expect(body.error.code).toBe('FEATURE_LOCKED');
+    expect(body.required_plan).toBe('pro');
+    expect(body.feature_key).toBe('connectors');
   });
 });
 
@@ -118,6 +160,18 @@ describe('POST /api/connectors', () => {
 });
 
 describe('PATCH /api/connectors/[id]', () => {
+  it('returns FEATURE_LOCKED for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('connectors' as any));
+
+    const res = await PATCH(new NextRequest('http://localhost/api/connectors/conn-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Personal email' }),
+    }), { params: Promise.resolve({ id: 'conn-1' }) });
+
+    expect(res.status).toBe(402);
+    expect((await res.json()).error.code).toBe('FEATURE_LOCKED');
+  });
+
   it('renames a connector', async () => {
     const req = new NextRequest('http://localhost/api/connectors/conn-1', {
       method: 'PATCH',
@@ -185,6 +239,17 @@ describe('POST /api/connectors/[id]/connect', () => {
     return chain;
   }
 
+  it('returns FEATURE_LOCKED for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('connectors' as any));
+
+    const res = await CONNECT(new NextRequest('http://localhost/api/connectors/conn-1/connect', { method: 'POST' }), {
+      params: Promise.resolve({ id: 'conn-1' }),
+    });
+
+    expect(res.status).toBe(402);
+    expect((await res.json()).error.code).toBe('FEATURE_LOCKED');
+  });
+
   it('reuses an existing Google linked account instead of creating a duplicate placeholder', async () => {
     const connector = {
       id: 'conn-sheets',
@@ -246,5 +311,20 @@ describe('POST /api/connectors/[id]/connect', () => {
       provider: 'google',
       is_active: false,
     }));
+  });
+});
+
+describe('POST /api/connectors/[id]/disconnect', () => {
+  it('returns FEATURE_LOCKED for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('connectors' as any));
+
+    const res = await DISCONNECT(new NextRequest('http://localhost/api/connectors/conn-1/disconnect', { method: 'POST' }), {
+      params: Promise.resolve({ id: 'conn-1' }),
+    });
+
+    expect(res.status).toBe(402);
+    const body = await res.json();
+    expect(body.error.code).toBe('FEATURE_LOCKED');
+    expect(body.required_plan).toBe('pro');
   });
 });

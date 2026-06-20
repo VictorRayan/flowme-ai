@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireApiKeyAuth } from '@/lib/api/api-key-auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { createCalendarEvent } from '@/lib/google/google-calendar';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 /**
  * POST /api/v1/calendar/create
@@ -23,6 +24,12 @@ export async function POST(req: NextRequest) {
     const auth = await requireApiKeyAuth(req, ['calendar.write']);
     if (auth instanceof Response) return auth;
     const { userId, supabase } = auth;
+    const entitlements = await getUserEntitlements(supabase, userId);
+    if (!isFeatureAllowed(entitlements, 'calendar')) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Calendar requires Flow Me Pro', 402, {
+        required_plan: 'pro', feature_key: 'calendar', checkout_available: true,
+      });
+    }
 
     const body = await req.json();
     const { linked_account_id, title, description, start_at, end_at, create_meet, participants } = body;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, type ToolContext } from './Tool';
+import { defineFeatureTool, type Tool, type ToolContext } from './Tool';
 import { getValidSlackClient } from '@/lib/slack/slack-auth';
 import {
   searchMessages,
@@ -12,6 +12,10 @@ import {
 
 const NOT_CONNECTED_ERROR =
   'Slack não conectado. Vá em Configurações → Conexões e conecte um workspace antes de tentar de novo.';
+
+function defineSlackTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('connectors', 'Slack requires Flow Me Pro.', tool);
+}
 
 async function getSlackAccountId(context: ToolContext): Promise<string | null> {
   const { data: slackConnector } = await context.supabase
@@ -56,7 +60,7 @@ async function withSlackClient<T>(
   }
 }
 
-export const slackSearchMessagesTool = defineTool({
+export const slackSearchMessagesTool = defineSlackTool({
   name: 'slack.search_messages',
   description: `Keyword search across the user's Slack workspace via Slack's search API.
 
@@ -81,7 +85,7 @@ CONTRACT:
   call: async (args, context) => withSlackClient(context, (client) => searchMessages(client, args.query, args.count ?? 10)),
 });
 
-export const slackListChannelsTool = defineTool({
+export const slackListChannelsTool = defineSlackTool({
   name: 'slack.list_channels',
   description: `List channels and DMs the user has access to.
 
@@ -102,7 +106,7 @@ CONTRACT:
   call: async (args, context) => withSlackClient(context, (client) => listConversations(client, { types: args.types, limit: args.limit })),
 });
 
-export const slackReadChannelTool = defineTool({
+export const slackReadChannelTool = defineSlackTool({
   name: 'slack.read_channel',
   description: `Read recent messages from a single channel or DM.
 
@@ -125,7 +129,7 @@ CONTRACT:
   call: async (args, context) => withSlackClient(context, (client) => readChannelHistory(client, args.channel, args.limit ?? 20)),
 });
 
-export const slackReadThreadTool = defineTool({
+export const slackReadThreadTool = defineSlackTool({
   name: 'slack.read_thread',
   description: `Read the full replies of a thread.
 
@@ -143,7 +147,7 @@ CONTRACT:
   call: async (args, context) => withSlackClient(context, (client) => readThread(client, args.channel, args.thread_ts, args.limit ?? 100)),
 });
 
-export const slackGetUserTool = defineTool({
+export const slackGetUserTool = defineSlackTool({
   name: 'slack.get_user',
   description: `Look up profile info for a Slack user ID (real name, email, timezone). Read-only.`,
   isReadOnly: true,
@@ -151,7 +155,7 @@ export const slackGetUserTool = defineTool({
   call: async (args, context) => withSlackClient(context, (client) => getUserInfo(client, args.user_id)),
 });
 
-export const slackSendMessageTool = defineTool({
+export const slackSendMessageTool = defineSlackTool({
   name: 'slack.send_message',
   description: `Post a message to a Slack channel/DM or reply in a thread, **as the user**.
 

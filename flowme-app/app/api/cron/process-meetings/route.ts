@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { runMeetingPipeline, runReanalysis } from '@/lib/meetings/pipeline';
 import { downloadFromR2 } from '@/lib/r2/storage';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
+import { acquireAiUsageGuard, releaseAiUsageGuard } from '@/lib/billing/ai-guardrails';
 
 // POST /api/cron/process-meetings — Vercel cron-triggered.
 // Claims meetings whose status is 'processing' or 'reanalyzing' and runs
@@ -28,28 +30,46 @@ async function run(req: NextRequest) {
   // 1) Run main pipeline for meetings in 'processing'
   const { data: pendingMeetings } = await admin
     .from('meeting_recordings')
-    .select('id, summary')
+    .select('id, user_id, summary')
     .eq('status', 'processing')
     .order('updated_at', { ascending: true })
     .limit(5);
 
   const pipelineResults: any[] = [];
   for (const m of (pendingMeetings || []) as any[]) {
+    const entitlements = await getUserEntitlements(admin, m.user_id);
+    if (!isFeatureAllowed(entitlements, 'meetings')) continue;
+    const guard = await acquireAiUsageGuard(admin, m.user_id, 'meeting');
+    if (!guard.allowed) {
+      pipelineResults.push({ meeting_id: m.id, ok: false, guarded: true, retry_after_seconds: guard.retryAfterSeconds });
+      continue;
+    }
     const fromStage = (m.summary?.retry_from_stage as any) || 'assemble';
-    const result = await runMeetingPipeline({ supabase: admin, meetingId: m.id, startFrom: fromStage });
-    pipelineResults.push({ meeting_id: m.id, ok: result.ok, failedStage: result.failedStage });
+    try {
+      const result = await runMeetingPipeline({ supabase: admin, meetingId: m.id, startFrom: fromStage });
+      pipelineResults.push({ meeting_id: m.id, ok: result.ok, failedStage: result.failedStage });
+    } finally {
+      await releaseAiUsageGuard(admin, guard.leaseId);
+    }
   }
 
   // 2) Run reanalysis for meetings whose status is 'reanalyzing'
   const { data: reanalyzing } = await admin
     .from('meeting_recordings')
-    .select('id')
+    .select('id, user_id')
     .eq('status', 'reanalyzing')
     .order('updated_at', { ascending: true })
     .limit(5);
 
   const reanalysisResults: any[] = [];
   for (const m of (reanalyzing || []) as any[]) {
+    const entitlements = await getUserEntitlements(admin, m.user_id);
+    if (!isFeatureAllowed(entitlements, 'meetings')) continue;
+    const guard = await acquireAiUsageGuard(admin, m.user_id, 'meeting');
+    if (!guard.allowed) {
+      reanalysisResults.push({ meeting_id: m.id, ok: false, guarded: true, retry_after_seconds: guard.retryAfterSeconds });
+      continue;
+    }
     const { data: pending } = await admin
       .from('meeting_speaker_corrections')
       .select('id, correction_audio_r2_key')
@@ -58,7 +78,10 @@ async function run(req: NextRequest) {
       .order('sequence_number', { ascending: false })
       .limit(1);
     const correction = (pending || [])[0] as any;
-    if (!correction) continue;
+    if (!correction) {
+      await releaseAiUsageGuard(admin, guard.leaseId);
+      continue;
+    }
 
     // Transcribe the correction audio with Gemini Flash (cheap, short clip).
     let correctionText = '';
@@ -76,11 +99,16 @@ async function run(req: NextRequest) {
         .eq('id', correction.id);
       await admin.from('meeting_recordings').update({ status: 'finalization_review' }).eq('id', m.id);
       reanalysisResults.push({ meeting_id: m.id, ok: false, error: message });
+      await releaseAiUsageGuard(admin, guard.leaseId);
       continue;
     }
 
-    const out = await runReanalysis({ supabase: admin, meetingId: m.id, correctionText, correctionId: correction.id });
-    reanalysisResults.push({ meeting_id: m.id, ok: out.ok });
+    try {
+      const out = await runReanalysis({ supabase: admin, meetingId: m.id, correctionText, correctionId: correction.id });
+      reanalysisResults.push({ meeting_id: m.id, ok: out.ok });
+    } finally {
+      await releaseAiUsageGuard(admin, guard.leaseId);
+    }
   }
 
   return NextResponse.json({

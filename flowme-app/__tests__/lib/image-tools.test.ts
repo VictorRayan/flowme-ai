@@ -1,3 +1,14 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+    constructor(feature: string) { super('Feature requires Flow Me Pro'); this.name = 'FeatureLockedError'; this.feature = feature; }
+  }
+  return { FeatureLockedError, requireFeature: (...args: unknown[]) => mockRequireFeature(...args) };
+});
+
 import { GoogleGenAI } from '@google/genai';
 import { imagesGenerateTool, buildGeneratedImageKey, buildGeneratedImageUrl } from '@/lib/ai/tools/image-tools';
 import { uploadToR2 } from '@/lib/r2/storage';
@@ -24,7 +35,16 @@ const context = {
 describe('images.generate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { images: true } });
     process.env.GEMINI_API_KEY = 'test-key';
+  });
+
+  it('blocks Free users before calling Gemini', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('images'));
+    const result = await imagesGenerateTool.call({ prompt: 'A test image' }, context);
+    expect(result.data).toEqual(expect.objectContaining({ code: 'FEATURE_LOCKED', feature_key: 'images' }));
+    expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
   it('generates a PNG, uploads it to R2, and returns a chat attachment URL', async () => {

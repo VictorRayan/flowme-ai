@@ -1,3 +1,14 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+    constructor(feature: string) { super('Feature requires Flow Me Pro'); this.name = 'FeatureLockedError'; this.feature = feature; }
+  }
+  return { FeatureLockedError, requireFeature: (...args: unknown[]) => mockRequireFeature(...args) };
+});
+
 jest.mock('@/lib/reviews/weekly-review', () => ({
   ensureCurrentWeeklyReview: jest.fn(),
   refreshLatestWeeklyReviewIfOutdated: jest.fn(),
@@ -15,7 +26,17 @@ const context: any = {
 };
 
 describe('reviews tools', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { reviews: true } });
+  });
+
+  it('blocks Free users before generating a review', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('reviews'));
+    const result = await reviewsStartWeeklyReviewTool.call({}, context);
+    expect(result.data).toEqual(expect.objectContaining({ code: 'FEATURE_LOCKED', feature_key: 'reviews' }));
+  });
 
   it('starts the current weekly review and returns human-readable feedback', async () => {
     (ensureCurrentWeeklyReview as jest.Mock).mockResolvedValue({

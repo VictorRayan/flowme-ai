@@ -1,3 +1,11 @@
+const mockGetUserEntitlements = jest.fn();
+const mockIsFeatureAllowed = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => ({
+  getUserEntitlements: (...args: unknown[]) => mockGetUserEntitlements(...args),
+  isFeatureAllowed: (...args: unknown[]) => mockIsFeatureAllowed(...args),
+}));
+
 import { resolveReminderProvider, providerLabel } from '@/lib/reminders/providers';
 import { createReminder, normalizeScheduledFor, sendDueReminders, validateReminderInput } from '@/lib/reminders/reminders';
 import { sendText } from '@/lib/whatsapp/evolution-client';
@@ -8,6 +16,8 @@ jest.mock('@/lib/whatsapp/evolution-client', () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetUserEntitlements.mockResolvedValue({ features: { reminders: true } });
+  mockIsFeatureAllowed.mockReturnValue(true);
 });
 
 function makeSelectChain<T>(data: T[]) {
@@ -122,6 +132,21 @@ describe('createReminder', () => {
 });
 
 describe('sendDueReminders', () => {
+  it('skips delivery for Free users', async () => {
+    mockIsFeatureAllowed.mockReturnValue(false);
+    const dueReminder = {
+      id: 'rem-free', user_id: 'user-free', message: 'Hora do foco', scheduled_for: '2026-05-20T10:00:00.000Z',
+      channel_preference: 'whatsapp', status: 'scheduled',
+    };
+    const remindersChain = makeSelectChain([dueReminder]);
+    const supabase = { from: jest.fn().mockReturnValue(remindersChain) };
+
+    const result = await sendDueReminders(supabase, '2026-05-20T10:05:00.000Z');
+
+    expect(result).toEqual({ inspected: 1, sent: 0, failed: 0, skipped: 1 });
+    expect(sendText).not.toHaveBeenCalled();
+  });
+
   it('sends due WhatsApp reminders and marks them sent', async () => {
     const dueReminder = {
       id: 'rem-1',

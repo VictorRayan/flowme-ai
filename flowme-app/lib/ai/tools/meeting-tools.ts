@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { defineTool, type ToolContext } from './Tool';
+import { defineFeatureTool, type Tool, type ToolContext } from './Tool';
+
+function defineMeetingsTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('meetings', 'Meetings require Flow Me Pro.', tool);
+}
 
 interface MeetingRow {
   id: string;
@@ -17,7 +21,7 @@ interface MeetingRow {
 
 const NOT_FOUND_ERROR = 'Não encontrei essa reunião nas suas notas.';
 
-export const meetingsListRecentTool = defineTool({
+export const meetingsListRecentTool = defineMeetingsTool({
   name: 'meetings.list_recent',
   description: `List the user's recent meeting recordings, newest first.
 
@@ -60,7 +64,7 @@ CONTRACT:
   },
 });
 
-export const meetingsGetDetailTool = defineTool({
+export const meetingsGetDetailTool = defineMeetingsTool({
   name: 'meetings.get_detail',
   description: `Read the full transcript, speakers and tasks of a single meeting.
 
@@ -154,7 +158,7 @@ LIMIT: transcripts can be long. Default returns up to 200 segments; pass include
   },
 });
 
-export const meetingsSearchSegmentsTool = defineTool({
+export const meetingsSearchSegmentsTool = defineMeetingsTool({
   name: 'meetings.search_segments',
   description: `Search transcript segments across all of the user's meetings by a keyword.
 

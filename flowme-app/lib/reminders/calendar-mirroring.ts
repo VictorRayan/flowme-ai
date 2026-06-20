@@ -1,6 +1,7 @@
 import { createReminder } from '@/lib/reminders/reminders';
 import { getCalendarDefaultReminders, getCalendarEvents } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 type GoogleReminder = { minutes?: number | null };
 type SupabaseError = { message: string };
@@ -44,6 +45,8 @@ export async function materializeCalendarWhatsappReminders(
   const timeMax = new Date(now.getTime() + 24 * 60 * 60000).toISOString();
 
   for (const profile of profiles || []) {
+    const entitlements = await getUserEntitlements(supabase, profile.user_id);
+    if (!isFeatureAllowed(entitlements, 'reminders')) continue;
     const { data: linkedAccounts } = await (supabase.from('linked_accounts') as SelectQuery<Account>)
       .select('id, name')
       .eq('user_id', profile.user_id)

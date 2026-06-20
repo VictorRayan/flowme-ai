@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import { defineTool } from './Tool';
+import { defineFeatureTool, type Tool } from './Tool';
 import { ensureCurrentWeeklyReview, refreshLatestWeeklyReviewIfOutdated, saveWeeklyBriefingAndRegenerate, type WeeklyReviewRecord } from '@/lib/reviews/weekly-review';
 import { ensureMonthlyReview, getLatestMonthlyReview, type MonthlyReviewRecord } from '@/lib/reviews/monthly-review';
+
+function defineReviewsTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('reviews', 'Reviews require Flow Me Pro.', tool);
+}
 
 function visibleReview(review: WeeklyReviewRecord | null) {
   if (!review) return null;
@@ -32,7 +36,7 @@ function visibleMonthlyReview(review: MonthlyReviewRecord | null) {
   };
 }
 
-export const reviewsStartWeeklyReviewTool = defineTool({
+export const reviewsStartWeeklyReviewTool = defineReviewsTool({
   name: 'reviews.start_weekly_review',
   description: `Starts or refreshes the user's current Weekly Review using deterministic Flow Me evidence and Council-backed interpretation.
 
@@ -54,7 +58,7 @@ CONTRACT:
   },
 });
 
-export const reviewsGetLatestTool = defineTool({
+export const reviewsGetLatestTool = defineReviewsTool({
   name: 'reviews.get_latest',
   description: `Reads the user's latest Weekly Review.
 
@@ -72,7 +76,7 @@ RETURNS human-readable evidence and feedback only. Never expose technical IDs.`,
   },
 });
 
-export const reviewsSaveWeeklyBriefingTool = defineTool({
+export const reviewsSaveWeeklyBriefingTool = defineReviewsTool({
   name: 'reviews.save_weekly_briefing',
   description: `Saves the user's short weekly briefing and regenerates the Weekly Review.
 
@@ -95,7 +99,7 @@ CONTRACT:
   },
 });
 
-export const reviewsStartMonthlyReviewTool = defineTool({
+export const reviewsStartMonthlyReviewTool = defineReviewsTool({
   name: 'reviews.start_monthly_review',
   description: `Generates the user's latest Monthly Finance Review from deterministic financial data for the month that just closed.
 
@@ -117,7 +121,7 @@ CONTRACT:
   },
 });
 
-export const reviewsGetLatestMonthlyTool = defineTool({
+export const reviewsGetLatestMonthlyTool = defineReviewsTool({
   name: 'reviews.get_latest_monthly',
   description: `Reads the user's latest Monthly Finance Review. Use when the user asks what Balys learned from their last month or latest monthly financial review.`,
   isReadOnly: true,

@@ -1,3 +1,23 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: (...args: unknown[]) => mockRequireFeature(...args),
+  };
+});
+
 import {
   goalsDeletePlanTool,
   goalsListCalendarEventsTool,
@@ -71,7 +91,10 @@ function makeContext(opts: { goalEvents?: any[]; goals?: any[] } = {}) {
 
 type Operation = { table: string; method: string; args: unknown[] };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockRequireFeature.mockResolvedValue({ features: { goals: true } });
+});
 
 describe('goals.list_calendar_events', () => {
   it('reports active and deleted events so Balys can explain removals', async () => {

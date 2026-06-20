@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolContext } from './Tool';
+import { defineFeatureTool, ToolContext, type Tool } from './Tool';
 import { searchEmails, createDraft, readEmailMessage, GmailMessageSummary } from '@/lib/google/google-gmail';
 import { google } from 'googleapis';
 import { getValidGoogleToken } from '@/lib/google/google-auth';
@@ -32,6 +32,10 @@ type GmailReadSelector = {
   query?: string;
   hint?: string;
 };
+
+function defineConnectorTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('connectors', 'Connectors require Flow Me Pro.', tool);
+}
 
 const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
 const GOOGLE_SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
@@ -458,7 +462,7 @@ function extractGoogleDocPlainText(elements: any[]): string {
 
 /* ── tools ── */
 
-export const connectorsListTool = defineTool({
+export const connectorsListTool = defineConnectorTool({
   name: 'connectors.list',
   description: `Lists all connectors the user has added, including their connection status.
 
@@ -502,7 +506,7 @@ CONTRACT:
   },
 });
 
-export const connectorsReadSheetTool = defineTool({
+export const connectorsReadSheetTool = defineConnectorTool({
   name: 'connectors.read_sheet',
   description: `Reads data from a Google Sheets connector. Returns the raw cell values from the specified range.
 
@@ -572,7 +576,7 @@ RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
   },
 });
 
-export const connectorsSearchDocsTool = defineTool({
+export const connectorsSearchDocsTool = defineConnectorTool({
   name: 'connectors.search_docs',
   description: `Discovers files through a Google Drive, Docs, or Sheets connector.
 
@@ -635,7 +639,7 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
   },
 });
 
-export const connectorsReadDriveFileTool = defineTool({
+export const connectorsReadDriveFileTool = defineConnectorTool({
   name: 'connectors.read_drive_file',
   description: `Reads the text content of a file selected from Drive discovery.
 
@@ -700,7 +704,7 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
   },
 });
 
-export const connectorsReadDocTool = defineTool({
+export const connectorsReadDocTool = defineConnectorTool({
   name: 'connectors.read_doc',
   description: `Reads the full plain-text content of a Google Docs document connected via a Docs connector.
 
@@ -758,7 +762,7 @@ RETURNS receipt: { title, content, word_count }`,
   },
 });
 
-export const connectorsFindAndReadDocTool = defineTool({
+export const connectorsFindAndReadDocTool = defineConnectorTool({
   name: 'connectors.find_and_read_doc',
   description: `Finds a Google Docs document by natural name or reads it directly from a pasted Google Docs URL, then returns its plain-text content.
 
@@ -846,7 +850,7 @@ RETURNS receipt: { title, document_id, content, word_count, matched_by, candidat
   },
 });
 
-export const connectorsCreateDocTool = defineTool({
+export const connectorsCreateDocTool = defineConnectorTool({
   name: 'connectors.create_doc',
   description: `Creates a new Google Docs document in the connected Google account and writes initial content into it.
 
@@ -920,7 +924,7 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
   },
 });
 
-export const connectorsSheetsAgentTool = defineTool({
+export const connectorsSheetsAgentTool = defineConnectorTool({
   name: 'connectors.sheets_agent',
   description: `Invokes the Google Sheets Financial Economist Agent — a specialist sub-agent that reads spreadsheet context, generates financial insights, plans formulas, and edits Google Sheets with precision.
 
@@ -998,7 +1002,7 @@ RETURNS receipt: { summary, changes[], insights[] }`,
   },
 });
 
-export const connectorsDocsAgentTool = defineTool({
+export const connectorsDocsAgentTool = defineConnectorTool({
   name: 'connectors.docs_agent',
   description: `Invokes the Google Docs Editorial Agent — a senior editor and Google Docs API specialist that reads, plans, writes, rewrites, structures, formats, and edits an existing Google Doc with precision.
 
@@ -1062,7 +1066,7 @@ RETURNS receipt: { summary, changes[] }`,
   },
 });
 
-export const gmailSearchMessagesTool = defineTool({
+export const gmailSearchMessagesTool = defineConnectorTool({
   name: 'gmail.search_messages',
   description: `Searches the user's Gmail using Google's standard search syntax. Read-only — does not open, mark, or modify anything.
 
@@ -1107,7 +1111,7 @@ ASK THE USER FIRST IF: the query is broad enough to be sensitive ("all emails fr
   },
 });
 
-export const gmailReadMessageTool = defineTool({
+export const gmailReadMessageTool = defineConnectorTool({
   name: 'gmail.read_message',
   description: `Reads the full body of a selected Gmail message. Read-only — does not mark, archive, reply, or modify anything.
 
@@ -1201,7 +1205,7 @@ RETURNS receipt: { message }. The message includes subject, from, to, date, body
   },
 });
 
-export const gmailCreateDraftTool = defineTool({
+export const gmailCreateDraftTool = defineConnectorTool({
   name: 'gmail.create_draft',
   description: `Saves an email DRAFT in the user's Gmail. Does NOT send. The draft appears in their Drafts folder for them to review and send manually.
 

@@ -1,3 +1,23 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: (...args: unknown[]) => mockRequireFeature(...args),
+  };
+});
+
 import {
   slackSearchMessagesTool,
   slackListChannelsTool,
@@ -42,6 +62,8 @@ function makeContext(connectorRow: any, accountRow: any = null) {
 }
 
 beforeEach(() => {
+  mockRequireFeature.mockReset();
+  mockRequireFeature.mockResolvedValue({ features: { connectors: true } });
   mockSearch.mockReset();
   mockList.mockReset();
   mockHistory.mockReset();
@@ -49,6 +71,20 @@ beforeEach(() => {
 });
 
 describe('slack-tools — connector resolution', () => {
+  it('blocks Free users before resolving the Slack account', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('connectors'));
+    const ctx = makeContext({ config: { linked_account_id: 'la-1' } });
+
+    const result = await slackSearchMessagesTool.call({ query: 'hi' }, ctx);
+
+    expect(result.ok).toBe(false);
+    expect(result.data).toEqual(expect.objectContaining({
+      code: 'FEATURE_LOCKED',
+      feature_key: 'connectors',
+    }));
+  });
+
   it('returns the not-connected error when neither connector nor linked account exists', async () => {
     const ctx = makeContext(null, null);
     const r = await slackSearchMessagesTool.call({ query: 'hi' }, ctx);

@@ -31,6 +31,39 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
       STRIPE_PRO_MONTHLY_PRICE_ID: ${STRIPE_PRO_MONTHLY_PRICE_ID}
       STRIPE_PRO_ANNUAL_PRICE_ID: ${STRIPE_PRO_ANNUAL_PRICE_ID}
+      APPLE_BUNDLE_ID: ${APPLE_BUNDLE_ID}
+      APPLE_ISSUER_ID: ${APPLE_ISSUER_ID}
+      APPLE_KEY_ID: ${APPLE_KEY_ID}
+      APPLE_PRIVATE_KEY_BASE64: ${APPLE_PRIVATE_KEY_BASE64}
+      APPLE_ROOT_CA_BASE64: ${APPLE_ROOT_CA_BASE64}
+      APPLE_PRO_MONTHLY_PRODUCT_ID: ${APPLE_PRO_MONTHLY_PRODUCT_ID}
+      APPLE_PRO_ANNUAL_PRODUCT_ID: ${APPLE_PRO_ANNUAL_PRODUCT_ID}
+      GOOGLE_PLAY_PACKAGE_NAME: ${GOOGLE_PLAY_PACKAGE_NAME}
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64}
+      GOOGLE_PLAY_PRO_MONTHLY_PRODUCT_ID: ${GOOGLE_PLAY_PRO_MONTHLY_PRODUCT_ID}
+      GOOGLE_PLAY_PRO_ANNUAL_PRODUCT_ID: ${GOOGLE_PLAY_PRO_ANNUAL_PRODUCT_ID}
+      GOOGLE_PLAY_WEBHOOK_TOKEN: ${GOOGLE_PLAY_WEBHOOK_TOKEN}
+      APNS_KEY_ID: ${APNS_KEY_ID}
+      APNS_TEAM_ID: ${APNS_TEAM_ID}
+      APNS_PRIVATE_KEY: ${APNS_PRIVATE_KEY}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID}
+      APNS_USE_SANDBOX: ${APNS_USE_SANDBOX:-false}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID}
+      FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL}
+      FCM_PRIVATE_KEY: ${FCM_PRIVATE_KEY}
+      BILLING_ADMIN_USER_IDS: ${BILLING_ADMIN_USER_IDS}
+      DAILY_AI_COST_ALERT_USD: ${DAILY_AI_COST_ALERT_USD:-5}
+      BALYS_PRO_REQUESTS_PER_MINUTE: ${BALYS_PRO_REQUESTS_PER_MINUTE:-30}
+      BALYS_PRO_EXPENSIVE_CONCURRENCY: ${BALYS_PRO_EXPENSIVE_CONCURRENCY:-2}
+      BALYS_PRO_EXPENSIVE_LEASE_SECONDS: ${BALYS_PRO_EXPENSIVE_LEASE_SECONDS:-900}
+      BALYS_PRO_IMAGE_GENERATION_DAILY_LIMIT: ${BALYS_PRO_IMAGE_GENERATION_DAILY_LIMIT:-10}
+      BALYS_PRO_COUNCIL_DAILY_LIMIT: ${BALYS_PRO_COUNCIL_DAILY_LIMIT:-10}
+      BALYS_PRO_WEB_GROUNDED_DAILY_LIMIT: ${BALYS_PRO_WEB_GROUNDED_DAILY_LIMIT:-30}
+      BALYS_PRO_CONNECTOR_READ_DAILY_LIMIT: ${BALYS_PRO_CONNECTOR_READ_DAILY_LIMIT:-100}
+      BALYS_PRO_BALYS_TOOL_DAILY_LIMIT: ${BALYS_PRO_BALYS_TOOL_DAILY_LIMIT:-100}
+      BALYS_PRO_MEETING_DAILY_LIMIT: ${BALYS_PRO_MEETING_DAILY_LIMIT:-5}
+      BALYS_PRO_REVIEW_DAILY_LIMIT: ${BALYS_PRO_REVIEW_DAILY_LIMIT:-6}
+      BALYS_PRO_BRIEFING_DAILY_LIMIT: ${BALYS_PRO_BRIEFING_DAILY_LIMIT:-6}
       BALYS_ENABLE_GROK_CHAT: ${BALYS_ENABLE_GROK_CHAT}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
@@ -80,6 +113,9 @@ services:
           curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] generate-monthly-reviews %{http_code}\n" \
             -H "Authorization: Bearer $$CRON_SECRET" \
             http://flowme-app:3000/api/cron/generate-monthly-reviews || true
+          curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] deliver-billing-notifications %{http_code}\n" \
+            -H "Authorization: Bearer $$CRON_SECRET" \
+            http://flowme-app:3000/api/cron/deliver-billing-notifications || true
           # Meeting pipeline — runs every minute. The endpoint short-circuits
           # when no meeting is in `processing` or `reanalyzing`.
           curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] process-meetings %{http_code}\n" \
@@ -101,6 +137,9 @@ services:
           TODAY=$$(date -u +%Y-%m-%d)
           HOUR=$$(date -u +%H)
           if [ "$$HOUR" = "04" ] && [ "$$LAST_DAILY" != "$$TODAY" ]; then
+            curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] reconcile-billing %{http_code}\n" \
+              -H "Authorization: Bearer $$CRON_SECRET" \
+              http://flowme-app:3000/api/cron/reconcile-billing || true
             curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] summarize-stale-threads %{http_code}\n" \
               -H "Authorization: Bearer $$CRON_SECRET" \
               http://flowme-app:3000/api/cron/summarize-stale-threads || true

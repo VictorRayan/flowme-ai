@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/goals/route';
 import { PATCH, DELETE } from '@/app/api/goals/[id]/route';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 const MOCK_GOAL = {
   id: 'goal-1',
@@ -30,7 +31,45 @@ jest.mock('@/lib/api/auth', () => ({
   ),
 }));
 
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({})),
+}));
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: jest.fn().mockResolvedValue({ features: { goals: true } }),
+  };
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (requireFeature as jest.Mock).mockResolvedValue({ features: { goals: true } });
+});
+
 describe('/api/goals', () => {
+  it('returns FEATURE_LOCKED for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('goals' as any));
+
+    const res = await GET(new NextRequest('http://localhost/api/goals'));
+    const body = await res.json();
+
+    expect(res.status).toBe(402);
+    expect(body.error.code).toBe('FEATURE_LOCKED');
+    expect(body.feature_key).toBe('goals');
+  });
+
   it('GET returns goals', async () => {
     const res = await GET(new NextRequest('http://localhost/api/goals'));
     const body = await res.json();

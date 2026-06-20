@@ -1,3 +1,14 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+    constructor(feature: string) { super('Feature requires Flow Me Pro'); this.name = 'FeatureLockedError'; this.feature = feature; }
+  }
+  return { FeatureLockedError, requireFeature: (...args: unknown[]) => mockRequireFeature(...args) };
+});
+
 const supabaseChain: any = {
   select: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
@@ -6,6 +17,9 @@ const supabaseChain: any = {
 
 const supabaseMock: any = {
   from: jest.fn().mockReturnValue(supabaseChain),
+  rpc: jest.fn((name: string) => Promise.resolve(name === 'acquire_ai_usage_guard'
+    ? { data: { allowed: true, lease_id: null }, error: null }
+    : { data: null, error: null })),
   auth: {
     admin: {
       getUserById: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1', email: 'victor@example.com' } } }),
@@ -78,10 +92,28 @@ jest.mock('@/lib/whatsapp/evolution-client', () => ({
 import { handleWhatsAppMessage } from '@/lib/whatsapp/balys-runner';
 import { runBalysAgentLoop } from '@/lib/ai/agent-loop';
 import { getThreadMessages, persistMessage } from '@/lib/ai/threads';
+import { sendText } from '@/lib/whatsapp/evolution-client';
 
 describe('handleWhatsAppMessage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { whatsapp: true } });
+  });
+
+  it('stops before Balys execution for Free users', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('whatsapp'));
+
+    await handleWhatsAppMessage({
+      senderJid: '5511999999999@s.whatsapp.net',
+      messageId: 'free-1',
+      messageType: 'conversation',
+      text: 'Oi Balys',
+      hasMedia: false,
+    });
+
+    expect(sendText).toHaveBeenCalledWith('5511999999999@s.whatsapp.net', expect.stringContaining('Flow Me Pro'));
+    expect(runBalysAgentLoop).not.toHaveBeenCalled();
   });
 
   it('persists WhatsApp voice notes with audio metadata and transcript', async () => {

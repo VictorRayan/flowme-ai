@@ -1,3 +1,23 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: (...args: unknown[]) => mockRequireFeature(...args),
+  };
+});
+
 import { goalsCreateOperatingPlanTool, goalsCreateShortActionPlanTool, goalsListDeletedCalendarEventsTool, goalsListTool } from '@/lib/ai/tools/goals-tools';
 import { persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent } from '@/lib/google/google-calendar';
@@ -78,6 +98,22 @@ function makeContext() {
 }
 
 describe('goals tools', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { goals: true } });
+  });
+
+  it('blocks Free users before reading goals', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('goals'));
+    const context = makeContext();
+
+    const result = await goalsListTool.call({ include_action_plans: true }, context);
+
+    expect(result.ok).toBe(false);
+    expect(result.data).toEqual(expect.objectContaining({ code: 'FEATURE_LOCKED', feature_key: 'goals' }));
+  });
+
   it('lists goals and action plans', async () => {
     const context = makeContext();
     const result = await goalsListTool.call({ include_action_plans: true }, context);

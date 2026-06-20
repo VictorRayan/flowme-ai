@@ -4,6 +4,10 @@ import { POST } from '@/app/api/webhooks/stripe/route';
 const mockConstructEvent = jest.fn();
 const mockRetrieve = jest.fn();
 const mockCreateClient = jest.fn();
+const mockCreateBillingNotification = jest.fn();
+const mockClearBillingFailureNotifications = jest.fn();
+const mockRecordBillingAdminAlert = jest.fn();
+const mockResolvePaymentFailureAdminAlerts = jest.fn();
 
 jest.mock('stripe', () => ({
   __esModule: true,
@@ -15,6 +19,16 @@ jest.mock('stripe', () => ({
 
 jest.mock('@supabase/supabase-js', () => ({
   createClient: (...args: unknown[]) => mockCreateClient(...args),
+}));
+
+jest.mock('@/lib/billing/notifications', () => ({
+  createBillingNotification: (...args: unknown[]) => mockCreateBillingNotification(...args),
+  clearBillingFailureNotifications: (...args: unknown[]) => mockClearBillingFailureNotifications(...args),
+}));
+
+jest.mock('@/lib/billing/admin-alerts', () => ({
+  recordBillingAdminAlert: (...args: unknown[]) => mockRecordBillingAdminAlert(...args),
+  resolvePaymentFailureAdminAlerts: (...args: unknown[]) => mockResolvePaymentFailureAdminAlerts(...args),
 }));
 
 function makeAwaitableChain(result = { error: null }) {
@@ -78,6 +92,12 @@ describe('POST /api/webhooks/stripe', () => {
     mockBillingEventsInsert.mockResolvedValue({ error: null });
     mockUserSubscriptionsUpsert.mockResolvedValue({ error: null });
     mockUserEntitlementsUpsert.mockResolvedValue({ error: null });
+    mockCreateBillingNotification.mockResolvedValue({
+      id: 'notification-1', userId: 'user-1', kind: 'payment_failed', provider: 'stripe',
+    });
+    mockClearBillingFailureNotifications.mockResolvedValue(undefined);
+    mockRecordBillingAdminAlert.mockResolvedValue(undefined);
+    mockResolvePaymentFailureAdminAlerts.mockResolvedValue(undefined);
     billingEventsChain.maybeSingle.mockResolvedValue({ data: null, error: null });
     billingEventsChain.update.mockReturnValue(billingEventsChain);
     mockCreateClient.mockReturnValue({
@@ -152,5 +172,41 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mockUserSubscriptionsUpsert).toHaveBeenCalled();
     expect(mockUserEntitlementsUpsert).toHaveBeenCalled();
     expect(billingEventsChain.update).toHaveBeenCalled();
+  });
+
+  it('persists subscription state and sends billing notifications on payment failure', async () => {
+    mockConstructEvent.mockReturnValue(makeEvent({
+      id: 'evt_failed',
+      type: 'invoice.payment_failed',
+      data: { object: { id: 'in_123', customer: 'cus_123', subscription: 'sub_123' } },
+    }));
+    mockRetrieve.mockResolvedValue(makeSubscription({ status: 'past_due' }));
+
+    const res = await POST(new NextRequest('http://localhost/api/webhooks/stripe', {
+      method: 'POST', body: 'raw-body', headers: { 'stripe-signature': 'sig_123' },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(mockUserSubscriptionsUpsert).toHaveBeenCalledWith(expect.objectContaining({ status: 'past_due' }), expect.anything());
+    expect(mockCreateBillingNotification).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      userId: 'user-1', kind: 'payment_failed', provider: 'stripe',
+    }));
+  });
+
+  it('clears active payment alerts after a paid invoice', async () => {
+    mockConstructEvent.mockReturnValue(makeEvent({
+      id: 'evt_paid',
+      type: 'invoice.paid',
+      data: { object: { id: 'in_123', customer: 'cus_123', subscription: 'sub_123' } },
+    }));
+    mockRetrieve.mockResolvedValue(makeSubscription());
+
+    const res = await POST(new NextRequest('http://localhost/api/webhooks/stripe', {
+      method: 'POST', body: 'raw-body', headers: { 'stripe-signature': 'sig_123' },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(mockClearBillingFailureNotifications).toHaveBeenCalledWith(expect.anything(), 'user-1');
+    expect(mockResolvePaymentFailureAdminAlerts).toHaveBeenCalledWith(expect.anything(), 'user-1');
   });
 });

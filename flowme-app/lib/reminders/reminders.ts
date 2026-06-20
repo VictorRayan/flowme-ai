@@ -1,5 +1,6 @@
 import { createWhatsappReminderProvider } from './whatsapp-provider';
 import { resolveReminderProvider } from './providers';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 import type {
   CreateReminderInput,
   ListRemindersFilters,
@@ -247,6 +248,11 @@ export async function sendDueReminders(
   let skipped = 0;
 
   for (const reminder of reminders || []) {
+    const entitlements = await getUserEntitlements(supabase, reminder.user_id);
+    if (!isFeatureAllowed(entitlements, 'reminders')) {
+      skipped++;
+      continue;
+    }
     const providerName = resolveReminderProvider(reminder.channel_preference);
     const existingQuery = supabase.from('reminder_deliveries') as MaybeSingleQuery<DeliveryRecord>;
     const { data: existingSent } = await existingQuery

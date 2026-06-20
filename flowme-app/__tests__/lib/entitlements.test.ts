@@ -1,11 +1,30 @@
 import {
   FEATURE_KEYS,
   FREE_AI_CREDITS_PER_DAY,
+  FeatureLockedError,
   computeEntitlementsFromSubscription,
   getDefaultFreeEntitlements,
+  getUserEntitlements,
   isFeatureAllowed,
   normalizeSubscriptionStatus,
+  requireFeature,
 } from '@/lib/billing/entitlements';
+
+function makeBillingClient(subscription: any = null, error: any = null) {
+  const chain: any = {
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    maybeSingle: jest.fn().mockResolvedValue({ data: subscription, error }),
+  };
+  return {
+    chain,
+    client: {
+      from: jest.fn(() => chain),
+    },
+  };
+}
 
 describe('billing entitlements', () => {
   it('defaults users to Free with notes and limited Balys only', () => {
@@ -78,5 +97,34 @@ describe('billing entitlements', () => {
     expect(normalizeSubscriptionStatus('in_grace_period')).toBe('grace_period');
     expect(normalizeSubscriptionStatus('on_hold')).toBe('account_hold');
     expect(normalizeSubscriptionStatus('unknown')).toBe('expired');
+  });
+
+  it('loads default Free entitlements when no subscription row exists', async () => {
+    const { client, chain } = makeBillingClient();
+
+    const entitlements = await getUserEntitlements(client, 'user-1', new Date('2026-06-06T00:00:00.000Z'));
+
+    expect(entitlements.plan_code).toBe('free');
+    expect(entitlements.features.notes).toBe(true);
+    expect(entitlements.features.finance).toBe(false);
+    expect(chain.select).toHaveBeenCalledWith('plan_code,billing_provider,status,current_period_end,grace_period_ends_at');
+  });
+
+  it('allows required Pro features for active subscriptions', async () => {
+    const { client } = makeBillingClient({
+      plan_code: 'pro',
+      status: 'active',
+      current_period_end: '2026-07-06T00:00:00.000Z',
+    });
+
+    const entitlements = await requireFeature(client, 'user-1', 'finance');
+
+    expect(entitlements.has_pro).toBe(true);
+  });
+
+  it('throws FeatureLockedError when the feature is not allowed', async () => {
+    const { client } = makeBillingClient();
+
+    await expect(requireFeature(client, 'user-1', 'connectors')).rejects.toBeInstanceOf(FeatureLockedError);
   });
 });

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { uploadToR2 } from '@/lib/r2/storage';
-import { defineTool } from './Tool';
+import { defineFeatureTool } from './Tool';
 
 const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 
@@ -39,7 +39,7 @@ export function buildGeneratedImageUrl(key: string): string {
   return `/api/ai/images?key=${encodeURIComponent(key)}`;
 }
 
-export const imagesGenerateTool = defineTool({
+export const imagesGenerateTool = defineFeatureTool('images', 'Image generation requires Flow Me Pro.', {
   name: 'images.generate',
   description: `Generate an image from a text description and attach it to the Balys chat.
 

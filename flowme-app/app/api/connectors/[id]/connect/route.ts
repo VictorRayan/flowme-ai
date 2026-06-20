@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, ErrorCode } from '@/lib/api/errors';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 function connectorAccountName(connector: { id: string; name: string; type: string }): string {
   return `${connector.name} (${connector.type.replace('_', ' ')}) ${connector.id.slice(0, 8)}`;
@@ -21,6 +23,7 @@ function oauthConnectUrl(provider: 'google' | 'slack', linkedAccountId: string, 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'connectors');
     const { id: connectorId } = await params;
 
     // Verify connector belongs to user
@@ -92,6 +95,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ ok: true, redirect_url: oauthConnectUrl(provider, newAccount.id, connectorId) });
   } catch (err: any) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('POST /api/connectors/[id]/connect error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to initiate connector auth', 500);

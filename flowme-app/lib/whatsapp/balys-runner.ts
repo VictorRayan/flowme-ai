@@ -12,6 +12,9 @@ import { ensureThread, getThreadMessages, persistMessage } from '@/lib/ai/thread
 import { hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
 import { prepareMessagesWithAttachments } from '@/lib/ai/prepare-messages';
 import { jidToPhone, sendText } from './evolution-client';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
+import { acquireAiUsageGuard, releaseAiUsageGuard, resolveAiGuardWorkload } from '@/lib/billing/ai-guardrails';
+import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
 
 const SUPABASE_URL         = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -145,6 +148,16 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
     return;
   }
 
+  try {
+    await requireFeature(supabase, user.id, 'whatsapp');
+  } catch (error: unknown) {
+    if (error instanceof FeatureLockedError) {
+      await sendText(incoming.senderJid, 'O Balys no WhatsApp está disponível no Flow Me Pro. Você pode fazer upgrade nas configurações do app.');
+      return;
+    }
+    throw error;
+  }
+
   const authContext = {
     supabase: supabase as any,
     user: { id: user.id, email: user.email } as any,
@@ -219,6 +232,23 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
     rawUserInput: userText,
     systemAddendum: WHATSAPP_ADDENDUM,
   });
+  const guardWorkload = resolveAiGuardWorkload({
+    taskType: route.taskType,
+    toolDomain: route.toolDomain,
+    needsTools: route.needsTools,
+  });
+  const guard = await acquireAiUsageGuard(supabase, user.id, guardWorkload);
+  if (!guard.allowed) {
+    await recordBillingAdminAlert(supabase, {
+      kind: 'high_ai_cost',
+      severity: guard.reason === 'daily' ? 'critical' : 'warning',
+      userId: user.id,
+      dedupeKey: `ai-guard:${user.id}:${guardWorkload}:${guard.reason}:${new Date().toISOString().slice(0, 13)}`,
+      metadata: { workload: guardWorkload, reason: guard.reason, channel: 'whatsapp' },
+    });
+    await sendText(incoming.senderJid, 'O Balys está protegendo sua conta de muitas ações ao mesmo tempo. Tente novamente em instantes.');
+    return;
+  }
   const connectorMemoryPrompt = renderConnectorContextForPrompt(routeMessages);
   const effectiveAddendum = [WHATSAPP_ADDENDUM, connectorMemoryPrompt].filter((part) => part.trim()).join('\n\n');
 
@@ -299,6 +329,8 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
   } catch (e: any) {
     console.error('[whatsapp-balys] agent loop failed:', e);
     replyText = 'Sorry, I ran into a problem. Please try again.';
+  } finally {
+    await releaseAiUsageGuard(supabase, guard.leaseId).catch(error => console.error('[whatsapp-balys] failed to release AI guard:', error));
   }
 
   await sendText(incoming.senderJid, stripMarkdown(replyText));

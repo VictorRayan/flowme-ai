@@ -1,6 +1,7 @@
 import { runAiCouncilPipeline } from '@/lib/ai/council-agents';
 import { getFinanceMonthlySummary } from '@/lib/finance/finance';
 import type { FinanceMonthlySummary } from '@/lib/finance/types';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 export type MonthlyReviewStatus = 'generating' | 'ready' | 'failed';
 
@@ -225,6 +226,8 @@ export async function generateDueMonthlyReviews(
   let generated = 0;
   let failed = 0;
   for (const profile of profiles) {
+    const entitlements = await getUserEntitlements(supabase, profile.user_id);
+    if (!isFeatureAllowed(entitlements, 'reviews')) continue;
     const timezone = profile.briefing_timezone || 'UTC';
     if (!isDue(profile.monthly_review_time, now, timezone)) continue;
     inspected += 1;

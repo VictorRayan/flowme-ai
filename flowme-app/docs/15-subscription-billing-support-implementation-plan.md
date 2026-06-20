@@ -2,37 +2,37 @@
 
 ## Decision Summary
 
-- [ ] Web app plans:
+- [x] Web app plans:
   - Free: access only to Notes and BalysAI.
   - Pro: access to everything.
-- [ ] Free AI usage is limited by daily AI credits, not raw tokens.
-- [ ] Pro has unlimited AI credits from the user's point of view, with internal fair-use and abuse protection.
-- [ ] Pro web pricing:
+- [x] Free AI usage is limited by daily AI credits, not raw tokens.
+- [x] Pro has unlimited AI credits from the user's point of view, with internal fair-use and abuse protection.
+- [x] Pro web pricing:
   - Monthly: R$59,90/month.
   - Annual: R$39,90/month billed annually, equivalent to R$478,80/year.
-- [ ] Web payments use Stripe Checkout + Stripe Billing + Stripe Customer Portal.
-- [ ] Mobile app will use Free entry + mandatory Google sign-in + native IAP:
+- [x] Web payments use Stripe Checkout + Stripe Billing + Stripe Customer Portal.
+- [x] Mobile app will use Free entry + mandatory Google sign-in + native IAP:
   - iOS: App Store In-App Purchase.
   - Android: Google Play Billing.
-- [ ] Backend entitlements are shared across web, iOS, and Android so the user has one subscription state.
-- [ ] Payment failures from Stripe trigger in-app, push, and WhatsApp notifications when channels are available.
-- [ ] Mobile push notifications use APNs on iOS and FCM on Android as delivery transports only.
-- [ ] Do not use Firebase as application backend, datastore, auth provider, or Cloud Functions layer for push.
-- [ ] Apple/Google IAP billing-state changes are handled through store server notifications and backend reconciliation.
-- [ ] Add a Support section guided by Balys with product knowledge, quick questions, and a cancellation request funnel.
+- [x] Backend entitlements are shared across web, iOS, and Android so the user has one subscription state.
+- [x] Payment failures from Stripe trigger in-app, push, and WhatsApp notifications when channels are available.
+- [x] Mobile push notifications use APNs on iOS and FCM on Android as delivery transports only.
+- [x] Do not use Firebase as application backend, datastore, auth provider, or Cloud Functions layer for push.
+- [x] Apple/Google IAP billing-state changes are handled through store server notifications and backend reconciliation.
+- [x] Add a Support section guided by Balys with product knowledge, quick questions, and a cancellation request funnel.
 
 ## Product Principles
 
-- [ ] The user should understand usage in plain language.
-- [ ] Never expose token counts as the main concept.
-- [ ] Use "AI credits" as a simple daily allowance for Free.
-- [ ] Show upgrade CTAs at the moment of intent, not only in a pricing page.
-- [ ] Avoid dead ends: every locked feature should explain why it is locked and what Pro unlocks.
-- [ ] Keep Free valuable enough to prove the product:
+- [x] The user should understand usage in plain language.
+- [x] Never expose token counts as the main concept.
+- [x] Use "AI credits" as a simple daily allowance for Free.
+- [x] Show upgrade CTAs at the moment of intent, not only in a pricing page.
+- [x] Avoid dead ends: every locked feature should explain why it is locked and what Pro unlocks.
+- [x] Keep Free valuable enough to prove the product:
   - Notes.
   - Limited BalysAI.
   - Clear upgrade path.
-- [ ] Keep Pro simple:
+- [x] Keep Pro simple:
   - All product surfaces.
   - Unlimited AI credits.
   - Premium channels and automations.
@@ -41,12 +41,12 @@
 
 ### Free
 
-- [ ] Accessible features:
+- [x] Accessible features:
   - Notes.
   - BalysAI with daily AI credits.
   - Account/profile/settings.
   - Billing/pricing/support.
-- [ ] Locked features:
+- [x] Locked features:
   - Calendar and Today execution flows.
   - Goals and operating plans.
   - Finance dashboard and financial AI review.
@@ -57,11 +57,11 @@
   - Reminders.
   - Meeting recording/transcription.
   - Image generation, unless we choose to allow a tiny sample allowance.
-- [ ] Free daily AI credits reset every day in the user's timezone.
-- [ ] Free AI credit display should be understandable:
+- [x] Free daily AI credits reset every day in the user's timezone.
+- [x] Free AI credit display should be understandable:
   - Example: "Você tem 7 de 10 créditos de IA hoje."
   - Avoid: "Você usou 12.830 tokens."
-- [ ] Recommended initial Free allowance:
+- [x] Initial Free allowance:
   - 10 AI credits/day.
   - Simple Balys text answer: 1 credit.
   - Tool action: 2-4 credits depending on cost.
@@ -70,7 +70,7 @@
 
 ### Pro
 
-- [ ] Accessible features:
+- [x] Accessible features:
   - Everything.
   - BalysAI.
   - Notes.
@@ -85,35 +85,44 @@
   - Meeting recording/transcription.
   - Image generation.
   - Support guided by Balys.
-- [ ] Pricing:
+- [x] Pricing:
   - Monthly: R$59,90.
   - Annual: R$478,80/year.
-- [ ] Pro UI copy:
+- [x] Pro UI copy:
   - "Créditos de IA ilimitados no Pro."
   - Internally still enforce abuse protection, provider outage protection, and extreme usage review.
-- [ ] Internal fair-use guardrails:
-  - Per-minute request throttling.
-  - Daily high-cost job caps for provider protection.
-  - Admin alert if one user exceeds expected cost thresholds.
+- [x] Internal fair-use guardrails:
+  - [x] Per-minute request throttling.
+  - [x] Rolling 24-hour high-cost job caps for provider protection.
+  - [x] Expensive-job concurrency leases with automatic expiration.
+  - [x] Admin alert if one user exceeds expected cost thresholds.
   - Never show "fair use" as ordinary UX unless the account is clearly abusive or provider-limited.
+  - Status: complete for Balys web, Balys WhatsApp, and meeting processing; scheduled reviews/briefings already have deterministic schedule frequency.
+  - Implemented design:
+    - Keep Pro user-facing credits unlimited; guardrails protect reliability and provider spend rather than creating a hidden ordinary quota.
+    - Apply short-window per-user throttling to Balys channels, plus concurrency leases for expensive jobs.
+    - Apply configurable rolling 24-hour caps for images, meetings, grounded searches, Council/reviews, and other high-cost workloads.
+    - Keep thresholds in configuration or plan policy rather than scattering numeric limits through routes.
+    - Return a friendly retry-later/provider-protection response when a guardrail is reached and create an admin alert.
+    - Ensure ordinary Pro use never displays an AI-credit balance or a misleading "limit reached" message.
 
 ## AI Credit Model
 
 ### User-Facing Model
 
-- [ ] Use "credits" as the user concept.
-- [ ] Show Free daily allowance in a small Balys header indicator:
+- [x] Use "credits" as the user concept.
+- [x] Show Free daily allowance in a small Balys header indicator:
   - "8 créditos hoje."
   - Warning state at 20% remaining.
   - Empty state at 0 credits.
-- [ ] Show a friendly explanation:
+- [x] Show a friendly explanation:
   - "Créditos medem o uso de IA. Perguntas simples usam pouco; ações com busca, arquivos ou análise usam mais."
-- [ ] Do not show token counts by default.
-- [ ] Add "Ver detalhes" only if needed, with human-readable categories.
+- [x] Do not show token counts by default.
+- Optional later: add "Ver detalhes" with human-readable categories if users need more transparency.
 
 ### Internal Cost Mapping
 
-- [ ] Add `ai_credit_events` table:
+- [x] Add `ai_credit_events` table:
   - `id`
   - `user_id`
   - `source`: `chat`, `tool`, `briefing`, `review`, `image`, `meeting`, `support`
@@ -128,12 +137,12 @@
   - `cost_usd_estimate`
   - `metadata`
   - `created_at`
-- [ ] Add `ai_credit_daily_usage` materialized view or query helper:
+- [x] Add daily usage query helper:
   - sum credits by `user_id`, local date, source.
-- [ ] Add `plan_credit_policies` in code:
+- [x] Add plan credit policies in code:
   - Free: 10/day.
   - Pro: unlimited display, internal abuse thresholds.
-- [ ] Instrument the major AI paths:
+- [x] Instrument the major AI paths:
   - Balys chat.
   - Context scorer.
   - Tool calls that invoke AI.
@@ -142,32 +151,32 @@
   - Weekly/monthly review Council.
   - Meeting transcription/summary.
   - Thread summarizer/profile updater.
-- [ ] Start with estimates where providers do not return usage metadata.
-- [ ] Prefer actual provider usage metadata when available.
+- [x] Start with estimates where providers do not return usage metadata.
+- Follow-up: prefer actual provider usage metadata when available.
 
 ### Suggested Credit Costs
 
-- [ ] Balys simple answer: 1 credit.
-- [ ] Balys with one deterministic tool: 2 credits.
-- [ ] Connector read/analyze: 3 credits.
-- [ ] Web grounded search: 4 credits.
-- [ ] Image generation: Pro only, or 8 credits if sampled later.
-- [ ] Weekly/Monthly Review: Pro only.
-- [ ] Meeting transcription: Pro only.
-- [ ] Daily briefing: Pro only.
+- [x] Balys simple answer: 1 credit.
+- [x] Balys with one deterministic tool: 2 credits.
+- [x] Connector read/analyze: 3 credits.
+- [x] Web grounded search: 4 credits.
+- [x] Image generation: Pro only.
+- [x] Weekly/Monthly Review: Pro only.
+- [x] Meeting transcription: Pro only.
+- [x] Daily briefing: Pro only.
 
 ## Entitlements Architecture
 
 ### Database
 
-- [ ] Add migration `049_subscriptions_entitlements_support.sql`.
-- [ ] Create `subscription_plans`:
+- [x] Add migration `050_subscription_entitlements.sql`.
+- [x] Create `subscription_plans`:
   - `id`
   - `code`: `free`, `pro`
   - `name`
   - `status`
   - `metadata`
-- [ ] Create `subscription_prices`:
+- [x] Create `subscription_prices`:
   - `id`
   - `plan_code`
   - `billing_provider`: `stripe`, `apple`, `google`
@@ -177,7 +186,7 @@
   - `provider_price_id`
   - `provider_product_id`
   - `active`
-- [ ] Create `user_subscriptions`:
+- [x] Create `user_subscriptions`:
   - `id`
   - `user_id`
   - `plan_code`
@@ -196,7 +205,7 @@
   - `metadata`
   - `created_at`
   - `updated_at`
-- [ ] Create `user_entitlements`:
+- [x] Create `user_entitlements`:
   - `user_id`
   - `plan_code`
   - `has_pro`
@@ -204,7 +213,7 @@
   - `access_until`
   - `features`
   - `updated_at`
-- [ ] Create `billing_events`:
+- [x] Create `billing_events`:
   - `id`
   - `provider`
   - `event_id`
@@ -215,7 +224,7 @@
   - `payload`
   - `processed_at`
   - unique `(provider, event_id)`
-- [ ] Create `billing_notifications`:
+- [x] Create `billing_notifications`:
   - `id`
   - `user_id`
   - `kind`
@@ -227,15 +236,14 @@
 
 ### Entitlement Library
 
-- [ ] Add `lib/billing/entitlements.ts`.
-- [ ] Provide:
-  - `getUserEntitlements(supabase, userId)`.
-  - `isFeatureAllowed(entitlements, featureKey)`.
-  - `requireFeature(featureKey)`.
-  - `getAiCreditState(userId, timezone)`.
-  - `consumeAiCredits(input)`.
-  - `syncEntitlementFromSubscription(subscription)`.
-- [ ] Feature keys:
+- [x] Add `lib/billing/entitlements.ts`.
+- [x] Add `getUserEntitlements(supabase, userId)`.
+- [x] Add `isFeatureAllowed(entitlements, featureKey)`.
+- [x] Add `requireFeature(supabase, userId, featureKey)`.
+- [x] Add `getAiCreditState(userId, timezone)`.
+- [x] Add `consumeAiCredits(input)`.
+- [x] Synchronize entitlements from normalized provider subscriptions through webhook and reconciliation adapters.
+- [x] Feature keys:
   - `notes`
   - `balys_limited`
   - `balys_unlimited`
@@ -251,29 +259,29 @@
   - `meetings`
   - `images`
   - `support`
-- [ ] Default user without subscription row gets Free entitlements.
+- [x] Default user without subscription row gets Free entitlements.
 
 ## Stripe Web Billing
 
 ### Stripe Setup
 
-- [ ] Use Stripe Checkout in subscription mode for the simplest PCI path.
-- [ ] Use Stripe-hosted Checkout to keep card data out of Flow Me.
-- [ ] Use Stripe Billing for recurring payments.
-- [ ] Use Stripe-hosted surfaces only for PCI-sensitive actions:
+- [x] Use Stripe Checkout in subscription mode for the simplest PCI path.
+- [x] Use Stripe-hosted Checkout to keep card data out of Flow Me.
+- [x] Use Stripe Billing for recurring payments.
+- [x] Use Stripe-hosted surfaces only for PCI-sensitive actions:
   - Update payment method through a focused Stripe payment method update flow.
   - Keep broad subscription management out of the primary UX.
-- [ ] View invoices/receipts inside Flow Me using Stripe invoice APIs.
-- [ ] Route web subscription cancellation requests to Balys Support retention funnel instead of direct broad Stripe Portal cancellation.
-- [ ] Configure products/prices in Stripe:
+- [x] View invoices/receipts inside Flow Me using Stripe invoice APIs.
+- [x] Route web subscription cancellation requests to Balys Support retention funnel instead of direct broad Stripe Portal cancellation.
+- [x] Configure products/prices in Stripe:
   - Product: Flow Me Pro.
   - Price: Pro Monthly BRL R$59,90.
   - Price: Pro Annual BRL R$478,80.
-- [ ] Store Stripe IDs in env/config, not hardcoded.
+- [x] Store Stripe IDs in env/config, not hardcoded.
 
 ### Stripe API Routes
 
-- [ ] `POST /api/billing/checkout`
+- [x] `POST /api/billing/checkout`
   - Requires auth.
   - Accepts `price_id` or `interval`.
   - Creates/reuses Stripe Customer.
@@ -286,13 +294,13 @@
 - [x] `GET /api/billing/invoices`
   - Requires auth.
   - Lists recent Stripe invoices/receipts for the user's Stripe Customer.
-- [ ] `POST /api/webhooks/stripe`
+- [x] `POST /api/webhooks/stripe`
   - Raw body signature verification.
   - Idempotency with `billing_events`.
   - Re-fetch Stripe subscription when needed.
   - Updates `user_subscriptions`.
   - Recomputes `user_entitlements`.
-- [ ] Stripe webhook events to handle:
+- [x] Stripe webhook events to handle:
   - `checkout.session.completed`
   - `customer.subscription.created`
   - `customer.subscription.updated`
@@ -301,11 +309,18 @@
   - `invoice.payment_failed`
   - `invoice.payment_action_required`
   - `invoice.finalization_failed`
-- [ ] Stripe webhook response must be fast and idempotent.
+- [x] Stripe webhook response is fast and idempotent.
+  - Status: complete. The webhook persists subscription state, entitlements, and the pending notification without waiting for external channels.
+  - Implemented design:
+    - Keep signature verification, event deduplication, subscription/entitlement persistence, and durable notification creation inside the webhook transaction path.
+    - Persist the notification as `pending`, mark the Stripe event processed after durable local state exists, and return `2xx` without waiting for external notification providers.
+    - A worker/cron dispatcher claims pending notifications safely, records each channel result, and retries transient failures with bounded backoff.
+    - Disable invalid device tokens, preserve the in-app alert even when every external channel fails, and surface exhausted retries to the admin dashboard.
+    - Test that APNs, FCM, Web Push, or WhatsApp outages do not make Stripe retry an otherwise valid billing event.
 
 ### Stripe Payment Failure Flow
 
-- [ ] On `invoice.payment_failed`:
+- [x] On `invoice.payment_failed`:
   - Mark subscription `past_due` or equivalent.
   - Store `last_payment_failure_at`.
   - Keep entitlement active during configured grace period if desired.
@@ -313,14 +328,14 @@
   - Send push notification if device token exists.
   - Send WhatsApp if channel connected.
   - CTA points to Billing Portal to update payment method.
-- [ ] On `invoice.payment_action_required`:
+- [x] On `invoice.payment_action_required`:
   - Notify user to authenticate/confirm payment.
   - CTA to Stripe-hosted payment flow.
-- [ ] On `invoice.paid`:
+- [x] On `invoice.paid`:
   - Mark active.
   - Clear billing alert.
   - Send recovery confirmation only if useful.
-- [ ] On terminal cancellation/expiration:
+- [x] On terminal cancellation/expiration:
   - Downgrade entitlement to Free at `current_period_end` or immediately depending on provider state.
 
 ## Mobile IAP Billing Model
@@ -330,27 +345,27 @@
 - [ ] Mobile app starts in Free.
 - [ ] User must sign in with Google to continue.
 - [ ] Mobile sends Apple/Google purchase receipt/token to backend.
-- [ ] Backend validates with Apple/Google server APIs.
-- [ ] Backend writes `user_subscriptions`.
-- [ ] Backend recomputes `user_entitlements`.
-- [ ] App and web both read the same entitlements.
+- [x] Backend validates with Apple/Google server APIs.
+- [x] Backend writes `user_subscriptions`.
+- [x] Backend recomputes `user_entitlements`.
+- [x] App and web both read the same entitlements.
 
 ### Apple
 
 - [ ] Use StoreKit 2 in mobile app.
-- [ ] Use App Store Server Notifications V2 on backend.
-- [ ] Track billing retry and grace period.
-- [ ] Apple may retry billing for up to 60 days.
-- [ ] If grace period is enabled, keep Pro access until grace expires.
+- [x] Use App Store Server Notifications V2 on backend.
+- [x] Track billing retry and grace period.
+- Operational note: Apple may retry billing for up to 60 days.
+- [x] If grace period is enabled, keep Pro access until grace expires.
 - [ ] Notify in-app when Apple indicates billing issue.
-- [ ] CTA should deep link to Apple billing management when possible.
+- [x] Web CTA deep links to Apple billing management.
 
 ### Google Play
 
 - [ ] Use Google Play Billing Library in mobile app.
-- [ ] Use Real-time Developer Notifications (RTDN) with Pub/Sub.
-- [ ] On RTDN, backend must call Google Play Developer API to fetch current subscription state.
-- [ ] Handle:
+- [x] Use Real-time Developer Notifications (RTDN) with Pub/Sub.
+- [x] On RTDN, backend calls Google Play Developer API to fetch current subscription state.
+- [x] Handle:
   - `SUBSCRIPTION_PURCHASED`
   - `SUBSCRIPTION_RENEWED`
   - `SUBSCRIPTION_CANCELED`
@@ -358,21 +373,21 @@
   - `SUBSCRIPTION_IN_GRACE_PERIOD`
   - `SUBSCRIPTION_ON_HOLD`
   - `SUBSCRIPTION_RECOVERED`
-- [ ] During grace period, entitlement may remain active.
-- [ ] During account hold, entitlement should be removed or degraded to Free.
-- [ ] Google may show its own in-app messaging for payment issues; backend still keeps source of truth.
+- [x] During grace period, entitlement may remain active.
+- [x] During account hold, entitlement is degraded to Free.
+- Operational note: Google may show its own in-app messaging for payment issues; backend still keeps source of truth.
 
 ## Feature Gating UX
 
 ### Global UX
 
-- [ ] Add `SubscriptionProvider` in the app shell.
-- [ ] Load `/api/billing/entitlements` on app start.
-- [ ] Cache short-lived entitlement state client-side.
-- [ ] Revalidate on route changes and after checkout.
-- [ ] Add `FeatureGate` component.
-- [ ] Add `UpgradeDialog`.
-- [ ] Add `AiCreditMeter`.
+- [x] Add `SubscriptionProvider` in the app shell.
+- [x] Load `/api/billing/entitlements` on app start.
+- [x] Cache short-lived entitlement state client-side.
+- [x] Revalidate on route changes and after checkout.
+- [x] Add `FeatureGate` component.
+- [x] Add `UpgradeDialog`.
+- [x] Add AI credit meter in the Balys header.
 
 ### Platform Billing UX
 
@@ -384,63 +399,63 @@
   - Web browser: Stripe Checkout and Stripe Customer Portal.
   - iOS native app: App Store In-App Purchase and Apple subscription management.
   - Android native app: Google Play Billing and Google Play subscription management.
-- [ ] The web app may show Stripe checkout CTAs.
+- [x] The web app shows Stripe checkout CTAs.
 - [ ] The iOS app must not send users to Stripe or an external website to buy the digital subscription.
 - [ ] The Android app must not force users outside Google Play Billing for in-app digital subscription purchase.
 - [ ] If a user subscribed on web and opens mobile:
   - Show Pro active.
   - Do not ask the user to subscribe again through IAP.
   - Management CTA explains the subscription is managed on web/Stripe.
-- [ ] If a user subscribed through Apple/Google and opens web:
+- [x] If a user subscribed through Apple/Google and opens web:
   - Show Pro active.
   - Hide Stripe checkout for the active subscription.
   - Management CTA explains the subscription is managed through App Store or Google Play.
 - [ ] Pricing display:
   - Web prices come from Flow Me/Stripe config.
   - Mobile prices should come from App Store / Google Play product metadata because stores may apply local pricing, taxes, and currency rules.
-- [ ] Backend entitlement response should expose:
+- [x] Backend entitlement response should expose:
   - `billing_provider`.
   - `billing_state`.
   - `current_period_end`.
   - `management_surface`: `stripe`, `apple`, `google`, or `none`.
-- [ ] UI copy should be provider-aware:
+- [x] UI copy should be provider-aware:
   - Stripe: "Gerenciar assinatura".
   - Apple: "Gerenciar na App Store".
   - Google: "Gerenciar no Google Play".
 
 ### Free Navigation
 
-- [ ] Free users see all nav items, but locked items have lock/badge.
-- [ ] Clicking locked nav item opens upgrade dialog instead of route.
-- [ ] Notes and BalysAI remain accessible.
-- [ ] Pricing CTA:
+- [x] Free users see all nav items, but locked items have lock/badge.
+- [x] Clicking locked nav item opens upgrade dialog instead of route.
+- [x] Notes and BalysAI remain accessible.
+- [x] Pricing CTA:
   - "Desbloquear Pro"
   - "Tudo do Flow Me + IA ilimitada"
   - Monthly and annual options.
 
 ### Route Protection
 
-- [ ] Server/API route guards for paid features.
-- [ ] Client route gates for UX.
-- [ ] Never rely only on client gating.
-- [ ] Protected API calls return:
+- [x] Server/API route guards for paid features.
+- [x] Client route gates for UX.
+- [x] Never rely only on client gating.
+- [x] Protected API calls return:
   - `402 PAYMENT_REQUIRED`
   - `FEATURE_LOCKED`
   - `required_plan: pro`
   - `upgrade_url` or `checkout_available: true`
-- [ ] Balys tools check entitlements before executing paid actions.
+- [x] Balys tools check entitlements before executing paid actions.
 
 ### AI Credit Exhaustion
 
-- [ ] When Free user has 0 credits:
+- [x] When Free user has 0 credits:
   - Balys input remains visible.
   - Send is disabled or opens upgrade dialog.
   - Message: "Seus créditos de IA de hoje acabaram. Eles renovam amanhã, ou você pode liberar IA ilimitada com Pro."
   - CTA: "Fazer upgrade para Pro."
-- [ ] If a prompt would exceed remaining credits:
+- [x] If a prompt would exceed remaining credits:
   - Show preflight warning for expensive actions.
   - Example: "Essa ação usa 4 créditos; você tem 2."
-- [ ] If usage fails mid-request:
+- [x] If usage fails mid-request:
   - Return graceful Balys message, not technical error.
 
 ## Free vs Pro Enforcement Matrix
@@ -466,19 +481,19 @@
 
 ### Channels
 
-- [ ] In-app notification banner.
-- [ ] Web push notification through existing browser Web Push/VAPID channel.
-- [ ] Mobile push notification:
+- [x] In-app notification banner.
+- [x] Web push notification through existing browser Web Push/VAPID channel.
+- [x] Mobile push notification:
   - iOS: APNs.
   - Android: FCM.
   - Backend Flow Me stores device tokens and dispatches notifications.
   - FCM/APNs are transport only; no Firebase backend, Firestore, Auth, or Cloud Functions dependency.
-- [ ] WhatsApp message if connected.
-- [ ] Optional email later.
+- [x] WhatsApp message if connected.
+- Optional later: billing email notifications.
 
 ### Mobile Push Token Registry
 
-- [ ] Add `mobile_push_tokens` table:
+- [x] Add `mobile_push_tokens` table:
   - `id`
   - `user_id`
   - `platform`: `ios`, `android`
@@ -493,26 +508,26 @@
   - `last_seen_at`
   - `created_at`
   - `updated_at`
-- [ ] Add API routes:
+- [x] Add API routes:
   - `POST /api/mobile/push-tokens`
   - `DELETE /api/mobile/push-tokens`
 - [ ] Mobile app registers token after Google sign-in.
 - [ ] Mobile app refreshes token when APNs/FCM rotates it.
-- [ ] Backend marks invalid tokens disabled after provider delivery failure.
-- [ ] Notification delivery code must choose:
+- [x] Backend marks invalid tokens disabled after provider delivery failure.
+- [x] Notification delivery code must choose:
   - browser Web Push for `web_push_subscriptions`
   - APNs for iOS `mobile_push_tokens`
   - FCM for Android `mobile_push_tokens`
 
 ### Stripe Site Subscription
 
-- [ ] `invoice.payment_failed`:
+- [x] `invoice.payment_failed`:
   - In-app: persistent billing banner.
   - Push: "Não conseguimos renovar sua assinatura Flow Me Pro."
   - WhatsApp: concise payment update message with secure link to billing portal.
-- [ ] `invoice.payment_action_required`:
+- [x] `invoice.payment_action_required`:
   - In-app/push/WhatsApp with authentication CTA.
-- [ ] Recovery:
+- [x] Recovery:
   - Clear banner after `invoice.paid`.
 
 ### Apple/Google In-App Purchase
@@ -523,7 +538,7 @@
 - [ ] Google:
   - Use RTDN + Play Developer API for backend state.
   - In-app text explains Google Play handles payment update.
-- [ ] For mobile billing failures, CTA should open store subscription management, not Stripe.
+- [x] For mobile billing failures, CTA opens store subscription management, not Stripe.
 
 ## Support Section
 
@@ -531,18 +546,18 @@
 
 - [x] Add route `app/app/support/page.tsx`.
 - [x] Add sidebar item "Suporte".
-- [ ] Support page layout:
+- [x] Support page layout:
   - Balys support chat as primary panel.
   - Quick questions grid.
   - Account/billing state card.
   - Recent support requests/cancellation requests if any.
-- [ ] Support Balys should not execute destructive account changes directly.
+- [x] Support Balys should not execute destructive account changes directly.
 - [x] Support Balys can create support/cancellation requests in DB.
 
 ### Support Knowledge Base
 
-- [ ] Create `lib/support/knowledge-base.ts`.
-- [ ] Create structured KB sections:
+- [x] Create `lib/support/knowledge-base.ts`.
+- [x] Create structured KB sections:
   - What Flow Me is.
   - Free vs Pro.
   - AI credits.
@@ -564,7 +579,7 @@
   - Image generation.
   - Privacy and data.
   - Troubleshooting.
-- [ ] Support Balys prompt must:
+- [x] Support Balys prompt must:
   - Use KB first.
   - Answer in user's language.
   - Avoid hallucinating policies.
@@ -593,51 +608,51 @@
   - "Como gravar e revisar reuniões?"
   - "Estou com problema de pagamento"
   - "Quero cancelar minha assinatura"
-- [ ] Clicking a quick question injects and sends the prompt immediately.
-- [ ] Quick questions should be localized later.
+- [x] Clicking a quick question injects and sends the prompt immediately.
+- Optional later: localize support quick questions.
 
 ### Support API
 
-- [ ] `POST /api/support/chat`
+- [x] `POST /api/support/chat`
   - Support-only Balys route.
   - Injects support KB.
   - Lower-risk toolset.
   - Can open support tickets/cancellation requests.
-- [ ] `GET /api/support/knowledge`
+- Optional later: `GET /api/support/knowledge`
   - Optional admin/dev preview.
-- [ ] `GET /api/support/requests`
+- [x] `GET /api/support/requests`
   - User sees their own requests.
 
 ## Cancellation Funnel
 
 ### Trigger Detection
 
-- [ ] Support Balys detects cancellation intent:
+- [x] Support Balys detects cancellation intent:
   - "cancelar"
   - "quero cancelar"
   - "cancela minha assinatura"
   - "não quero mais pagar"
   - "unsubscribe"
   - "cancel subscription"
-- [ ] Do not immediately cancel.
+- [x] Do not immediately cancel.
 - [x] Start guided cancellation form.
 
 ### Required Questions
 
-- [ ] Question 1:
+- [x] Question 1:
   - "Qual o principal motivo do cancelamento?"
   - Minimum 100 characters.
-- [ ] Question 2:
+- [x] Question 2:
   - "Quais funcionalidades mais te decepcionaram?"
   - Minimum 10 characters.
-- [ ] Question 3:
+- [x] Question 3:
   - "Qual expectativa não foi atendida?"
   - Minimum 10 characters recommended.
-- [ ] Question 4:
+- [x] Question 4:
   - "Se um suporte humano te instruir melhor, você daria uma segunda chance?"
   - Required yes/no.
 - [x] Submit creates an open request.
-- [ ] Do not auto-cancel until request is reviewed, unless product/legal decision later requires immediate self-service cancellation.
+- [x] Do not auto-cancel until request is reviewed, unless product/legal decision later requires immediate self-service cancellation.
 
 ### Cancellation Database
 
@@ -657,35 +672,35 @@
   - `created_at`
   - `updated_at`
   - `resolved_at`
-- [ ] Add admin/dev query surface later.
-- [ ] Add notification to owner/dev on new cancellation request.
+- [x] Add admin/dev query surface later.
+- [x] Add notification to owner/dev on new cancellation request.
 
 ### UX States
 
-- [ ] If user abandons funnel:
+- [x] If user abandons funnel:
   - Keep draft in local/session state.
-- [ ] If request is open:
+- [x] If request is open:
   - Show "Sua solicitação está em análise."
   - Offer support follow-up.
-- [ ] If payment provider is Apple/Google:
+- [x] If payment provider is Apple/Google:
   - Explain cancellation must be completed in App Store/Google Play if user wants immediate store-level cancellation.
   - Still collect feedback and create internal request.
-- [ ] If provider is Stripe:
+- [x] If provider is Stripe:
   - Internal request is enough for dev/support review.
   - Decide later whether to expose direct Stripe Portal cancellation.
 
 ## Admin/Internal Operations
 
-- [ ] Add internal admin page later:
+- [x] Add internal admin page later:
   - `/app/admin/billing` or Supabase-only initially.
-- [ ] Admin capabilities:
+- [x] Admin capabilities:
   - View user entitlement.
   - View subscription provider/status.
   - View failed payments.
   - View cancellation requests.
   - Mark cancellation request status.
   - Add admin notes.
-- [ ] Add daily admin alert:
+- Optional later: add a daily admin digest:
   - New cancellation requests.
   - Failed payment notifications.
   - High AI cost users.
@@ -699,17 +714,28 @@
 - [x] `/api/billing/entitlements`.
 - [x] Default Free entitlements.
 - [x] Tests for entitlement mapping.
-- [ ] Route/API feature gates for obvious paid surfaces.
+- [x] Route/API feature gates for obvious paid surfaces.
+  - Status: complete.
+  - [x] Standard `402 FEATURE_LOCKED` response with `required_plan`, `feature_key`, and `checkout_available`.
+  - [x] Finance profile, summary, and transaction APIs.
+  - [x] Connector list/create APIs.
+  - [x] Connector item/connect/disconnect APIs and Balys connector tools, including Slack.
+  - [x] Goals APIs and Balys tools.
+  - [x] Calendar and Today pages, APIs, external Calendar API, and Balys tools.
+  - [x] Reviews, briefings, and reminders pages/APIs/tools/background jobs.
+  - [x] Meetings pages/APIs/tools and background processing.
+  - [x] Image generation tool and generated-image API.
+  - [x] WhatsApp channel APIs and inbound Balys execution.
 
 ### Phase 2 - AI Credits
 
-- [ ] `ai_credit_events` migration.
-- [ ] Credit policy library.
-- [ ] Credit meter API.
-- [ ] Balys preflight for Free.
-- [ ] AI usage instrumentation.
-- [ ] Exhaustion UX.
-- [ ] Tests for daily reset and credit consumption.
+- [x] `ai_credit_events` migration.
+- [x] Credit policy library.
+- [x] Credit meter API.
+- [x] Balys preflight for Free.
+- [x] AI usage instrumentation.
+- [x] Exhaustion UX.
+- [x] Tests for daily reset and credit consumption.
 
 ### Phase 3 - Stripe Web Billing
 
@@ -724,54 +750,58 @@
 - [x] Portal route.
 - [x] Stripe webhook route.
 - [ ] Local Stripe CLI webhook test.
-- [ ] Checkout success/cancel pages or query states.
+- [x] Checkout success/cancel pages or query states.
 - [x] Tests for webhook idempotency and entitlement changes.
 
 ### Phase 4 - Pricing and Upgrade UX
 
-- [ ] Pricing page or modal.
+- [x] Pricing page or modal.
 - [x] Platform-aware billing UI:
   - Web uses Stripe Checkout/Portal.
   - iOS uses App Store IAP purchase/management.
   - Android uses Google Play Billing purchase/management.
-- [ ] Upgrade CTA from locked routes.
-- [ ] Upgrade CTA from credit exhaustion.
+- [x] Upgrade CTA from locked routes.
+- [x] Upgrade CTA from credit exhaustion.
 - [x] Billing page in settings.
-- [ ] Annual/monthly toggle.
+- [x] Annual/monthly toggle.
 - [x] Stripe redirect.
-- [ ] Post-checkout entitlement refresh.
-- [ ] Tests for locked API responses.
+- [x] Post-checkout entitlement refresh.
+- [x] Tests for locked API responses.
 
 ### Phase 5 - Billing Failure Notifications
 
-- [ ] In-app billing alert model.
-- [ ] Push notification on Stripe failure:
+- [x] In-app billing alert model.
+- [x] Push notification on Stripe failure:
   - browser Web Push when available.
   - APNs for iOS mobile app.
   - FCM for Android mobile app.
-- [ ] WhatsApp failure notification if connected.
-- [ ] Billing Portal CTA.
-- [ ] Recovery clearing on `invoice.paid`.
-- [ ] Tests for notification event creation.
+- [x] WhatsApp failure notification if connected.
+- [x] Billing Portal CTA.
+- [x] Recovery clearing on `invoice.paid`.
+- [x] Tests for notification event creation.
+- Status: complete.
 
 ### Phase 5.1 - Mobile Push Delivery Foundation
 
 - [x] Migration for `mobile_push_tokens`.
 - [x] Mobile push token registration API.
-- [ ] Provider-neutral push dispatch interface.
-- [ ] APNs adapter placeholder/config contract.
-- [ ] FCM adapter placeholder/config contract.
+- [x] Provider-neutral push dispatch interface.
+- [x] APNs adapter and config contract.
+- [x] FCM adapter and config contract.
 - [x] Tests for token registration, validation, ownership, and soft-delete.
+- [x] Tests for provider routing, delivery, and invalid-token disabling.
+- Status: complete.
 
 ### Phase 6 - Support Section
 
 - [x] Support route/page.
-- [ ] Support KB.
+- [x] Support KB.
 - [x] Quick questions.
-- [ ] Support chat route.
+- [x] Support chat route.
 - [x] Support request model.
-- [ ] Billing-aware support answers.
-- [ ] Tests for KB prompt and support route validation.
+- [x] Billing-aware support answers.
+- [x] Tests for KB prompt and support route validation.
+- Status: complete.
 
 ### Phase 7 - Cancellation Funnel
 
@@ -783,62 +813,109 @@
   - Expectation required.
   - Second chance yes/no required.
 - [x] Cancellation request API.
-- [ ] Open request status UI.
-- [ ] Dev/admin notification.
+- [x] Open request status UI.
+- [x] Dev/admin notification.
 - [x] Tests for cancellation validation.
+- Status: complete.
 
 ### Phase 8 - Mobile Billing Integration Contract
 
-- [ ] Add provider-neutral receipt/subscription endpoints:
+- [x] Add provider-neutral receipt/subscription endpoints:
   - `POST /api/billing/apple/verify`
   - `POST /api/billing/google/verify`
   - `POST /api/webhooks/apple`
   - `POST /api/webhooks/google-play`
-- [ ] Do not implement mobile app here, but prepare web backend contract.
-- [ ] Document expected mobile payloads.
-- [ ] Tests with mocked provider responses.
+- [x] Do not implement mobile app here, but prepare web backend contract.
+- [x] Document expected mobile payloads.
+- [x] Tests with mocked provider responses.
+- Status: complete.
 
 ### Phase 9 - Observability and Reconciliation
 
-- [ ] Billing reconciliation job:
+- [x] Billing reconciliation job:
   - Stripe subscription state vs local state.
   - Apple/Google state vs local state when applicable.
-- [ ] AI cost dashboard.
-- [ ] Alerts:
+- [x] AI cost dashboard.
+- [x] Alerts:
   - Webhook failures.
   - High AI cost.
   - Subscription state mismatch.
   - New cancellation request.
-- [ ] Add runbook docs.
+- [x] Add runbook docs.
+- Status: complete.
 
 ## Security and Compliance
 
-- [ ] Use Stripe-hosted Checkout and Portal to minimize PCI scope.
-- [ ] Verify Stripe webhook signature with raw body.
-- [ ] Never store card data.
-- [ ] Store provider customer/subscription IDs only.
-- [ ] RLS:
+- [x] Use Stripe-hosted Checkout and Portal to minimize PCI scope.
+- [x] Verify Stripe webhook signature with raw body.
+- [x] Never store card data.
+- [x] Store provider customer/subscription IDs only.
+- [x] RLS:
   - Users can read their own subscription/entitlement/support request.
   - Users cannot write entitlement directly.
   - Service role/webhooks update billing state.
-- [ ] Webhook idempotency for all providers.
-- [ ] Avoid exposing technical provider IDs in user-facing UI.
-- [ ] Support Balys must not reveal internal logs, secrets, or provider payloads.
+- [x] Webhook idempotency for all providers.
+- [x] Avoid exposing technical provider IDs in user-facing UI.
+- [x] Support Balys must not reveal internal logs, secrets, or provider payloads.
 
 ## Open Product Decisions
 
-- [ ] Exact Free daily credits:
-  - Recommendation: start with 10/day.
-- [ ] Whether Free can generate any images:
-  - Recommendation: no at launch.
-- [ ] Whether Stripe Portal allows direct cancellation:
-  - Recommendation: initially route through support funnel, but confirm legal/store expectations before blocking self-service cancellation.
-- [ ] Whether Pro "unlimited" has a visible fair-use note:
-  - Recommendation: no visible cap; keep abuse controls internal.
-- [ ] Whether annual plan has trial:
-  - Recommendation: no trial initially; use Free as trial.
-- [ ] Whether pricing is displayed as R$39,90/month annual or R$478,80/year:
-  - Recommendation: show both.
+- [x] Exact Free daily credits: 10/day at launch.
+- [x] Free image generation: disabled at launch.
+- [x] Stripe cancellation: route through the support funnel; do not expose broad Portal cancellation in the primary UX.
+- [x] Pro "unlimited": no ordinary visible fair-use cap; keep provider protection internal.
+- [x] Annual plan trial: no trial initially; Free is the entry experience.
+- [x] Annual price display: show R$39,90/month and R$478,80 billed annually.
+
+## Remaining Work to Close Billing
+
+### Web Launch Blockers
+
+- [x] Decouple external notification delivery from the Stripe webhook request.
+  - The webhook must durably persist billing state, entitlements, and a pending notification, then return `2xx`.
+  - Web Push, APNs, FCM, and WhatsApp delivery must run in a retryable worker/cron path.
+  - Provider outages must not cause Stripe to retry an event whose local billing state was already saved.
+- [x] Add Pro fair-use and provider-protection guardrails.
+  - Per-user short-window throttling for AI requests.
+  - Concurrency limits for expensive asynchronous jobs.
+  - Configurable daily protection caps for images, meetings, grounded search, Council/reviews, and similar high-cost workloads.
+  - Friendly retry-later UX and admin alerts for repeated or extreme use, without showing an ordinary Pro credit quota.
+- [x] Add Free expensive-action preflight UX.
+  - The atomic database function already prevents overspending under concurrency.
+  - Before starting a known expensive action, compare its estimated credit cost with the current remaining balance.
+  - If the action cannot fit, explain the cost and remaining balance before invoking an AI provider.
+- [ ] Run the real Stripe test-mode validation.
+  - Products and monthly/annual prices are already configured.
+  - Validate Checkout, initial entitlement, renewal, payment failure, payment recovery, cancellation, and webhook idempotency with Stripe CLI/test mode.
+- [ ] Run the complete manual Free/Pro validation matrix below on desktop and mobile web.
+- [ ] Publish the current migrations and application changes through GitHub CI/CD after GitHub CLI authentication is restored.
+
+### Architecture Follow-up Before Adding More Plans
+
+- [ ] Make plan policies data-driven rather than hardcoded to `free` and `pro`.
+  - Remove the database plan-code enum check and rely on the plan foreign key.
+  - Resolve feature availability, AI credit allowance, and unlimited status from plan policy data.
+  - Map provider prices by `plan_code + provider + interval` instead of Pro-specific environment names.
+  - Replace new business decisions based on `has_pro` with capability checks while retaining `has_pro` temporarily for compatibility.
+  - This is not required to launch Free + Pro, but should precede Starter, Team, Business, add-ons, or custom credit allowances.
+
+### Mobile Billing Launch Work
+
+- [ ] Implement mandatory Google sign-in and Free entry in the native app.
+- [ ] Implement StoreKit 2 purchases and subscription management on iOS.
+- [ ] Implement Google Play Billing purchases and subscription management on Android.
+- [ ] Register and rotate APNs/FCM device tokens from the native app.
+- [ ] Load localized prices from App Store/Google Play product metadata.
+- [ ] Validate cross-platform ownership and management messaging in the native UI.
+- [ ] Create and clear provider-aware billing notifications for Apple/Google billing failures and recoveries; subscription-state synchronization already exists.
+
+### Optional Backlog
+
+- [ ] Prefer actual provider usage metadata wherever the provider exposes it.
+- [ ] Add localized support quick questions.
+- [ ] Add optional admin/dev support knowledge preview endpoint.
+- [ ] Add an optional daily admin digest; real-time alerts and daily reconciliation already exist.
+- [ ] Add optional billing email notifications later.
 
 ## Validation Checklist
 
@@ -852,10 +929,10 @@
 - [ ] Stripe renewal keeps entitlements active.
 - [ ] Stripe failed payment creates notification and billing state.
 - [ ] Stripe recovery clears failure state.
-- [ ] Support KB answers core product questions.
-- [ ] Cancellation funnel enforces required minimums.
-- [ ] Cancellation request persists for dev/admin review.
-- [ ] Mobile provider subscription schema is ready for future app.
+- [x] Support KB answers core product questions.
+- [x] Cancellation funnel enforces required minimums.
+- [x] Cancellation request persists for dev/admin review.
+- [x] Mobile provider subscription schema is ready for future app.
 
 ## Reference Notes
 

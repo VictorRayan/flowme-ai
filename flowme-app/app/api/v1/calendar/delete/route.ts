@@ -3,6 +3,7 @@ import { requireApiKeyAuth } from '@/lib/api/api-key-auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { markGoalCalendarEventDeleted } from '@/lib/goals/calendar-event-links';
 import { deleteCalendarEvent } from '@/lib/google/google-calendar';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 /**
  * DELETE /api/v1/calendar/delete
@@ -19,6 +20,12 @@ export async function DELETE(req: NextRequest) {
     const auth = await requireApiKeyAuth(req, ['calendar.write']);
     if (auth instanceof Response) return auth;
     const { userId, supabase } = auth;
+    const entitlements = await getUserEntitlements(supabase, userId);
+    if (!isFeatureAllowed(entitlements, 'calendar')) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Calendar requires Flow Me Pro', 402, {
+        required_plan: 'pro', feature_key: 'calendar', checkout_available: true,
+      });
+    }
 
     const body = await req.json();
     const { event_id, linked_account_id } = body;

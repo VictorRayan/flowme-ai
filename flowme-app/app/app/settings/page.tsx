@@ -211,6 +211,12 @@ function SettingsPageContent() {
     fetchBilling();
   }, [fetchBilling]);
 
+  useEffect(() => {
+    const refreshAfterEntitlementChange = () => { void fetchBilling(); };
+    window.addEventListener('flowme:entitlements-updated', refreshAfterEntitlementChange);
+    return () => window.removeEventListener('flowme:entitlements-updated', refreshAfterEntitlementChange);
+  }, [fetchBilling]);
+
   const startCheckout = useCallback(async (interval: 'monthly' | 'annual') => {
     setBillingAction(interval);
     try {

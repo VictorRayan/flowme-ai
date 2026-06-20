@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/goals/plan/route';
 import { createCalendarEvent } from '@/lib/google/google-calendar';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 const tableRows: Record<string, unknown> = {
   smart_goals: { id: 'goal-1', title: 'Goal', timeframe: 'yearly', status: 'in_progress' },
@@ -45,7 +46,46 @@ jest.mock('@/lib/api/auth', () => ({
   ),
 }));
 
+jest.mock('@/lib/api/admin', () => ({
+  getSupabaseAdmin: jest.fn(() => ({})),
+}));
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: jest.fn().mockResolvedValue({ features: { goals: true } }),
+  };
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (requireFeature as jest.Mock).mockResolvedValue({ features: { goals: true } });
+});
+
 describe('POST /api/goals/plan', () => {
+  it('returns FEATURE_LOCKED for Free users', async () => {
+    (requireFeature as jest.Mock).mockRejectedValueOnce(new FeatureLockedError('goals' as any));
+
+    const res = await POST(new NextRequest('http://localhost/api/goals/plan', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }));
+
+    expect(res.status).toBe(402);
+    expect((await res.json()).error.code).toBe('FEATURE_LOCKED');
+  });
+
   it('persists an accepted goal proposal into goals, plan, and full-period events', async () => {
     const res = await POST(new NextRequest('http://localhost/api/goals/plan', {
       method: 'POST',

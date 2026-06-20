@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolContext } from './Tool';
+import { defineFeatureTool, ToolContext, type Tool } from './Tool';
 import {
   GoalCalendarEvent,
   GoalCalendarEventStatus,
@@ -23,6 +23,10 @@ import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
 const goalTimeframeSchema = z.enum(['yearly', 'monthly', 'weekly']);
 const goalStatusSchema = z.enum(['not_started', 'in_progress', 'completed', 'cancelled']);
 const planStatusSchema = z.enum(['not_started', 'in_progress', 'completed', 'cancelled']);
+
+function defineGoalsTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('goals', 'Goals require Flow Me Pro.', tool);
+}
 
 const GOAL_FIELDS = `
   id, title, description, timeframe, parent_goal_id, status, target_date,
@@ -252,7 +256,7 @@ async function rollbackCalendarEvents(accountId: string, eventIds: string[], con
   }
 }
 
-export const goalsListTool = defineTool({
+export const goalsListTool = defineGoalsTool({
   name: 'goals.list',
   description: `List the user's goals and active action plans. Read-only.
 
@@ -310,7 +314,7 @@ CONTRACT:
   },
 });
 
-export const goalsCreateOperatingPlanTool = defineTool({
+export const goalsCreateOperatingPlanTool = defineGoalsTool({
   name: 'goals.create_operating_plan',
   description: `Create a long-term Goal Operating System: persistent yearly/monthly/weekly goal records + a short action plan sprint + Google Calendar recurring series through the goal target date.
 
@@ -447,7 +451,7 @@ CORRECT CALL SHAPE (all fields are TOP-LEVEL — never nest them):
   },
 });
 
-export const goalsListDeletedCalendarEventsTool = defineTool({
+export const goalsListDeletedCalendarEventsTool = defineGoalsTool({
   name: 'goals.list_deleted_calendar_events',
   description: `Lists deleted calendar events that were originally created for goals or action plans and may need rescheduling.
 
@@ -483,7 +487,7 @@ CONTRACT:
   },
 });
 
-export const goalsCreateShortActionPlanTool = defineTool({
+export const goalsCreateShortActionPlanTool = defineGoalsTool({
   name: 'goals.create_short_action_plan',
   description: `Persist a short-term action plan (plano de ação) that the user has ALREADY accepted after a clarifying conversation.
 
@@ -673,7 +677,7 @@ async function selectLinkedEvents(
   return [];
 }
 
-export const goalsListCalendarEventsTool = defineTool({
+export const goalsListCalendarEventsTool = defineGoalsTool({
   name: 'goals.list_calendar_events',
   description: `Lists the Google Calendar events that belong to a goal or action plan, including ones that were DELETED. Read-only.
 
@@ -735,7 +739,7 @@ CONTRACT:
   },
 });
 
-export const goalsRescheduleCalendarEventsTool = defineTool({
+export const goalsRescheduleCalendarEventsTool = defineGoalsTool({
   name: 'goals.reschedule_calendar_events',
   description: `Remanejar (reschedule) the Google Calendar events of a goal or action plan: change the time of day and/or which weekdays a recurring series runs. Keeps the goal/plan link in sync.
 
@@ -856,7 +860,7 @@ RETURNS receipt: { rescheduled_count, failed_count, results[], summary }. Read s
   },
 });
 
-export const goalsRestoreCalendarEventsTool = defineTool({
+export const goalsRestoreCalendarEventsTool = defineGoalsTool({
   name: 'goals.restore_calendar_events',
   description: `Restore goal/action-plan calendar events that were previously deleted, recreating them on Google Calendar with their original time and recurrence.
 
@@ -936,7 +940,7 @@ RETURNS receipt: { restored_count, failed_count, results[], summary }. Confirm i
   },
 });
 
-export const goalsDeletePlanTool = defineTool({
+export const goalsDeletePlanTool = defineGoalsTool({
   name: 'goals.delete_plan',
   description: `Delete a GOAL (meta) or an ACTION PLAN (plano de ação) entirely, including its Google Calendar events. DESTRUCTIVE.
 

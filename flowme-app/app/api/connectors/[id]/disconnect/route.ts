@@ -1,12 +1,15 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 // POST /api/connectors/[id]/disconnect
 // Revokes the OAuth link from a connector (marks linked_account inactive, clears config).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'connectors');
     const { id: connectorId } = await params;
 
     const { data: connector, error: connectorError } = await supabase
@@ -50,6 +53,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return apiSuccess({ connector: updated });
   } catch (err: any) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('POST /api/connectors/[id]/disconnect error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to disconnect connector', 500);

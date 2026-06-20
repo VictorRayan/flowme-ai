@@ -38,6 +38,7 @@ import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 import { UI, resolveUiLang } from '@/lib/i18n';
 import { ensureFreshEntryThread } from '@/lib/ai/thread-entry';
 import BalysIcon from '@/components/brand/BalysIcon';
+import { useSubscription } from '@/components/billing/SubscriptionProvider';
 
 // ── Note edit block parsing ───────────────────────────────────────────────────
 const NOTE_EDIT_RE = /%%NOTE_EDIT_START(?::([^%]+))?%%([\s\S]*?)%%NOTE_EDIT_END%%/g;
@@ -161,6 +162,13 @@ interface ThinkingStep {
 }
 interface SelectedActionMeta { id: string; label: string; action: CommandAction; }
 interface Message { role: 'user' | 'assistant'; content: string; attachments?: Attachment[]; transcript?: string; thinking?: ThinkingStep[]; selectedAction?: SelectedActionMeta; }
+interface AiCreditState {
+  unlimited: boolean;
+  daily_limit: number | null;
+  used: number;
+  remaining: number | null;
+  resets_at: string;
+}
 type DestructiveDialog =
   | { kind: 'deleteThread'; threadId: string; title: string; step: 1 | 2 }
   | { kind: 'clearThread'; threadId: string; title: string; step: 1 | 2 }
@@ -267,6 +275,7 @@ function pendingActionIcon(action: CommandAction): React.ReactElement | undefine
 }
 
 export default function AIPage() {
+  const { openUpgrade } = useSubscription();
   const [threads, setThreads]         = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
@@ -288,6 +297,7 @@ export default function AIPage() {
   const [interfaceLang, setInterfaceLang] = useState<'en' | 'pt'>('en');
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number; name?: string } | null>(null);
   const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [creditState, setCreditState] = useState<AiCreditState | null>(null);
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('balysai_language') : null;
     setUiLang(resolveLang(stored));
@@ -319,6 +329,14 @@ export default function AIPage() {
   }, []);
 
   useEffect(() => { requestGps(); }, [requestGps]);
+  const refreshCredits = useCallback(async () => {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await fetch(`/api/billing/credits?timezone=${encodeURIComponent(timezone)}`);
+    if (!response.ok) return;
+    const body = await response.json().catch(() => null);
+    if (body?.credits) setCreditState(body.credits);
+  }, []);
+  useEffect(() => { void refreshCredits(); }, [refreshCredits]);
   const inputBoxRef = useRef<HTMLDivElement>(null);
 
   const bottomRef    = useRef<HTMLDivElement>(null);
@@ -705,6 +723,7 @@ export default function AIPage() {
 
   const sendMessage = async () => {
     if (activeIsWhatsAppThread) return;
+    if (creditState?.remaining === 0) return;
     if ((!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading || !activeThread) return;
 
     const rawUserInput = input.trim();
@@ -823,8 +842,19 @@ Rules:
 
       if (!res.ok) {
         const text = await res.text();
-        try { const e = JSON.parse(text); throw new Error(e.error?.message || e.error || text); }
+        try {
+          const e = JSON.parse(text);
+          if (e?.credits) setCreditState(e.credits);
+          if (e?.error?.code === 'AI_CREDITS_EXHAUSTED') openUpgrade({ reason: 'credits' });
+          throw new Error(e.error?.message || e.error || text);
+        }
         catch (pe) { if (pe instanceof SyntaxError) throw new Error(text || 'Request failed'); else throw pe; }
+      }
+
+      const remainingHeader = res.headers.get('x-ai-credits-remaining');
+      if (remainingHeader && remainingHeader !== 'unlimited') {
+        const remaining = Number(remainingHeader);
+        if (Number.isFinite(remaining)) setCreditState((current) => current ? { ...current, used: Math.max(0, (current.daily_limit || 0) - remaining), remaining } : current);
       }
 
       const routedProvider = res.headers.get('x-balys-provider') || updatedThread.provider;
@@ -1009,6 +1039,7 @@ Rules:
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+      void refreshCredits();
     }
   };
 
@@ -1081,6 +1112,21 @@ Rules:
             : <BalysIcon color="secondary" fontSize="small" />}
           <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
           <Box sx={{ flex: 1 }} />
+          {creditState && (
+            <Tooltip title={creditState.unlimited
+              ? (interfaceLang === 'pt' ? 'Créditos de IA ilimitados no Pro.' : 'Unlimited AI credits with Pro.')
+              : (interfaceLang === 'pt' ? 'Perguntas simples usam pouco; ações com busca, arquivos ou análise usam mais.' : 'Simple questions use less; search, files, and analysis use more.')}>
+              <Chip
+                size="small"
+                color={!creditState.unlimited && (creditState.remaining || 0) <= 2 ? 'warning' : 'default'}
+                variant="outlined"
+                label={creditState.unlimited
+                  ? (interfaceLang === 'pt' ? 'IA ilimitada' : 'Unlimited AI')
+                  : `${creditState.remaining} ${interfaceLang === 'pt' ? 'créditos hoje' : 'credits today'}`}
+                sx={{ maxWidth: { xs: 125, sm: 'none' }, fontSize: 11 }}
+              />
+            </Tooltip>
+          )}
           <Tooltip title={at.clearChat}>
             <span>
               <IconButton size="small" onClick={requestClearActiveThread} disabled={!activeThread?.messages.length}>
@@ -1328,6 +1374,18 @@ Rules:
           </Box>
         )}
 
+        {!activeIsWhatsAppThread && creditState?.remaining === 0 && (
+          <Alert
+            severity="warning"
+            sx={{ mx: 2, mt: 1, alignItems: 'center' }}
+            action={<Button color="inherit" size="small" onClick={() => openUpgrade({ reason: 'credits' })}>{interfaceLang === 'pt' ? 'Fazer upgrade' : 'Upgrade'}</Button>}
+          >
+            {interfaceLang === 'pt'
+              ? 'Seus créditos de IA de hoje acabaram. Eles renovam amanhã, ou você pode liberar IA ilimitada com Pro.'
+              : 'You have used today’s AI credits. They renew tomorrow, or you can unlock unlimited AI with Pro.'}
+          </Alert>
+        )}
+
         {/* Attachment previews */}
         {!activeIsWhatsAppThread && attachments.length > 0 && (
           <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -1373,7 +1431,7 @@ Rules:
             }}
             size="small" disabled={loading || activeIsWhatsAppThread} suppressHydrationWarning />
           <span suppressHydrationWarning>
-            <IconButton color="primary" onClick={sendMessage} disabled={activeIsWhatsAppThread || (!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
+            <IconButton color="primary" onClick={sendMessage} disabled={activeIsWhatsAppThread || creditState?.remaining === 0 || (!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
               {loading ? <CircularProgress size={20} /> : <SendIcon />}
             </IconButton>
           </span>

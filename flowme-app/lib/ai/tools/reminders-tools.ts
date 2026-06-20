@@ -1,6 +1,10 @@
 import { z } from 'zod';
-import { defineTool } from './Tool';
+import { defineFeatureTool, type Tool } from './Tool';
 import { cancelReminder, createReminder, listReminders } from '@/lib/reminders/reminders';
+
+function defineRemindersTool<S extends z.ZodTypeAny>(tool: Tool<S>): Tool<S> {
+  return defineFeatureTool('reminders', 'Reminders require Flow Me Pro.', tool);
+}
 
 const channelSchema = z.enum(['default', 'whatsapp', 'instagram', 'push']);
 
@@ -12,7 +16,7 @@ const sourceSchema = z.object({
   start_at: z.string().optional(),
 });
 
-export const remindersCreateTool = defineTool({
+export const remindersCreateTool = defineRemindersTool({
   name: 'reminders.create',
   description: `Creates a reminder notification for the user. Reminders are notifications only: they are NOT tasks and NOT calendar events.
 
@@ -74,7 +78,7 @@ RETURNS receipt: { reminder_id, scheduled_for, channel_preference, status }. rem
   },
 });
 
-export const remindersListTool = defineTool({
+export const remindersListTool = defineRemindersTool({
   name: 'reminders.list',
   description: `Reads the user's reminders. Use before cancelling or when the user asks what reminders are scheduled. Never expose technical IDs.`,
   isReadOnly: true,
@@ -110,7 +114,7 @@ export const remindersListTool = defineTool({
   },
 });
 
-export const remindersCancelTool = defineTool({
+export const remindersCancelTool = defineRemindersTool({
   name: 'reminders.cancel',
   description: `Cancels a scheduled reminder. First resolve the reminder through reminders.list; never ask the user for a technical ID.`,
   isReadOnly: false,

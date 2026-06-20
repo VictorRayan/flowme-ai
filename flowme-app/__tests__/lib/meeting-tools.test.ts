@@ -1,8 +1,24 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+    constructor(feature: string) { super('Feature requires Flow Me Pro'); this.name = 'FeatureLockedError'; this.feature = feature; }
+  }
+  return { FeatureLockedError, requireFeature: (...args: unknown[]) => mockRequireFeature(...args) };
+});
+
 import {
   meetingsListRecentTool,
   meetingsGetDetailTool,
   meetingsSearchSegmentsTool,
 } from '@/lib/ai/tools/meeting-tools';
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockRequireFeature.mockResolvedValue({ features: { meetings: true } });
+});
 
 type Row = Record<string, any>;
 
@@ -26,6 +42,13 @@ function fakeContext(byTable: Record<string, any>): any {
 }
 
 describe('meetings.list_recent', () => {
+  it('blocks Free users before reading meetings', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('meetings'));
+    const result = await meetingsListRecentTool.call({}, fakeContext({}));
+    expect(result.data).toEqual(expect.objectContaining({ code: 'FEATURE_LOCKED', feature_key: 'meetings' }));
+  });
+
   it('returns recent meetings normalized for the LLM', async () => {
     const ctx = fakeContext({
       meeting_recordings: chain([

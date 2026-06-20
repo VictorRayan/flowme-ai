@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireApiKeyAuth } from '@/lib/api/api-key-auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 /**
  * GET /api/v1/calendar/events
@@ -20,6 +21,12 @@ export async function GET(req: NextRequest) {
     const auth = await requireApiKeyAuth(req, ['calendar.read']);
     if (auth instanceof Response) return auth;
     const { userId, supabase } = auth;
+    const entitlements = await getUserEntitlements(supabase, userId);
+    if (!isFeatureAllowed(entitlements, 'calendar')) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Calendar requires Flow Me Pro', 402, {
+        required_plan: 'pro', feature_key: 'calendar', checkout_available: true,
+      });
+    }
 
     const url = new URL(req.url);
     const start = url.searchParams.get('start');

@@ -3,6 +3,7 @@ import { buildFinanceSummary, getFinancialProfile, getFinanceMonthlySummary, lis
 import type { FinanceRecurringExpense, FinancialGoalAlignment } from '@/lib/finance/types';
 import { getCalendarEvents } from '@/lib/google/google-calendar';
 import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
+import { getUserEntitlements, isFeatureAllowed } from '@/lib/billing/entitlements';
 
 export type WeeklyReviewStatus = 'collecting' | 'awaiting_briefing' | 'generating' | 'ready' | 'failed';
 
@@ -554,6 +555,8 @@ export async function generateDueWeeklyReviews(supabase: SupabaseLike, now = new
   let awaitingBriefing = 0;
   let failed = 0;
   for (const profile of profiles) {
+    const entitlements = await getUserEntitlements(supabase, profile.user_id);
+    if (!isFeatureAllowed(entitlements, 'reviews')) continue;
     const timezone = profile.briefing_timezone || 'UTC';
     const weekday = new Date(`${dateInTimezone(now, timezone)}T12:00:00Z`).getUTCDay();
     if (weekday !== profile.weekly_review_weekday || !isDue(profile.weekly_review_time, now, timezone)) continue;

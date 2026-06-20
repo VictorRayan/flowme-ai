@@ -8,6 +8,25 @@ const mockDocsDocumentsBatchUpdate = jest.fn();
 const mockGetValidGoogleToken = jest.fn();
 const mockRunSheetsAgent = jest.fn();
 const mockRunDocsAgent = jest.fn();
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+
+    constructor(feature: string) {
+      super('Feature requires Flow Me Pro');
+      this.name = 'FeatureLockedError';
+      this.feature = feature;
+    }
+  }
+
+  return {
+    FeatureLockedError,
+    requireFeature: (...args: unknown[]) => mockRequireFeature(...args),
+  };
+});
 
 jest.mock('googleapis', () => ({
   google: {
@@ -84,7 +103,28 @@ function makeContext(connector: Record<string, unknown>) {
 describe('Drive connector tools', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { connectors: true } });
     mockGetValidGoogleToken.mockResolvedValue({ kind: 'oauth-client' });
+  });
+
+  it('blocks Free users before querying connector data', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('connectors'));
+    const context = makeContext({});
+
+    const result = await connectorsListTool.call({}, context);
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Connectors require Flow Me Pro.',
+      data: {
+        code: 'FEATURE_LOCKED',
+        required_plan: 'pro',
+        feature_key: 'connectors',
+        checkout_available: true,
+      },
+    });
+    expect(context.supabase.from).not.toHaveBeenCalled();
   });
 
   it('discovers files account-wide and refreshes credentials', async () => {
@@ -658,4 +698,3 @@ describe('Drive connector tools', () => {
     }));
   });
 });
-

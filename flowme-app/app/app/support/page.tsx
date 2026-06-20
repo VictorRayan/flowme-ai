@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -23,8 +23,22 @@ import { useSearchParams } from 'next/navigation';
 
 const QUICK_QUESTIONS = [
   'Como eu começo no Flow Me?',
+  'Como usar o BalysAI melhor?',
   'Como funcionam os créditos de IA?',
   'Qual a diferença entre Free e Pro?',
+  'Como conectar meu WhatsApp?',
+  'Como usar o Balys pelo WhatsApp?',
+  'Como criar lembretes?',
+  'Como entrar em flow hoje?',
+  'Como o Today organiza meu dia?',
+  'Como criar uma meta e um plano?',
+  'Como funciona o conselho?',
+  'Como funciona a revisão semanal?',
+  'Como funciona a revisão mensal?',
+  'Como registrar despesas?',
+  'Como ver minha saúde financeira?',
+  'Como conectar Google Docs/Sheets/Drive/Gmail?',
+  'Como gravar e revisar reuniões?',
   'Estou com problema de pagamento',
   'Quero cancelar minha assinatura',
 ];
@@ -39,11 +53,66 @@ function SupportPageContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [requests, setRequests] = useState<Array<{ id: string; status: string; created_at: string }>>([]);
+  const [billing, setBilling] = useState<{ plan_code: string; billing_state: string; provider: string | null } | null>(null);
+  const [cancellationIntent, setCancellationIntent] = useState(startsWithCancellation);
 
   const selectedPrompt = useMemo(() => {
     if (startsWithCancellation) return 'Quero cancelar minha assinatura';
     return QUICK_QUESTIONS[0];
   }, [startsWithCancellation]);
+
+  useEffect(() => {
+    const draft = localStorage.getItem('support_cancellation_draft');
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        setReason(parsed.reason || '');
+        setDisappointingFeatures(parsed.disappointingFeatures || '');
+        setUnmetExpectation(parsed.unmetExpectation || '');
+        setWouldAcceptHumanSupport(parsed.wouldAcceptHumanSupport === 'no' ? 'no' : 'yes');
+      } catch {}
+    }
+    Promise.all([
+      fetch('/api/support/requests').then(res => res.json()),
+      fetch('/api/billing/entitlements').then(res => res.json()),
+    ]).then(([requestData, billingData]) => {
+      if (requestData?.ok) setRequests(requestData.requests || []);
+      if (billingData?.ok) setBilling({
+        ...(billingData.entitlements || {}),
+        provider: billingData.billing?.provider || null,
+      });
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('support_cancellation_draft', JSON.stringify({ reason, disappointingFeatures, unmetExpectation, wouldAcceptHumanSupport }));
+  }, [reason, disappointingFeatures, unmetExpectation, wouldAcceptHumanSupport]);
+
+  const sendSupportMessage = async (prompt?: string) => {
+    const message = (prompt || chatInput).trim();
+    if (!message || chatLoading) return;
+    setMessages(current => [...current, { role: 'user', content: message }]);
+    setChatInput('');
+    setChatLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/support/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error?.message || 'Não consegui consultar o suporte.');
+      setMessages(current => [...current, { role: 'assistant', content: data.answer }]);
+      if (data.intent === 'cancel_subscription') setCancellationIntent(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Não consegui consultar o suporte.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   const submitCancellation = async () => {
     setSaving(true);
@@ -68,8 +137,12 @@ function SupportPageContent() {
       setDisappointingFeatures('');
       setUnmetExpectation('');
       setWouldAcceptHumanSupport('yes');
-    } catch (err: any) {
-      setError(err.message);
+      localStorage.removeItem('support_cancellation_draft');
+      const requestRes = await fetch('/api/support/requests');
+      const requestData = await requestRes.json();
+      if (requestData?.ok) setRequests(requestData.requests || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Não consegui registrar a solicitação.');
     } finally {
       setSaving(false);
     }
@@ -90,7 +163,10 @@ function SupportPageContent() {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1.15fr' }, gap: 3 }}>
         <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
-          <Typography variant="h6" fontWeight={700}>Balys Suporte</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            <Typography variant="h6" fontWeight={700}>Balys Suporte</Typography>
+            <Chip size="small" label={`${billing?.plan_code?.toUpperCase() || 'FREE'} · ${billing?.billing_state || 'free'}`} />
+          </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
             Escolha uma pergunta rápida para começar ou use o formulário ao lado quando o assunto for cancelamento.
           </Typography>
@@ -102,15 +178,35 @@ function SupportPageContent() {
                 color={question === selectedPrompt ? 'primary' : 'default'}
                 variant={question === selectedPrompt ? 'filled' : 'outlined'}
                 clickable
+                onClick={() => void sendSupportMessage(question)}
               />
             ))}
           </Box>
           <Divider sx={{ my: 2 }} />
-          <Alert severity={startsWithCancellation ? 'warning' : 'info'}>
-            {startsWithCancellation
-              ? 'Antes de cancelar, vamos entender o motivo e ver se suporte humano consegue recuperar valor para você.'
-              : 'Em breve este painel terá chat dedicado com a base de conhecimento completa do Flow Me.'}
-          </Alert>
+          {messages.length > 0 && (
+            <Box sx={{ display: 'grid', gap: 1.25, mb: 2, maxHeight: 320, overflowY: 'auto' }}>
+              {messages.map((message, index) => (
+                <Box key={`${message.role}-${index}`} sx={{ p: 1.25, bgcolor: message.role === 'user' ? 'action.selected' : 'background.default', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.content}</Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+            <TextField fullWidth size="small" label="Como podemos ajudar?" value={chatInput} onChange={event => setChatInput(event.target.value)} multiline maxRows={4} />
+            <Button variant="contained" onClick={() => void sendSupportMessage()} disabled={chatLoading || !chatInput.trim()} sx={{ minWidth: 44, minHeight: 44 }} aria-label="Enviar pergunta">
+              {chatLoading ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
+            </Button>
+          </Box>
+          {cancellationIntent && <Alert severity="warning" sx={{ mt: 2 }}>Antes de cancelar, vamos entender o motivo e verificar se suporte humano pode ajudar.</Alert>}
+          {cancellationIntent && (billing?.provider === 'apple' || billing?.provider === 'google') && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Para efeito imediato, conclua o cancelamento também pela {billing.provider === 'apple' ? 'App Store' : 'Google Play'}. Sua solicitação interna continuará registrada.
+            </Alert>
+          )}
+          {requests.some(request => request.status === 'open' || request.status === 'in_review') && (
+            <Alert severity="info" sx={{ mt: 2 }}>Sua solicitação está em análise. Você pode continuar conversando com o suporte enquanto aguarda.</Alert>
+          )}
         </Paper>
 
         <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
@@ -172,6 +268,17 @@ function SupportPageContent() {
               Enviar solicitação
             </Button>
           </Box>
+          {requests.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Divider sx={{ mb: 1.5 }} />
+              <Typography variant="subtitle2" fontWeight={700}>Solicitações recentes</Typography>
+              {requests.slice(0, 3).map(request => (
+                <Typography key={request.id} variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                  {new Date(request.created_at).toLocaleDateString('pt-BR')} · {request.status}
+                </Typography>
+              ))}
+            </Box>
+          )}
         </Paper>
       </Box>
     </Box>

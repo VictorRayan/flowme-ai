@@ -2,6 +2,13 @@ import { NextRequest } from 'next/server';
 import { DELETE } from '@/app/api/v1/calendar/delete/route';
 import { deleteCalendarEvent } from '@/lib/google/google-calendar';
 
+const mockIsFeatureAllowed = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => ({
+  getUserEntitlements: jest.fn().mockResolvedValue({ features: { calendar: true } }),
+  isFeatureAllowed: (...args: unknown[]) => mockIsFeatureAllowed(...args),
+}));
+
 jest.mock('@/lib/google/google-calendar', () => ({
   deleteCalendarEvent: jest.fn().mockResolvedValue(undefined),
 }));
@@ -49,6 +56,22 @@ jest.mock('@/lib/api/api-key-auth', () => ({
 }));
 
 describe('DELETE /api/v1/calendar/delete', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockIsFeatureAllowed.mockReturnValue(true);
+  });
+
+  it('returns FEATURE_LOCKED for API keys owned by Free users', async () => {
+    mockIsFeatureAllowed.mockReturnValue(false);
+    const res = await DELETE(new NextRequest('http://localhost/api/v1/calendar/delete', {
+      method: 'DELETE',
+      body: JSON.stringify({ event_id: 'event-1', linked_account_id: 'account-1' }),
+    }));
+    const body = await res.json();
+    expect(res.status).toBe(402);
+    expect(body.error.code).toBe('FEATURE_LOCKED');
+  });
+
   it('marks goal calendar events deleted when deleting through the external API', async () => {
     const res = await DELETE(new NextRequest('http://localhost/api/v1/calendar/delete', {
       method: 'DELETE',

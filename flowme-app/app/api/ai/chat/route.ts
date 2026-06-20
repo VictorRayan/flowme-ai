@@ -14,6 +14,11 @@ import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/
 import { summarizeAndPersistThread, SUMMARIZE_EVERY_N_USER_TURNS } from '@/lib/ai/memory/recall';
 import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/ai/threads';
 import { extractConnectorContextItems, hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
+import { consumeAiCredits, creditPreflightMessage, estimateBalysCreditUsage, isValidTimezone } from '@/lib/billing/credits';
+import { getUserEntitlements } from '@/lib/billing/entitlements';
+import { getSupabaseAdmin } from '@/lib/api/admin';
+import { acquireAiUsageGuard, releaseAiUsageGuard, resolveAiGuardWorkload } from '@/lib/billing/ai-guardrails';
+import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
 
 const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
 type ConnectorIntent = {
@@ -183,6 +188,8 @@ function buildRouteHeaders(
 }
 
 export async function POST(request: NextRequest) {
+  let guardLeaseId: string | null = null;
+  let guardAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
   try {
     const auth = await requireAuth(request);
 
@@ -197,6 +204,94 @@ export async function POST(request: NextRequest) {
       userLocation,
     } = await request.json();
     if (!messages?.length) return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
+
+    const requestedTimezone = typeof timezone === 'string' && isValidTimezone(timezone) ? timezone : 'UTC';
+    const parsedConnectorIntent: ConnectorIntent | null = connectorIntent && typeof connectorIntent === 'object'
+      ? connectorIntent
+      : null;
+    const preflightText = typeof rawUserInput === 'string' && rawUserInput.trim()
+      ? rawUserInput.trim()
+      : typeof messages[messages.length - 1]?.content === 'string'
+        ? messages[messages.length - 1].content
+        : '';
+    const preflightRoute = routeBalysRequest({
+      messages,
+      rawUserInput: preflightText,
+      systemAddendum: typeof systemAddendum === 'string' ? systemAddendum : undefined,
+    });
+    const preflightTarget = preflightRoute.executionPlan === 'direct_tool' ? preflightRoute.executor : preflightRoute.planner;
+    const creditUsage = estimateBalysCreditUsage({
+      text: preflightText,
+      provider: preflightTarget.provider,
+      model: preflightTarget.model,
+      action: parsedConnectorIntent?.action,
+      needsTools: preflightRoute.needsTools,
+      toolDomain: preflightRoute.toolDomain,
+    });
+    const entitlements = await getUserEntitlements(auth.supabase, auth.user.id);
+    if (entitlements.has_pro) {
+      const workload = resolveAiGuardWorkload({
+        action: parsedConnectorIntent?.action,
+        taskType: preflightRoute.taskType,
+        toolDomain: preflightRoute.toolDomain,
+        needsTools: preflightRoute.needsTools,
+      });
+      guardAdmin = getSupabaseAdmin();
+      const guard = await acquireAiUsageGuard(guardAdmin, auth.user.id, workload);
+      if (!guard.allowed) {
+        await recordBillingAdminAlert(guardAdmin, {
+          kind: 'high_ai_cost',
+          severity: guard.reason === 'daily' ? 'critical' : 'warning',
+          userId: auth.user.id,
+          dedupeKey: `ai-guard:${auth.user.id}:${workload}:${guard.reason}:${new Date().toISOString().slice(0, 13)}`,
+          metadata: { workload, reason: guard.reason, retry_after_seconds: guard.retryAfterSeconds },
+        });
+        const portuguese = String(language || '').toLowerCase().startsWith('pt');
+        return NextResponse.json({
+          ok: false,
+          error: {
+            code: 'AI_USAGE_GUARD',
+            message: portuguese
+              ? 'O Balys está protegendo sua conta de muitas ações ao mesmo tempo. Tente novamente em instantes.'
+              : 'Balys is protecting your account from too many simultaneous actions. Try again shortly.',
+          },
+          retry_after_seconds: guard.retryAfterSeconds || 30,
+        }, { status: 429, headers: { 'Retry-After': String(guard.retryAfterSeconds || 30) } });
+      }
+      guardLeaseId = guard.leaseId;
+    }
+    const creditState = await consumeAiCredits({
+      supabase: auth.supabase,
+      userId: auth.user.id,
+      timezone: requestedTimezone,
+      source: creditUsage.source,
+      featureKey: creditUsage.featureKey,
+      credits: creditUsage.credits,
+      provider: preflightTarget.provider,
+      model: preflightTarget.model,
+      estimatedInputTokens: creditUsage.estimatedInputTokens,
+      estimatedOutputTokens: creditUsage.estimatedOutputTokens,
+      costUsdEstimate: creditUsage.costUsdEstimate,
+      metadata: {
+        route_tier: preflightRoute.tier,
+        execution_plan: preflightRoute.executionPlan,
+        connector_action: parsedConnectorIntent?.action || null,
+      },
+    });
+    if (!creditState.allowed) {
+      const portuguese = String(language || '').toLowerCase().startsWith('pt');
+      const exhaustedMessage = creditPreflightMessage(creditState.remaining, creditUsage.credits, portuguese);
+      return NextResponse.json({
+        ok: false,
+        error: {
+          code: 'AI_CREDITS_EXHAUSTED',
+          message: exhaustedMessage,
+        },
+        credits: creditState,
+        required_credits: creditUsage.credits,
+        checkout_available: true,
+      }, { status: 402 });
+    }
 
     const preparedMessages = await prepareMessagesWithAttachments(messages);
     const transcribedUserText = extractLatestUserText(preparedMessages);
@@ -240,9 +335,6 @@ export async function POST(request: NextRequest) {
       contextScores: contextScores ?? undefined,
     });
 
-    const parsedConnectorIntent: ConnectorIntent | null = connectorIntent && typeof connectorIntent === 'object'
-      ? connectorIntent
-      : null;
     const connectorMemoryPrompt = renderConnectorContextForPrompt(messages);
     const connectorIntentPrompt = parsedConnectorIntent?.action
       ? [
@@ -269,7 +361,7 @@ export async function POST(request: NextRequest) {
 
     const systemPromptFull = buildBalysSystemPrompt({
       nowSection: buildNowSystemPrompt({
-        timezone: typeof timezone === 'string' ? timezone : undefined,
+        timezone: requestedTimezone,
         clientNowIso: typeof clientNowIso === 'string' ? clientNowIso : undefined,
       }),
       language: typeof language === 'string' ? language : undefined,
@@ -336,7 +428,7 @@ export async function POST(request: NextRequest) {
                 supabase: auth.supabase,
                 user: auth.user,
                 nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
-                timezone: typeof timezone === 'string' ? timezone : 'UTC',
+                timezone: requestedTimezone,
                 threadId: threadIdForTools,
                 preferredConnectorType: preferredConnectorType(parsedConnectorIntent, messages),
                 userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
@@ -500,7 +592,14 @@ export async function POST(request: NextRequest) {
           console.error('[balys-debug] Thread summarizer threw:', e);
         }
 
-        controller.close();
+        try {
+          if (guardAdmin) await releaseAiUsageGuard(guardAdmin, guardLeaseId);
+        } catch (guardError) {
+          console.error('[balys-guard] failed to release lease:', guardError);
+        } finally {
+          guardLeaseId = null;
+          controller.close();
+        }
       },
     });
 
@@ -509,10 +608,15 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'X-Balys-Stream-Format': 'sse',
         'Cache-Control': 'no-cache, no-transform',
+        'X-AI-Credits-Remaining': creditState.remaining === null ? 'unlimited' : String(creditState.remaining),
         ...buildRouteHeaders(route, skillTarget, { transcript: latestAudioTranscript }),
       },
     });
   } catch (err: unknown) {
+    if (guardAdmin && guardLeaseId) {
+      await releaseAiUsageGuard(guardAdmin, guardLeaseId).catch(error => console.error('[balys-guard] failed to release lease:', error));
+      guardLeaseId = null;
+    }
     let msg = err instanceof Error ? err.message : String(err);
     if (msg === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     if (msg.includes('429') || msg.includes('Rate limit') || msg.includes('quota')) {

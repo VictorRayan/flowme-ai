@@ -1,3 +1,14 @@
+const mockRequireFeature = jest.fn();
+
+jest.mock('@/lib/billing/entitlements', () => {
+  class FeatureLockedError extends Error {
+    feature: string;
+    required_plan = 'pro';
+    constructor(feature: string) { super('Feature requires Flow Me Pro'); this.name = 'FeatureLockedError'; this.feature = feature; }
+  }
+  return { FeatureLockedError, requireFeature: (...args: unknown[]) => mockRequireFeature(...args) };
+});
+
 jest.mock('@/lib/google/google-calendar', () => ({
   getCalendarEvents: jest.fn().mockResolvedValue([
     {
@@ -55,6 +66,16 @@ function makeSupabase(accounts = [{ id: 'linked-account-1', name: 'Work', type: 
 describe('calendar tools', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireFeature.mockResolvedValue({ features: { calendar: true } });
+  });
+
+  it('blocks Free users before reading calendar data', async () => {
+    const { FeatureLockedError } = jest.requireMock('@/lib/billing/entitlements');
+    mockRequireFeature.mockRejectedValueOnce(new FeatureLockedError('calendar'));
+    const result = await calendarListEventsTool.call({ start_iso: '2026-05-01T00:00:00Z', end_iso: '2026-05-02T00:00:00Z', limit: 50 }, {
+      supabase: {}, user: { id: 'user-1' }, timezone: 'UTC', nowIso: '2026-05-01T00:00:00Z',
+    });
+    expect(result.data).toEqual(expect.objectContaining({ code: 'FEATURE_LOCKED', feature_key: 'calendar' }));
   });
 
   it('returns human-readable reschedule evidence without provider IDs', async () => {

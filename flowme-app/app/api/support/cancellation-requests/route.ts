@@ -62,6 +62,15 @@ export async function POST(req: NextRequest) {
       logSupabaseRouteError('/api/support/cancellation-requests', 'subscription_cancellation_requests', error);
       return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
     }
+    const { error: alertError } = await admin.from('billing_admin_alerts').insert({
+      kind: 'cancellation_request',
+      severity: 'warning',
+      user_id: user.id,
+      provider: subscription?.billing_provider || null,
+      dedupe_key: `cancellation_request:${data.id}`,
+      metadata: { cancellation_request_id: data.id, source },
+    });
+    if (alertError) logSupabaseRouteError('/api/support/cancellation-requests', 'billing_admin_alerts', alertError);
     return apiSuccess({ request: data });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === ErrorCode.UNAUTHORIZED) {

@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 import { recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
 import { cleanupPersistedGoalOperatingPlan, persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-calendar';
@@ -8,6 +10,7 @@ import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google/google-ca
 export async function POST(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'goals');
     const body = await req.json();
     if (!body.linked_account_id) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'linked_account_id is required because action-plan tasks must be Google Calendar events');
@@ -89,6 +92,13 @@ export async function POST(req: NextRequest) {
       throw err;
     }
   } catch (err) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Goals require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err instanceof Error && err.message === ErrorCode.UNAUTHORIZED) {
       return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     }

@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'connectors');
     const { id } = await params;
     const body = await req.json();
     const { name, is_active, config } = body;
@@ -36,6 +39,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return apiSuccess({ connector: data });
   } catch (err: any) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('PATCH /api/connectors/[id] error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to update connector', 500);
@@ -45,6 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'connectors');
     const { id } = await params;
 
     const { error } = await supabase
@@ -57,6 +68,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     return apiSuccess({ deleted: true });
   } catch (err: any) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('DELETE /api/connectors/[id] error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to delete connector', 500);

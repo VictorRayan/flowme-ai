@@ -1,3 +1,11 @@
+const mockGetUserEntitlements = jest.fn().mockResolvedValue({ features: { reviews: true } });
+const mockIsFeatureAllowed = jest.fn().mockReturnValue(true);
+
+jest.mock('@/lib/billing/entitlements', () => ({
+  getUserEntitlements: (...args: unknown[]) => mockGetUserEntitlements(...args),
+  isFeatureAllowed: (...args: unknown[]) => mockIsFeatureAllowed(...args),
+}));
+
 import {
   buildMonthlyCouncilSituation,
   buildMonthlyReviewEvidence,
@@ -24,6 +32,11 @@ const summary: FinanceMonthlySummary = {
 };
 
 describe('monthly review', () => {
+  beforeEach(() => {
+    mockGetUserEntitlements.mockResolvedValue({ features: { reviews: true } });
+    mockIsFeatureAllowed.mockReturnValue(true);
+  });
+
   it('uses the current month on its last day', () => {
     expect(getClosedMonthlyReviewPeriod(new Date('2026-06-30T21:30:00Z'), 'UTC')).toEqual({
       start: '2026-06-01',
@@ -105,6 +118,12 @@ describe('monthly review', () => {
     });
     expect(result.inspected).toBe(1);
     expect(result.generated).toBe(1);
+  });
+
+  it('does not generate scheduled reviews for Free users', async () => {
+    mockIsFeatureAllowed.mockReturnValue(false);
+    const result = await generateDueMonthlyReviews(makeSupabase(), new Date('2026-06-30T18:30:00Z'));
+    expect(result).toEqual({ inspected: 0, generated: 0, failed: 0 });
   });
 });
 

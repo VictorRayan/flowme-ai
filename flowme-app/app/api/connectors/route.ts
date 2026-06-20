@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
 const VALID_TYPES = ['gmail', 'google_docs', 'google_sheets', 'google_drive', 'slack'];
 
@@ -12,6 +14,7 @@ function initialConnectorConfig(type: string, input: unknown): Record<string, un
 export async function GET(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'connectors');
 
     const { data, error } = await supabase
       .from('connectors')
@@ -23,6 +26,13 @@ export async function GET(req: NextRequest) {
 
     return apiSuccess({ connectors: data || [] });
   } catch (err: any) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('GET /api/connectors error:', err);
     return apiError(ErrorCode.SUPABASE_ERROR, 'Failed to fetch connectors', 500);
@@ -32,6 +42,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { supabase, user } = await requireAuth(req);
+    await requireFeature(getSupabaseAdmin(), user.id, 'connectors');
     const body = await req.json();
     const { name, type, config } = body;
 
@@ -57,6 +68,13 @@ export async function POST(req: NextRequest) {
 
     return apiSuccess({ connector: data });
   } catch (err: any) {
+    if (err instanceof FeatureLockedError) {
+      return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {
+        required_plan: err.required_plan,
+        feature_key: err.feature,
+        checkout_available: true,
+      });
+    }
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('POST /api/connectors error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to create connector', 500);

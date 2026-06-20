@@ -18,6 +18,7 @@ import SchoolIcon from '@mui/icons-material/School';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -26,16 +27,19 @@ import { applyDayjsLocale } from '@/lib/datetime';
 import RecordingProvider from '@/components/meetings/RecordingProvider';
 import FloatingRecorderPopup from '@/components/meetings/FloatingRecorderPopup';
 import BalysIcon from '@/components/brand/BalysIcon';
+import { SubscriptionProvider, useSubscription } from '@/components/billing/SubscriptionProvider';
+import type { FeatureKey } from '@/lib/billing/entitlements';
 
 const drawerWidth = 240;
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [uiLang, setUiLang] = React.useState<UiLang>('en');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const pathname = usePathname();
   const router = useRouter();
+  const { isAllowed, openUpgrade } = useSubscription();
 
   React.useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('ui_language') : null;
@@ -91,15 +95,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.push(`/app/ai?new=${Date.now()}`);
   }, [pathname, router]);
 
-  const menuItems = [
-    { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today' },
-    { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals' },
-    { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar' },
-    { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance' },
+  const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; feature?: FeatureKey }> = [
+    { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today', feature: 'today' },
+    { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals', feature: 'goals' },
+    { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar', feature: 'calendar' },
+    { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance', feature: 'finance' },
     { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
-    { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews' },
+    { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews', feature: 'reviews' },
     { text: nav.balysAi,    icon: <BalysIcon             sx={{ fontSize: 20 }} />, path: '/app/ai' },
-    { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors' },
+    { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors', feature: 'connectors' },
     { text: nav.tutorials,  icon: <SchoolIcon             sx={{ fontSize: 20 }} />, path: '/app/tutorials' },
     { text: nav.support,    icon: <SupportAgentIcon       sx={{ fontSize: 20 }} />, path: '/app/support' },
     { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
@@ -138,6 +142,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <List sx={{ px: 0.5, flex: 1 }}>
         {menuItems.map((item) => {
           const active = pathname.startsWith(item.path);
+          const locked = Boolean(item.feature && !isAllowed(item.feature));
           return (
             <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
@@ -145,6 +150,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 href={item.path}
                 selected={active}
                 onClick={(event) => {
+                  if (locked && item.feature) {
+                    event.preventDefault();
+                    openUpgrade({ feature: item.feature });
+                  }
                   if (item.path === '/app/ai') {
                     event.preventDefault();
                     openBalysFreshChat();
@@ -164,6 +173,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     color: active ? 'primary.light' : 'text.secondary',
                   }}
                 />
+                {locked && (
+                  <Tooltip title="Disponível no Pro" placement="right">
+                    <LockOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled', mr: 0.75 }} />
+                  </Tooltip>
+                )}
                 {active && (
                   <Box sx={{
                     width: 6,
@@ -279,5 +293,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <FloatingRecorderPopup />
     </Box>
     </RecordingProvider>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SubscriptionProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </SubscriptionProvider>
   );
 }

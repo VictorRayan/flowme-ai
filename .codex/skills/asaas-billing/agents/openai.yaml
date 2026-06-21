@@ -1,0 +1,5 @@
+interface:
+  display_name: "Asaas Billing"
+  short_description: "Contratos seguros de billing e Pix no Asaas"
+  brand_color: "#0030B9"
+  default_prompt: "Use $asaas-billing para implementar ou revisar uma integração Asaas com Pix, assinaturas e webhooks."

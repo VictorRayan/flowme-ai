@@ -2,7 +2,18 @@
 
 This file is the working source of truth for near-term implementation priorities. Read it before planning or changing application code.
 
-## Current Priority: Balys Connectors
+## Current Priority: Multi-provider Transparent Checkout
+
+The active product track is the gateway-independent checkout described in
+`docs/15-subscription-billing-support-implementation-plan.md` under
+"Multi-provider Transparent Checkout". Implement the provider port, catalog
+localization, Stripe Elements, Asaas Pix, normalized webhooks, and the checkout
+experience before returning to the connector backlog.
+
+For Asaas work, read `../.codex/skills/asaas-billing/SKILL.md` and its referenced
+contracts before changing API calls, events, or entitlement transitions.
+
+## Previous Priority: Balys Connectors
 
 Balys connector behavior is product-critical. Before changing connector tools, chat commands, Google OAuth, Gmail, Docs, Sheets, Drive flows, or connector UI feedback, read:
 

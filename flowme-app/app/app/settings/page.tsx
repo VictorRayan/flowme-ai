@@ -38,7 +38,7 @@ const AI_LANGUAGES = [
 const FINANCE_CURRENCIES = ['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'MXN'];
 
 type BillingInfo = {
-  provider: 'stripe' | 'apple' | 'google' | null;
+  provider: 'stripe' | 'asaas' | 'apple' | 'google' | null;
   state: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -67,6 +67,7 @@ type BillingInvoice = {
 
 function billingProviderLabel(provider: BillingInfo['provider']) {
   if (provider === 'stripe') return 'Stripe';
+  if (provider === 'asaas') return 'Asaas';
   if (provider === 'apple') return 'App Store';
   if (provider === 'google') return 'Google Play';
   return 'Flow Me';

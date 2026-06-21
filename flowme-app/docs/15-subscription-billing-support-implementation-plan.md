@@ -2,6 +2,10 @@
 
 ## Decision Summary
 
+- [x] Billing is gateway-independent: catalog, checkout attempts, normalized subscriptions, and entitlements do not depend on Stripe or Asaas payloads.
+- [x] Transparent web checkout uses Stripe Elements for card, Apple Pay, and Google Pay, and Asaas for Pix.
+- [x] Product name, description, checkout copy, and feature highlights are stored in the database for `pt-BR` and `en-US`.
+- [x] Gateway routing is data-driven per payment method and can change for new checkouts without moving or breaking existing subscriptions.
 - [x] Web app plans:
   - Free: access only to Notes and BalysAI.
   - Pro: access to everything.
@@ -260,6 +264,82 @@
   - `images`
   - `support`
 - [x] Default user without subscription row gets Free entitlements.
+
+## Multi-provider Transparent Checkout
+
+### Product and UX Decisions
+
+- [x] Use a dedicated responsive `/app/checkout` surface with the Flow Me logo, Pro benefits, monthly/annual selector, secure-payment messaging, and an order summary.
+- [x] Default to annual and show the real discount against twelve monthly payments: R$718,80 versus R$478,80, saving R$240,00 (33%).
+- [x] Render localized product content from `subscription_plan_localizations`, falling back from the requested locale to `pt-BR`.
+- [x] Offer Pix through Asaas and card through Stripe. Offer Apple Pay and Google Pay through Stripe Express Checkout only when Stripe reports the wallet as available on the current device/browser.
+- [x] “Google Play” in web checkout means Google Pay. Google Play Billing remains exclusive to native Android in-app subscriptions.
+- [x] Stripe Elements owns all card and wallet fields. Flow Me never receives raw PAN, CVC, or wallet credentials.
+- [x] Pix checkout collects the payer name and CPF/CNPJ, sends it only to the server/Asaas, and does not persist the document in checkout metadata.
+
+### Provider Boundary
+
+- [x] Define a `BillingGateway` port whose checkout result is a discriminated domain response (`stripe_elements` or `pix_qr_code`).
+- [x] Implement a provider registry. Routes and UI request a payment method; the orchestrator resolves the active provider route from the database.
+- [x] Keep provider identifiers on checkout attempts and normalized subscriptions. Entitlement code receives only normalized statuses.
+- [x] Route changes apply only to new checkout attempts. Existing subscriptions keep their original provider until an explicit migration/cancellation flow.
+- [x] Provider errors map to stable domain error codes and safe user copy; raw provider bodies and credentials never reach the browser.
+
+### Database
+
+- [x] Extend billing provider constraints with `asaas`.
+- [x] Add `subscription_plan_localizations` for locale, name, short/long descriptions, checkout badge, CTA, and feature highlights.
+- [x] Add `billing_payment_method_routes` for method, provider, priority, enabled state, and currency.
+- [x] Add `billing_checkout_attempts` separate from `user_subscriptions` so opening or retrying checkout cannot grant access or collide with a confirmed subscription.
+- [x] Seed Stripe routes for `card`, `apple_pay`, and `google_pay`, and Asaas for `pix`.
+- [x] Seed localized Free and Pro product content and Asaas monthly/annual prices.
+
+### Stripe Adapter
+
+- [x] Create a Checkout Session in `subscription` + `ui_mode: elements` (the current SDK name for the custom Elements flow), returning only its client secret to Stripe Checkout Elements.
+- [x] Render Payment Element for card and Express Checkout Element for available Apple Pay/Google Pay wallets.
+- [ ] Register the production domain for wallet use in both Stripe test and live modes.
+- [x] Use `invoice.paid` as the authoritative payment event before activating/renewing Stripe access; checkout completion alone is not fulfillment.
+- [x] Read period boundaries from subscription items for the current Stripe API contract.
+- [x] Map `unpaid` to expired access.
+- [ ] Add persisted Stripe event ordering so a delayed older event cannot regress a newer normalized subscription state.
+
+### Asaas Adapter
+
+- [x] Authenticate server calls with `access_token`; use sandbox/production base URL from configuration.
+- [x] Reuse an existing Asaas customer ID or create a customer with a stable opaque external reference.
+- [x] Create a `PIX` subscription with `MONTHLY`/`YEARLY`, then retrieve its first payment and dynamic QR code.
+- [x] Return the QR image, copy-and-paste payload, and expiration without exposing API credentials.
+- [x] Treat Pix subscription as scheduled recurring QR charges, not automatic debit. Future charges are reconciled from payment webhooks.
+- [x] Verify `asaas-access-token` in constant time and claim the Asaas event ID idempotently.
+- [x] Grant/renew only on `PAYMENT_RECEIVED`; do not grant on `PAYMENT_CREATED` or `PAYMENT_CONFIRMED`.
+- [x] Normalize overdue, refund, deletion, and chargeback outcomes; tolerate unknown attributes/events.
+
+### API and UI Flow
+
+- [x] `GET /api/billing/catalog?locale=pt-BR` returns localized plans, prices, discount, and available payment methods.
+- [x] `POST /api/billing/checkout` validates plan, interval, locale, method, and Pix payer data; persists an attempt; delegates through the provider registry.
+- [x] `GET /api/billing/checkout/[id]` returns only the authenticated user's normalized attempt status for the Pix confirmation screen.
+- [x] `POST /api/webhooks/asaas` authenticates, deduplicates, normalizes, and updates subscription/entitlement state.
+- [x] The checkout success UI never claims payment based only on browser navigation; it waits for normalized server confirmation.
+
+### Configuration and Rollout
+
+- [x] Add placeholders for `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `ASAAS_API_KEY`, `ASAAS_API_URL`, and `ASAAS_WEBHOOK_TOKEN`.
+- [x] Keep GitHub environment secrets/variables as production source of truth and pass the Stripe publishable key as a Docker build argument.
+- [ ] Configure real Asaas sandbox credentials, Pix key, and webhook URL/token outside git.
+- [ ] Configure Stripe wallet payment methods and register `app.flow-me.online` in test and live modes.
+- [ ] Apply the migration, run Stripe/Asaas sandbox contract tests, and execute the desktop/mobile manual checkout matrix before production enablement.
+
+### Required Tests
+
+- [x] Catalog locale normalization, annual discount, provider route resolution, and invalid checkout input.
+- [x] Stripe custom-session contract and authoritative invoice payment mapping.
+- [x] Asaas customer reuse, Pix subscription/QR contract, safe provider error mapping, token verification, payment received, overdue, and refund normalization.
+- [x] Cover duplicate webhook delivery without repeating entitlement effects.
+- [ ] Add Asaas sandbox fixture coverage for a second-cycle renewal.
+- [x] Checkout attempts never grant entitlements before a paid event.
+- [ ] Browser E2E with real Stripe test Elements/wallet availability and Asaas sandbox Pix confirmation.
 
 ## Stripe Web Billing
 

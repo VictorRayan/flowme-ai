@@ -2,87 +2,139 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
-import { logSupabaseRouteError } from '@/lib/api/supabase-error-log';
-import {
-  appBaseUrl,
-  getStripeClient,
-  normalizeBillingInterval,
-  stripePriceIdForInterval,
-} from '@/lib/billing/stripe-adapter';
+import { appBaseUrl, normalizeBillingInterval } from '@/lib/billing/stripe-adapter';
+import { normalizeCatalogLocale } from '@/lib/billing/catalog';
+import { getBillingGateway } from '@/lib/billing/providers/registry';
+import type { WebBillingProvider, WebPaymentMethod } from '@/lib/billing/providers/contracts';
+
+const PAYMENT_METHODS: WebPaymentMethod[] = ['pix', 'card', 'apple_pay', 'google_pay'];
+
+function paymentMethod(value: unknown): WebPaymentMethod | null {
+  return PAYMENT_METHODS.includes(value as WebPaymentMethod) ? value as WebPaymentMethod : null;
+}
+
+function userDisplayName(user: { email?: string; user_metadata?: Record<string, unknown> }): string {
+  const metadataName = user.user_metadata?.full_name || user.user_metadata?.name;
+  if (typeof metadataName === 'string' && metadataName.trim()) return metadataName.trim();
+  return user.email?.split('@')[0] || 'Flow Me customer';
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireAuth(req);
-    const admin = getSupabaseAdmin();
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const interval = normalizeBillingInterval(body.interval || 'monthly');
+    const method = paymentMethod(body.payment_method || 'card');
+    const planCode = typeof body.plan_code === 'string' && body.plan_code.trim() ? body.plan_code.trim() : 'pro';
+    const locale = normalizeCatalogLocale(body.locale);
     if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
+    if (!method) return apiError(ErrorCode.VALIDATION_ERROR, 'payment_method is invalid', 400);
+    if (method === 'pix' && (typeof body.customer_name !== 'string' || typeof body.cpf_cnpj !== 'string')) {
+      return apiError(ErrorCode.VALIDATION_ERROR, 'customer_name and cpf_cnpj are required for Pix', 400);
+    }
 
-    const price = stripePriceIdForInterval(interval);
-    const stripe = getStripeClient();
-    const { data: existing, error: existingError } = await admin
-      .from('user_subscriptions')
+    const admin = getSupabaseAdmin();
+    const { data: route, error: routeError } = await admin.from('billing_payment_method_routes')
+      .select('provider,currency')
+      .eq('payment_method', method)
+      .eq('enabled', true)
+      .order('priority', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (routeError || !route) return apiError(ErrorCode.NOT_FOUND, 'Payment method is not available', 404);
+    const provider = route.provider as WebBillingProvider;
+
+    const [{ data: price, error: priceError }, { data: localization, error: localizationError }] = await Promise.all([
+      admin.from('subscription_prices')
+        .select('id,provider_price_id,currency,amount_cents')
+        .eq('plan_code', planCode)
+        .eq('billing_provider', provider)
+        .eq('billing_interval', interval)
+        .eq('currency', route.currency)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle(),
+      admin.from('subscription_plan_localizations')
+        .select('name,description')
+        .eq('plan_code', planCode)
+        .eq('locale', locale)
+        .maybeSingle(),
+    ]);
+    if (priceError || !price?.provider_price_id) return apiError(ErrorCode.NOT_FOUND, 'Plan price is not available', 404);
+    if (localizationError || !localization) return apiError(ErrorCode.NOT_FOUND, 'Plan description is not available', 404);
+
+    const { data: previousAttempt } = await admin.from('billing_checkout_attempts')
       .select('provider_customer_id')
       .eq('user_id', user.id)
-      .eq('billing_provider', 'stripe')
+      .eq('provider', provider)
+      .not('provider_customer_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const { data: subscription } = await admin.from('user_subscriptions')
+      .select('provider_customer_id')
+      .eq('user_id', user.id)
+      .eq('billing_provider', provider)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (existingError) {
-      logSupabaseRouteError('/api/billing/checkout', 'user_subscriptions', existingError);
-      return apiError(ErrorCode.SUPABASE_ERROR, existingError.message, 500);
-    }
 
-    let customerId = existing?.provider_customer_id || null;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email || undefined,
-        metadata: { user_id: user.id },
+    const { data: attempt, error: attemptError } = await admin.from('billing_checkout_attempts').insert({
+      user_id: user.id,
+      plan_code: planCode,
+      price_id: price.id,
+      provider,
+      payment_method: method,
+      billing_interval: interval,
+      locale,
+      currency: price.currency,
+      amount_cents: price.amount_cents,
+      status: 'created',
+    }).select('id').single();
+    if (attemptError || !attempt) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to initialize checkout', 500);
+
+    try {
+      const gateway = getBillingGateway(provider);
+      const result = await gateway.createCheckout({
+        attemptId: attempt.id,
+        userId: user.id,
+        userEmail: user.email || '',
+        customerName: method === 'pix' ? String(body.customer_name).trim() : userDisplayName(user),
+        customerTaxId: method === 'pix' ? String(body.cpf_cnpj) : null,
+        existingCustomerId: subscription?.provider_customer_id || previousAttempt?.provider_customer_id || null,
+        planCode,
+        localizedName: localization.name,
+        localizedDescription: localization.description,
+        interval,
+        paymentMethod: method,
+        currency: price.currency,
+        amountCents: price.amount_cents,
+        providerPriceId: price.provider_price_id,
+        returnUrl: `${appBaseUrl(req.url)}/app/checkout/return`,
       });
-      customerId = customer.id;
-      const { error } = await admin.from('user_subscriptions').upsert({
-        user_id: user.id,
-        plan_code: 'pro',
-        billing_provider: 'stripe',
-        provider_customer_id: customerId,
-        status: 'incomplete',
-        last_synced_at: new Date().toISOString(),
+      const { error: updateError } = await admin.from('billing_checkout_attempts').update({
+        status: 'awaiting_payment',
+        provider_customer_id: result.providerCustomerId,
+        provider_checkout_id: result.providerCheckoutId,
+        provider_subscription_id: result.providerSubscriptionId,
+        provider_payment_id: result.providerPaymentId,
+        expires_at: result.expiresAt,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'billing_provider,provider_customer_id' });
-      if (error) {
-        logSupabaseRouteError('/api/billing/checkout', 'user_subscriptions', error);
-        return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
-      }
+      }).eq('id', attempt.id);
+      if (updateError) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to save checkout state', 500);
+      return apiSuccess({ attempt_id: attempt.id, checkout: result });
+    } catch (gatewayError) {
+      await admin.from('billing_checkout_attempts').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', attempt.id);
+      const message = gatewayError instanceof Error && gatewayError.message === 'invalid CPF/CNPJ'
+        ? 'CPF/CNPJ inválido'
+        : 'Não foi possível iniciar o pagamento';
+      const invalidDocument = gatewayError instanceof Error && gatewayError.message === 'invalid CPF/CNPJ';
+      return apiError(invalidDocument ? ErrorCode.VALIDATION_ERROR : ErrorCode.PAYMENT_PROVIDER_ERROR, message, invalidDocument ? 400 : 502);
     }
-
-    const base = appBaseUrl(req.url);
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [{ price, quantity: 1 }],
-      success_url: `${base}/app/settings?billing=success`,
-      cancel_url: `${base}/app/settings?billing=cancelled`,
-      client_reference_id: user.id,
-      metadata: {
-        user_id: user.id,
-        plan_code: 'pro',
-        billing_interval: interval,
-      },
-      subscription_data: {
-        metadata: {
-          user_id: user.id,
-          plan_code: 'pro',
-          billing_interval: interval,
-        },
-      },
-    });
-
-    return apiSuccess({ url: session.url });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.message === ErrorCode.UNAUTHORIZED) {
+  } catch (error) {
+    if (error instanceof Error && error.message === ErrorCode.UNAUTHORIZED) {
       return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     }
-    const message = err instanceof Error ? err.message : 'Failed to create checkout session';
-    return apiError(ErrorCode.INTERNAL_ERROR, message, 500);
+    return apiError(ErrorCode.INTERNAL_ERROR, 'Failed to create checkout', 500);
   }
 }

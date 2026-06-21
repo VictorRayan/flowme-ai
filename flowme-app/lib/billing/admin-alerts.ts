@@ -6,7 +6,7 @@ export async function recordBillingAdminAlert(
     kind: 'webhook_failure' | 'subscription_mismatch' | 'high_ai_cost' | 'cancellation_request' | 'payment_failure';
     severity?: 'info' | 'warning' | 'critical';
     userId?: string | null;
-    provider?: 'stripe' | 'apple' | 'google' | null;
+    provider?: 'stripe' | 'asaas' | 'apple' | 'google' | null;
     dedupeKey?: string | null;
     metadata?: Record<string, unknown>;
   },

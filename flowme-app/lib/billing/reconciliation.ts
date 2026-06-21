@@ -5,7 +5,7 @@ import { getStripeClient, stripeSubscriptionToRow } from './stripe-adapter';
 type LocalSubscription = {
   id: string;
   user_id: string;
-  billing_provider: 'stripe' | 'apple' | 'google';
+  billing_provider: 'stripe' | 'asaas' | 'apple' | 'google';
   provider_subscription_id: string | null;
   provider_original_transaction_id: string | null;
   provider_purchase_token: string | null;

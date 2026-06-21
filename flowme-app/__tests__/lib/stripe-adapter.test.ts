@@ -40,7 +40,7 @@ describe('stripe billing adapter', () => {
     expect(normalizeStripeSubscriptionStatus('trialing')).toBe('trialing');
     expect(normalizeStripeSubscriptionStatus('active')).toBe('active');
     expect(normalizeStripeSubscriptionStatus('past_due')).toBe('past_due');
-    expect(normalizeStripeSubscriptionStatus('unpaid')).toBe('past_due');
+    expect(normalizeStripeSubscriptionStatus('unpaid')).toBe('expired');
     expect(normalizeStripeSubscriptionStatus('canceled')).toBe('canceled');
     expect(normalizeStripeSubscriptionStatus('incomplete')).toBe('incomplete');
     expect(normalizeStripeSubscriptionStatus('incomplete_expired')).toBe('expired');
@@ -59,12 +59,11 @@ describe('stripe billing adapter', () => {
       status: 'active',
       cancel_at_period_end: false,
       metadata: { user_id: 'user-1' },
-      current_period_start: 1780704000,
-      current_period_end: 1783296000,
-      items: { data: [{ price: { id: 'price_annual' } }] },
+      items: { data: [{ price: { id: 'price_annual' }, current_period_start: 1780704000, current_period_end: 1783296000 }] },
     } as any);
 
     expect(row.plan_code).toBe('pro');
     expect(row.metadata.price_id).toBe('price_annual');
+    expect(row.current_period_start).toBe(new Date(1780704000 * 1000).toISOString());
   });
 });

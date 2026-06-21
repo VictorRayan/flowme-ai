@@ -12,7 +12,7 @@ export type BillingNotificationDelivery = {
   id: string;
   userId: string;
   kind: BillingNotificationKind;
-  provider: 'stripe' | 'apple' | 'google';
+  provider: 'stripe' | 'asaas' | 'apple' | 'google';
   attempts: number;
   channelResults: ChannelResults;
 };

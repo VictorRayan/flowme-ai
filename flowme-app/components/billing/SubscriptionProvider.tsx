@@ -9,7 +9,7 @@ import UpgradeDialog from './UpgradeDialog';
 import BillingAlert from './BillingAlert';
 
 type BillingInfo = {
-  provider: 'stripe' | 'apple' | 'google' | null;
+  provider: 'stripe' | 'asaas' | 'apple' | 'google' | null;
   state: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -136,16 +136,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [openUpgrade, pathname, refresh]);
 
   const startCheckout = React.useCallback(async (interval: BillingInterval) => {
-    const response = await fetch('/api/billing/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interval }),
-    });
-    const payload = await response.json() as { ok?: boolean; url?: string; error?: { message?: string } };
-    if (!response.ok || !payload.ok || !payload.url) {
-      throw new Error(payload.error?.message || 'Não foi possível abrir o checkout.');
-    }
-    window.location.assign(payload.url);
+    window.location.assign(`/app/checkout?interval=${interval}`);
   }, []);
 
   const isAllowed = React.useCallback((feature: FeatureKey) => {

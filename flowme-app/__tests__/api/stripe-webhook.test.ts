@@ -54,9 +54,7 @@ function makeSubscription(overrides: Record<string, unknown> = {}) {
     status: 'active',
     cancel_at_period_end: false,
     metadata: { user_id: 'user-1' },
-    current_period_start: 1780704000,
-    current_period_end: 1783296000,
-    items: { data: [{ price: { id: 'price_monthly' } }] },
+    items: { data: [{ price: { id: 'price_monthly' }, current_period_start: 1780704000, current_period_end: 1783296000 }] },
     ...overrides,
   };
 }
@@ -126,7 +124,7 @@ describe('POST /api/webhooks/stripe', () => {
     process.env = oldEnv;
   });
 
-  it('records Stripe events as processed only after subscription and entitlements persist', async () => {
+  it('does not grant Pro from an active subscription update without a paid invoice', async () => {
     const req = new NextRequest('http://localhost/api/webhooks/stripe', {
       method: 'POST',
       body: 'raw-body',
@@ -141,20 +139,20 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mockBillingEventsInsert).toHaveBeenCalledWith(expect.not.objectContaining({
       processed_at: expect.any(String),
     }));
-    expect(mockUserSubscriptionsUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      provider_subscription_id: 'sub_123',
-      plan_code: 'pro',
-    }), { onConflict: 'billing_provider,provider_subscription_id' });
-    expect(mockUserEntitlementsUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      user_id: 'user-1',
-      has_pro: true,
-    }), { onConflict: 'user_id' });
+    expect(mockUserSubscriptionsUpsert).not.toHaveBeenCalled();
+    expect(mockUserEntitlementsUpsert).not.toHaveBeenCalled();
     expect(billingEventsChain.update).toHaveBeenCalledWith({
       processed_at: expect.any(String),
     });
   });
 
   it('reprocesses a duplicate Stripe event when it was not marked processed yet', async () => {
+    mockConstructEvent.mockReturnValue(makeEvent({
+      id: 'evt_paid_retry',
+      type: 'invoice.paid',
+      data: { object: { id: 'in_123', customer: 'cus_123', subscription: 'sub_123' } },
+    }));
+    mockRetrieve.mockResolvedValue(makeSubscription());
     mockBillingEventsInsert.mockResolvedValue({ error: { code: '23505', message: 'duplicate key' } });
     billingEventsChain.maybeSingle.mockResolvedValue({ data: { processed_at: null }, error: null });
 

@@ -2,6 +2,7 @@ services:
   flowme-app:
     container_name: flowme-app
     restart: unless-stopped
+    image: ${FLOWME_APP_IMAGE:-ghcr.io/victorrayan/flowme-app:latest}
     build:
       context: ./flowme-app
       dockerfile: Dockerfile

@@ -52,7 +52,8 @@ export function appBaseUrl(requestUrl?: string): string {
 export function normalizeStripeSubscriptionStatus(status: string): SubscriptionStatus {
   if (status === 'trialing') return 'trialing';
   if (status === 'active') return 'active';
-  if (status === 'past_due' || status === 'unpaid') return 'past_due';
+  if (status === 'past_due') return 'past_due';
+  if (status === 'unpaid') return 'expired';
   if (status === 'canceled') return 'canceled';
   if (status === 'incomplete') return 'incomplete';
   if (status === 'incomplete_expired') return 'expired';
@@ -64,7 +65,7 @@ function fromUnix(value: number | null | undefined): string | null {
 }
 
 export function stripeSubscriptionToRow(subscription: Stripe.Subscription, userId?: string | null) {
-  const raw = subscription as any;
+  const periodItem = subscription.items.data[0];
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || null;
   const metadataUserId = subscription.metadata?.user_id || userId || null;
   const priceId = assertStripeProPrice(subscription.items.data[0]?.price?.id || null);
@@ -75,8 +76,8 @@ export function stripeSubscriptionToRow(subscription: Stripe.Subscription, userI
     provider_customer_id: customerId,
     provider_subscription_id: subscription.id,
     status: normalizeStripeSubscriptionStatus(subscription.status),
-    current_period_start: fromUnix(raw.current_period_start),
-    current_period_end: fromUnix(raw.current_period_end),
+    current_period_start: fromUnix(periodItem?.current_period_start),
+    current_period_end: fromUnix(periodItem?.current_period_end),
     cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
     last_payment_failure_at: subscription.status === 'past_due' || subscription.status === 'unpaid'
       ? new Date().toISOString()

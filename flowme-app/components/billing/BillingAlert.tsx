@@ -6,7 +6,7 @@ import { Alert, Button, Collapse } from '@mui/material';
 type BillingNotification = {
   id: string;
   kind: 'payment_failed' | 'payment_action_required' | 'invoice_finalization_failed';
-  provider: 'stripe' | 'apple' | 'google';
+  provider: 'stripe' | 'asaas' | 'apple' | 'google';
 };
 
 function message(notification: BillingNotification): string {

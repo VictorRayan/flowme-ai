@@ -20,7 +20,7 @@ export const FEATURE_KEYS = [
 
 export type FeatureKey = typeof FEATURE_KEYS[number];
 export type PlanCode = 'free' | 'pro';
-export type BillingProvider = 'stripe' | 'apple' | 'google';
+export type BillingProvider = 'stripe' | 'asaas' | 'apple' | 'google';
 export type SubscriptionStatus =
   | 'free'
   | 'trialing'

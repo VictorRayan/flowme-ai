@@ -106,10 +106,10 @@ async function resolveInvoiceContext(admin: any, invoice: StripeInvoiceObject) {
     const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
     const userId = await resolveUserId(admin, subscription);
     if (userId) await persistSubscription(admin, stripeSubscriptionToRow(subscription, userId));
-    return { userId, subscriptionId };
+    return { userId, subscriptionId, attemptId: subscription.metadata?.checkout_attempt_id || null };
   }
   const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id || null;
-  if (!customerId) return { userId: invoice.metadata?.user_id || null, subscriptionId: null };
+  if (!customerId) return { userId: invoice.metadata?.user_id || null, subscriptionId: null, attemptId: null };
   const { data, error } = await admin.from('user_subscriptions')
     .select('user_id,provider_subscription_id')
     .eq('billing_provider', 'stripe')
@@ -118,7 +118,16 @@ async function resolveInvoiceContext(admin: any, invoice: StripeInvoiceObject) {
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return { userId: data?.user_id || invoice.metadata?.user_id || null, subscriptionId: data?.provider_subscription_id || null };
+  return { userId: data?.user_id || invoice.metadata?.user_id || null, subscriptionId: data?.provider_subscription_id || null, attemptId: null };
+}
+
+async function updateStripeAttempt(admin: any, attemptId: string | null | undefined, values: Record<string, unknown>) {
+  if (!attemptId) return;
+  const { error } = await admin.from('billing_checkout_attempts').update({
+    ...values,
+    updated_at: new Date().toISOString(),
+  }).eq('id', attemptId).eq('provider', 'stripe');
+  if (error) throw new Error(error.message);
 }
 
 async function notifyInvoiceFailure(
@@ -167,19 +176,24 @@ export async function POST(req: NextRequest) {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (typeof session.subscription === 'string') {
-        const subscription = await getStripeClient().subscriptions.retrieve(session.subscription);
-        await persistSubscription(admin, stripeSubscriptionToRow(subscription, session.metadata?.user_id || session.client_reference_id || null));
-      }
+      const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
+      await updateStripeAttempt(admin, session.metadata?.checkout_attempt_id, {
+        status: 'awaiting_payment',
+        provider_subscription_id: subscriptionId,
+        provider_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+      });
     }
 
-    if (
-      event.type === 'customer.subscription.created'
-      || event.type === 'customer.subscription.updated'
-      || event.type === 'customer.subscription.deleted'
-    ) {
+    if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription;
       await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
+    }
+
+    if (event.type === 'customer.subscription.updated') {
+      const subscription = event.data.object as Stripe.Subscription;
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+        await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
+      }
     }
 
     if (event.type === 'invoice.payment_failed') {
@@ -197,6 +211,7 @@ export async function POST(req: NextRequest) {
     if (event.type === 'invoice.paid') {
       const context = await resolveInvoiceContext(admin, event.data.object as unknown as StripeInvoiceObject);
       if (context.userId) {
+        await updateStripeAttempt(admin, context.attemptId, { status: 'paid', paid_at: new Date().toISOString() });
         await clearBillingFailureNotifications(admin, context.userId);
         await resolvePaymentFailureAdminAlerts(admin, context.userId);
       }

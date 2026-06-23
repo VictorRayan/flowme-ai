@@ -57,7 +57,7 @@ describe('POST /api/billing/checkout', () => {
   it('creates a provider-neutral checkout attempt', async () => {
     const req = new NextRequest('http://localhost/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ interval: 'monthly', payment_method: 'card', locale: 'pt-BR' }),
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'card', locale: 'pt-BR', country_code: 'BR' }),
     });
     const res = await POST(req);
     const body = await res.json();
@@ -78,6 +78,17 @@ describe('POST /api/billing/checkout', () => {
     const req = new NextRequest('http://localhost/api/billing/checkout', {
       method: 'POST',
       body: JSON.stringify({ interval: 'monthly', payment_method: 'pix' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe('VALIDATION_ERROR');
+    expect(mockCreateCheckout).not.toHaveBeenCalled();
+  });
+
+  it('rejects Pix outside Brazil', async () => {
+    const req = new NextRequest('http://localhost/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'pix', locale: 'en-US', country_code: 'US', customer_name: 'User One', cpf_cnpj: '12345678909' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(400);

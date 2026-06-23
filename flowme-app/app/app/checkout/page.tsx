@@ -32,7 +32,7 @@ import {
   useCheckoutElements,
 } from '@stripe/react-stripe-js/checkout';
 import type { StripeExpressCheckoutElementConfirmEvent } from '@stripe/stripe-js';
-import { checkoutCopy, checkoutLocaleFromUiLanguage, checkoutPresentation, type CheckoutLocale } from '@/lib/billing/checkout-ui';
+import { checkoutCopy, checkoutLocaleFromUiLanguage, checkoutMarketCountry, checkoutPresentation, type CheckoutLocale, type CheckoutMarketCountry } from '@/lib/billing/checkout-ui';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -100,6 +100,7 @@ function StripePaymentForm({ returnUrl, locale }: { returnUrl: string; locale: C
 function CheckoutPageContent() {
   const params = useSearchParams();
   const [locale, setLocale] = React.useState<CheckoutLocale | null>(null);
+  const [marketCountry, setMarketCountry] = React.useState<CheckoutMarketCountry | null>(null);
   const [plan, setPlan] = React.useState<Plan | null>(null);
   const [interval, setInterval] = React.useState<Interval>(params.get('interval') === 'monthly' ? 'monthly' : 'annual');
   const [method, setMethod] = React.useState<Method>('pix');
@@ -115,6 +116,10 @@ function CheckoutPageContent() {
   React.useEffect(() => {
     const updateLocale = () => setLocale(checkoutLocaleFromUiLanguage(localStorage.getItem('ui_language')));
     updateLocale();
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const country = checkoutMarketCountry(timezone, navigator.languages);
+    setMarketCountry(country);
+    if (country !== 'BR') setMethod('card');
     const onStorage = (event: StorageEvent) => {
       if (event.key === 'ui_language') updateLocale();
     };
@@ -123,7 +128,7 @@ function CheckoutPageContent() {
   }, []);
 
   React.useEffect(() => {
-    if (!locale) return;
+    if (!locale || !marketCountry) return;
     const controller = new AbortController();
     fetch(`/api/billing/catalog?locale=${encodeURIComponent(locale)}`, { cache: 'no-store', signal: controller.signal })
       .then(response => response.json())
@@ -164,6 +169,7 @@ function CheckoutPageContent() {
           plan_code: 'pro',
           interval,
           locale,
+          country_code: marketCountry === 'BR' ? 'BR' : 'OTHER',
           payment_method: selectedMethod,
           ...(selectedMethod === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
         }),
@@ -192,7 +198,7 @@ function CheckoutPageContent() {
     if (value === 'card') void startCheckout('card');
   };
 
-  if (!locale || !plan) return <Box sx={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>{error ? <Alert severity="error">{error}</Alert> : <CircularProgress />}</Box>;
+  if (!locale || !marketCountry || !plan) return <Box sx={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>{error ? <Alert severity="error">{error}</Alert> : <CircularProgress />}</Box>;
   const copy = checkoutCopy(locale);
   const selectedPrice = plan.prices.find(price => price.interval === interval);
   const monthlyEquivalent = interval === 'annual' && selectedPrice ? Math.round(selectedPrice.amount_cents / 12) : selectedPrice?.amount_cents || 0;
@@ -228,7 +234,7 @@ function CheckoutPageContent() {
               : <Stack spacing={2.5}>
                 <Box><Typography variant="h5" fontWeight={900}>{copy.headline}</Typography><Typography color="text.secondary">{copy.paymentPrompt}</Typography></Box>
                 <ToggleButtonGroup value={method} exclusive fullWidth disabled={loading} onChange={(_, value: Method | null) => selectPaymentMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
-                  <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>
+                  {marketCountry === 'BR' && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
                   <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.cardTitle}</Typography><Typography variant="caption">{copy.cardDetail}</Typography></Box></Stack></ToggleButton>
                 </ToggleButtonGroup>
                 {method === 'pix' && <Stack spacing={2}><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} /></Stack>}

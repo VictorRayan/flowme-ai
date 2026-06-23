@@ -4,6 +4,14 @@ export type CheckoutPresentation = {
 };
 
 export type CheckoutLocale = 'pt-BR' | 'en-US';
+export type CheckoutMarketCountry = 'BR' | 'OTHER';
+
+const BRAZIL_TIMEZONES = new Set([
+  'America/Araguaina', 'America/Bahia', 'America/Belem', 'America/Boa_Vista',
+  'America/Campo_Grande', 'America/Cuiaba', 'America/Eirunepe', 'America/Fortaleza',
+  'America/Maceio', 'America/Manaus', 'America/Noronha', 'America/Porto_Velho',
+  'America/Recife', 'America/Rio_Branco', 'America/Santarem', 'America/Sao_Paulo',
+]);
 
 const CHECKOUT_COPY = {
   'pt-BR': {
@@ -70,6 +78,11 @@ const CHECKOUT_COPY = {
 
 export function checkoutLocaleFromUiLanguage(language: string | null | undefined): CheckoutLocale {
   return language === 'pt' ? 'pt-BR' : 'en-US';
+}
+
+export function checkoutMarketCountry(timezone: string | null | undefined, browserLanguages: readonly string[]): CheckoutMarketCountry {
+  if (timezone && BRAZIL_TIMEZONES.has(timezone)) return 'BR';
+  return browserLanguages.some(language => /(^|-)BR$/i.test(language)) ? 'BR' : 'OTHER';
 }
 
 export function checkoutCopy(locale: CheckoutLocale) {

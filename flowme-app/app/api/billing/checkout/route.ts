@@ -27,8 +27,12 @@ export async function POST(req: NextRequest) {
     const method = paymentMethod(body.payment_method || 'card');
     const planCode = typeof body.plan_code === 'string' && body.plan_code.trim() ? body.plan_code.trim() : 'pro';
     const locale = normalizeCatalogLocale(body.locale);
+    const countryCode = typeof body.country_code === 'string' ? body.country_code.toUpperCase() : '';
     if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
     if (!method) return apiError(ErrorCode.VALIDATION_ERROR, 'payment_method is invalid', 400);
+    if (method === 'pix' && countryCode !== 'BR') {
+      return apiError(ErrorCode.VALIDATION_ERROR, locale === 'en-US' ? 'Pix is available only in Brazil' : 'Pix está disponível apenas no Brasil', 400);
+    }
     if (method === 'pix' && (typeof body.customer_name !== 'string' || typeof body.cpf_cnpj !== 'string')) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'customer_name and cpf_cnpj are required for Pix', 400);
     }

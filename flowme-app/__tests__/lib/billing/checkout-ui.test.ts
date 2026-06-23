@@ -1,4 +1,4 @@
-import { checkoutCopy, checkoutLocaleFromUiLanguage, checkoutPresentation } from '@/lib/billing/checkout-ui';
+import { checkoutCopy, checkoutLocaleFromUiLanguage, checkoutMarketCountry, checkoutPresentation } from '@/lib/billing/checkout-ui';
 
 describe('checkout UI state', () => {
   it('clears a stale Pix checkout when card fields are initialized', () => {
@@ -27,5 +27,12 @@ describe('checkout UI state', () => {
     expect(checkoutCopy('pt-BR').headline).toBe('Como você quer pagar?');
     expect(checkoutCopy('en-US').headline).toBe('How would you like to pay?');
     expect(checkoutCopy('en-US').cardDetail).toContain('Apple Pay');
+  });
+
+  it('offers Pix only for the Brazilian market independently of UI language', () => {
+    expect(checkoutMarketCountry('America/Sao_Paulo', ['en-US'])).toBe('BR');
+    expect(checkoutMarketCountry('Europe/Lisbon', ['pt-PT'])).toBe('OTHER');
+    expect(checkoutMarketCountry('UTC', ['pt-BR'])).toBe('BR');
+    expect(checkoutMarketCountry('America/New_York', ['en-US'])).toBe('OTHER');
   });
 });

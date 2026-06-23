@@ -10,7 +10,7 @@ WHERE code = 'free';
 UPDATE public.subscription_plan_localizations
 SET
   feature_highlights = CASE locale
-    WHEN 'en-US' THEN '["Smart notes", "5 AI credits per day"]'::jsonb
+    WHEN 'en-US' THEN '["Smart notes", "g AI credits per day"]'::jsonb
     ELSE '["Notas inteligentes", "5 créditos de IA por dia"]'::jsonb
   END,
   updated_at = NOW()

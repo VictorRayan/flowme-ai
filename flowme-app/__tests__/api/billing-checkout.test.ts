@@ -19,6 +19,11 @@ jest.mock('@/lib/billing/providers/registry', () => ({
   getBillingGateway: jest.fn(() => ({ createCheckout: mockCreateCheckout })),
 }));
 
+const mockResolveRequestCountry = jest.fn().mockResolvedValue('BR');
+jest.mock('@/lib/billing/ip-country', () => ({
+  resolveRequestCountry: (...args: unknown[]) => mockResolveRequestCountry(...args),
+}));
+
 function chain(singleData: unknown = null) {
   const value: Record<string, jest.Mock> = {};
   ['select', 'eq', 'order', 'limit', 'insert', 'update', 'not'].forEach(method => {
@@ -43,34 +48,35 @@ describe('POST /api/billing/checkout', () => {
       return chain(null);
     });
     mockCreateCheckout.mockResolvedValue({
-      kind: 'stripe_elements',
+      kind: 'stripe_card_subscription',
       provider: 'stripe',
       providerCustomerId: 'cus_1',
       providerCheckoutId: 'cs_1',
-      providerSubscriptionId: null,
+      providerSubscriptionId: 'sub_1',
       providerPaymentId: null,
-      clientSecret: 'secret',
-      expiresAt: '2026-06-22T12:00:00Z',
+      confirmationClientSecret: 'secret',
+      expiresAt: null,
     });
   });
 
   it('creates a provider-neutral checkout attempt', async () => {
     const req = new NextRequest('http://localhost/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ interval: 'monthly', payment_method: 'card', locale: 'pt-BR', country_code: 'BR' }),
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'card', payment_method_id: 'pm_card_1', locale: 'pt-BR' }),
     });
     const res = await POST(req);
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.attempt_id).toBe('attempt-1');
-    expect(body.checkout.kind).toBe('stripe_elements');
+    expect(body.checkout.kind).toBe('stripe_card_subscription');
     expect(mockCreateCheckout).toHaveBeenCalledWith(expect.objectContaining({
       attemptId: 'attempt-1',
       interval: 'monthly',
       paymentMethod: 'card',
       locale: 'pt-BR',
       providerPriceId: 'price_monthly',
+      providerPaymentMethodId: 'pm_card_1',
     }));
   });
 
@@ -86,9 +92,10 @@ describe('POST /api/billing/checkout', () => {
   });
 
   it('rejects Pix outside Brazil', async () => {
+    mockResolveRequestCountry.mockResolvedValueOnce('US');
     const req = new NextRequest('http://localhost/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ interval: 'monthly', payment_method: 'pix', locale: 'en-US', country_code: 'US', customer_name: 'User One', cpf_cnpj: '12345678909' }),
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'pix', locale: 'en-US', customer_name: 'User One', cpf_cnpj: '12345678909' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
@@ -103,5 +110,15 @@ describe('POST /api/billing/checkout', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
+  });
+
+  it('rejects raw card values instead of a Stripe PaymentMethod ID', async () => {
+    const req = new NextRequest('http://localhost/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'card', payment_method_id: '4242424242424242' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect(mockCreateCheckout).not.toHaveBeenCalled();
   });
 });

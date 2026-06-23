@@ -10,6 +10,10 @@ The active product track is the gateway-independent checkout described in
 localization, Stripe Elements, Asaas Pix, normalized webhooks, and the checkout
 experience before returning to the connector backlog.
 
+The approved Checkout V2 remediation is specified in `docs/17-checkout-v2-implementation-plan.md`.
+It uses client-side Card Elements tokenization, a persistent Pix/Card switch, server-side
+IP country resolution for Pix, and mandatory tablet/mobile Playwright coverage.
+
 For Asaas work, read `../.codex/skills/asaas-billing/SKILL.md` and its referenced
 contracts before changing API calls, events, or entitlement transitions.
 

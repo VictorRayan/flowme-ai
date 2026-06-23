@@ -20,18 +20,19 @@ export type GatewayCheckoutInput = {
   currency: string;
   amountCents: number;
   providerPriceId: string;
+  providerPaymentMethodId: string | null;
   returnUrl: string;
 };
 
-export type StripeElementsCheckout = {
-  kind: 'stripe_elements';
+export type StripeCardCheckout = {
+  kind: 'stripe_card_subscription';
   provider: 'stripe';
   providerCustomerId: string;
   providerCheckoutId: string;
-  providerSubscriptionId: null;
+  providerSubscriptionId: string;
   providerPaymentId: null;
-  clientSecret: string;
-  expiresAt: string;
+  confirmationClientSecret: string | null;
+  expiresAt: null;
 };
 
 export type PixQrCheckout = {
@@ -46,7 +47,7 @@ export type PixQrCheckout = {
   expiresAt: string;
 };
 
-export type GatewayCheckoutResult = StripeElementsCheckout | PixQrCheckout;
+export type GatewayCheckoutResult = StripeCardCheckout | PixQrCheckout;
 
 export type GatewayCancellationInput = {
   providerSubscriptionId: string;

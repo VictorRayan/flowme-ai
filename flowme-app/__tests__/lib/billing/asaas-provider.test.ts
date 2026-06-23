@@ -17,6 +17,7 @@ const input: GatewayCheckoutInput = {
   currency: 'BRL',
   amountCents: 5990,
   providerPriceId: 'asaas_pro_monthly',
+  providerPaymentMethodId: null,
   returnUrl: 'https://app.flow-me.online/app/checkout/return',
 };
 

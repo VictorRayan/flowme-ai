@@ -1,22 +1,20 @@
 import type Stripe from 'stripe';
 import { getStripeClient, stripePriceIdForInterval } from '@/lib/billing/stripe-adapter';
 import type { BillingInterval } from '@/lib/billing/stripe-adapter';
-import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutInput, StripeElementsCheckout } from './contracts';
+import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutInput, StripeCardCheckout } from './contracts';
 
 type StripeClient = {
   customers: {
     create(params: Stripe.CustomerCreateParams): PromiseLike<{ id: string }>;
   };
-  checkout: {
-    sessions: {
-      create(params: Stripe.Checkout.SessionCreateParams): PromiseLike<{
-        id: string;
-        client_secret: string | null;
-        expires_at: number;
-      }>;
-    };
+  paymentMethods: {
+    attach(id: string, params: Stripe.PaymentMethodAttachParams): PromiseLike<{ id: string }>;
   };
   subscriptions: {
+    create(params: Stripe.SubscriptionCreateParams): PromiseLike<{
+      id: string;
+      latest_invoice: string | { confirmation_secret?: { client_secret: string } | null } | null;
+    }>;
     update(id: string, params: Stripe.SubscriptionUpdateParams): PromiseLike<{ id: string; cancel_at: number | null; cancel_at_period_end: boolean }>;
     cancel(id: string, params?: Stripe.SubscriptionCancelParams): PromiseLike<{ id: string; canceled_at: number | null }>;
   };
@@ -32,8 +30,9 @@ export class StripeGateway implements BillingGateway {
     this.priceIdForInterval = options.priceIdForInterval || stripePriceIdForInterval;
   }
 
-  async createCheckout(input: GatewayCheckoutInput): Promise<StripeElementsCheckout> {
+  async createCheckout(input: GatewayCheckoutInput): Promise<StripeCardCheckout> {
     if (input.paymentMethod === 'pix') throw new Error('Stripe gateway does not support this checkout method');
+    if (!input.providerPaymentMethodId?.startsWith('pm_')) throw new Error('Stripe payment method is invalid');
     let customerId = input.existingCustomerId;
     if (!customerId) {
       const customer = await this.stripe.customers.create({
@@ -43,39 +42,32 @@ export class StripeGateway implements BillingGateway {
       });
       customerId = customer.id;
     }
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
-      ui_mode: 'elements',
+    await this.stripe.paymentMethods.attach(input.providerPaymentMethodId, { customer: customerId });
+    const subscription = await this.stripe.subscriptions.create({
       customer: customerId,
-      line_items: [{ price: this.priceIdForInterval(input.interval), quantity: 1 }],
-      locale: input.locale === 'pt-BR' ? 'pt-BR' : 'en',
-      return_url: `${input.returnUrl}?attempt_id=${encodeURIComponent(input.attemptId)}&session_id={CHECKOUT_SESSION_ID}`,
-      client_reference_id: input.userId,
+      items: [{ price: this.priceIdForInterval(input.interval), quantity: 1 }],
+      default_payment_method: input.providerPaymentMethodId,
+      payment_behavior: 'default_incomplete',
+      payment_settings: { payment_method_types: ['card'], save_default_payment_method: 'on_subscription' },
+      expand: ['latest_invoice.confirmation_secret'],
+      description: input.localizedDescription,
       metadata: {
         checkout_attempt_id: input.attemptId,
         user_id: input.userId,
         plan_code: input.planCode,
         billing_interval: input.interval,
       },
-      subscription_data: {
-        metadata: {
-          checkout_attempt_id: input.attemptId,
-          user_id: input.userId,
-          plan_code: input.planCode,
-          billing_interval: input.interval,
-        },
-      },
     });
-    if (!session.client_secret) throw new Error('Stripe did not return a checkout client secret');
+    const invoice = typeof subscription.latest_invoice === 'object' ? subscription.latest_invoice : null;
     return {
-      kind: 'stripe_elements',
+      kind: 'stripe_card_subscription',
       provider: 'stripe',
       providerCustomerId: customerId,
-      providerCheckoutId: session.id,
-      providerSubscriptionId: null,
+      providerCheckoutId: subscription.id,
+      providerSubscriptionId: subscription.id,
       providerPaymentId: null,
-      clientSecret: session.client_secret,
-      expiresAt: new Date(session.expires_at * 1000).toISOString(),
+      confirmationClientSecret: invoice?.confirmation_secret?.client_secret || null,
+      expiresAt: null,
     };
   }
 

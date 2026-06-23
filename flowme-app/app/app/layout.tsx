@@ -18,7 +18,7 @@ import SchoolIcon from '@mui/icons-material/School';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -160,22 +160,55 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                   }
                   if (isMobile) setMobileOpen(false);
                 }}
-                sx={{ py: 1, pl: active ? '13px' : '16px' }}
+                sx={{
+                  py: 1,
+                  pl: active ? '13px' : locked ? '14px' : '16px',
+                  pr: locked ? 1 : 2,
+                  borderRadius: '0 10px 10px 0',
+                  borderLeft: locked ? '2px solid rgba(251, 146, 60, 0.72)' : '2px solid transparent',
+                  background: locked
+                    ? 'linear-gradient(90deg, rgba(249, 115, 22, 0.13) 0%, rgba(249, 115, 22, 0.035) 100%)'
+                    : undefined,
+                  '&:hover': locked ? {
+                    background: 'linear-gradient(90deg, rgba(249, 115, 22, 0.22) 0%, rgba(249, 115, 22, 0.07) 100%)',
+                    borderLeftColor: '#fb923c',
+                  } : undefined,
+                  '&.Mui-selected': locked ? {
+                    background: 'linear-gradient(90deg, rgba(249, 115, 22, 0.23) 0%, rgba(99, 102, 241, 0.1) 100%)',
+                  } : undefined,
+                }}
               >
-                <ListItemIcon sx={{ color: active ? 'primary.light' : 'text.secondary', minWidth: 36 }}>
+                <ListItemIcon sx={{ color: active ? 'primary.light' : locked ? '#f6ad55' : 'text.secondary', minWidth: 36 }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
                   primary={item.text}
                   primaryTypographyProps={{
-                    fontWeight: active ? 600 : 400,
+                    fontWeight: active ? 600 : locked ? 550 : 400,
                     fontSize: 14,
-                    color: active ? 'primary.light' : 'text.secondary',
+                    color: active ? 'primary.light' : locked ? 'rgba(255, 190, 120, 0.9)' : 'text.secondary',
                   }}
                 />
                 {locked && (
-                  <Tooltip title="Disponível no Pro" placement="right">
-                    <LockOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled', mr: 0.75 }} />
+                  <Tooltip title={uiLang === 'pt' ? 'Disponível no Pro' : 'Available on Pro'} placement="right">
+                    <Box
+                      aria-label={uiLang === 'pt' ? 'Recurso bloqueado no plano Free' : 'Feature locked on the Free plan'}
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        mr: 0.5,
+                        borderRadius: '8px',
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: '#ffb35c',
+                        bgcolor: 'rgba(249, 115, 22, 0.16)',
+                        border: '1px solid rgba(251, 146, 60, 0.5)',
+                        boxShadow: '0 0 12px rgba(249, 115, 22, 0.16), inset 0 0 8px rgba(251, 146, 60, 0.08)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <LockRoundedIcon sx={{ fontSize: 15 }} />
+                    </Box>
                   </Tooltip>
                 )}
                 {active && (

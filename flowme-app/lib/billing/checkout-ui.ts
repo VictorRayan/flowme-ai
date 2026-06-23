@@ -1,17 +1,4 @@
-export type CheckoutPresentation = {
-  stripeCheckout: { kind: 'stripe_elements'; clientSecret: string } | null;
-  pixCheckout: { kind: 'pix_qr_code'; qrCodeBase64: string; copyPasteCode: string; expiresAt: string } | null;
-};
-
 export type CheckoutLocale = 'pt-BR' | 'en-US';
-export type CheckoutMarketCountry = 'BR' | 'OTHER';
-
-const BRAZIL_TIMEZONES = new Set([
-  'America/Araguaina', 'America/Bahia', 'America/Belem', 'America/Boa_Vista',
-  'America/Campo_Grande', 'America/Cuiaba', 'America/Eirunepe', 'America/Fortaleza',
-  'America/Maceio', 'America/Manaus', 'America/Noronha', 'America/Porto_Velho',
-  'America/Recife', 'America/Rio_Branco', 'America/Santarem', 'America/Sao_Paulo',
-]);
 
 const CHECKOUT_COPY = {
   'pt-BR': {
@@ -20,11 +7,17 @@ const CHECKOUT_COPY = {
     pixTitle: 'Pix',
     pixDetail: 'QR Code · aprovação rápida',
     cardTitle: 'Cartão',
-    cardDetail: 'Cartão · Apple Pay · Google Pay',
+    cardDetail: 'Crédito ou débito',
     quickPayment: 'Pagamento rápido',
     cardDivider: 'ou pague com cartão',
     subscribe: 'Assinar Flow Me Pro',
-    loadPayment: 'Carregar pagamento seguro',
+    cardholderName: 'Nome no cartão',
+    cardNumber: 'Número do cartão',
+    cardExpiry: 'Validade',
+    cardCvc: 'Código de segurança',
+    cardReady: 'Seus dados são enviados diretamente e tokenizados pela operadora do cartão.',
+    processingCard: 'Processando pagamento seguro…',
+    awaitingConfirmation: 'Pagamento enviado. Aguardando confirmação…',
     monthly: 'Mensal',
     annual: 'Anual',
     perMonth: '/mês',
@@ -43,6 +36,7 @@ const CHECKOUT_COPY = {
     unavailablePlan: 'Plano Pro indisponível.',
     checkoutLoadError: 'Não foi possível carregar o checkout.',
     paymentStartError: 'Não foi possível iniciar o pagamento.',
+    cardLoadError: 'Não foi possível carregar os campos seguros do cartão.',
   },
   'en-US': {
     headline: 'How would you like to pay?',
@@ -50,11 +44,17 @@ const CHECKOUT_COPY = {
     pixTitle: 'Pix',
     pixDetail: 'QR code · fast approval',
     cardTitle: 'Card',
-    cardDetail: 'Card · Apple Pay · Google Pay',
+    cardDetail: 'Credit or debit card',
     quickPayment: 'Express payment',
     cardDivider: 'or pay by card',
     subscribe: 'Subscribe to Flow Me Pro',
-    loadPayment: 'Load secure payment',
+    cardholderName: 'Name on card',
+    cardNumber: 'Card number',
+    cardExpiry: 'Expiry date',
+    cardCvc: 'Security code',
+    cardReady: 'Your details are sent directly to and tokenized by the card processor.',
+    processingCard: 'Processing secure payment…',
+    awaitingConfirmation: 'Payment submitted. Waiting for confirmation…',
     monthly: 'Monthly',
     annual: 'Annual',
     perMonth: '/month',
@@ -73,6 +73,7 @@ const CHECKOUT_COPY = {
     unavailablePlan: 'Flow Me Pro is unavailable.',
     checkoutLoadError: 'Unable to load checkout.',
     paymentStartError: 'Unable to start payment.',
+    cardLoadError: 'Unable to load the secure card fields.',
   },
 } as const;
 
@@ -80,17 +81,6 @@ export function checkoutLocaleFromUiLanguage(language: string | null | undefined
   return language === 'pt' ? 'pt-BR' : 'en-US';
 }
 
-export function checkoutMarketCountry(timezone: string | null | undefined, browserLanguages: readonly string[]): CheckoutMarketCountry {
-  if (timezone && BRAZIL_TIMEZONES.has(timezone)) return 'BR';
-  return browserLanguages.some(language => /(^|-)BR$/i.test(language)) ? 'BR' : 'OTHER';
-}
-
 export function checkoutCopy(locale: CheckoutLocale) {
   return CHECKOUT_COPY[locale];
-}
-
-export function checkoutPresentation(checkout: CheckoutPresentation['stripeCheckout'] | CheckoutPresentation['pixCheckout']): CheckoutPresentation {
-  return checkout?.kind === 'pix_qr_code'
-    ? { stripeCheckout: null, pixCheckout: checkout }
-    : { stripeCheckout: checkout, pixCheckout: null };
 }

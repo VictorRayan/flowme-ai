@@ -23,7 +23,23 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /checkout\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'checkout-desktop',
+      testMatch: /checkout\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'checkout-tablet',
+      testMatch: /checkout\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 768, height: 1024 }, hasTouch: true },
+    },
+    {
+      name: 'checkout-mobile',
+      testMatch: /checkout\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true },
     },
   ],
 });

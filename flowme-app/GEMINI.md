@@ -189,7 +189,9 @@ Council (`taskType === 'council'`) gets a +0.30 reasoning boost because multi-pe
 - **No features beyond the task** — don't add abstractions for hypothetical future needs
 - **Strict TypeScript** — no `any` in production code; `any` is acceptable only in test mock helpers
 - **MUI v5 dark theme** — all UI uses MUI components, no Tailwind, no raw CSS beyond `globals.css`
-- **Mobile friendly by default** — every page and component must work on mobile, tablet, and desktop with responsive MUI breakpoints, readable text, touch targets around 44px or larger, and no accidental horizontal overflow except intentional scrollable schedulers
+- **Mobile-first is mandatory** — design the smallest viewport first, then enhance tablet and desktop. Every changed page must work at 390x844, 768x1024, 1024x768, and 1440x900 with readable text, touch targets around 44px or larger, reachable actions, and no accidental horizontal overflow.
+- **No scroll traps** — fixed viewport shells require an explicit `min-height: 0; overflow-y: auto` page scroll owner whenever content can exceed the viewport.
+- **Responsive work requires browser tests** — materially changed interfaces need Playwright coverage for mobile, tablet, and desktop, including critical content visibility, CTA reachability, and horizontal overflow.
 - **Run tests after every change** — `npm test` must pass before considering a task done
 
 ---

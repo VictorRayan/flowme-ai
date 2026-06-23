@@ -6,6 +6,7 @@ import { appBaseUrl, normalizeBillingInterval } from '@/lib/billing/stripe-adapt
 import { normalizeCatalogLocale } from '@/lib/billing/catalog';
 import { getBillingGateway } from '@/lib/billing/providers/registry';
 import type { WebBillingProvider, WebPaymentMethod } from '@/lib/billing/providers/contracts';
+import { resolveRequestCountry } from '@/lib/billing/ip-country';
 
 const PAYMENT_METHODS: WebPaymentMethod[] = ['pix', 'card', 'apple_pay', 'google_pay'];
 
@@ -27,10 +28,13 @@ export async function POST(req: NextRequest) {
     const method = paymentMethod(body.payment_method || 'card');
     const planCode = typeof body.plan_code === 'string' && body.plan_code.trim() ? body.plan_code.trim() : 'pro';
     const locale = normalizeCatalogLocale(body.locale);
-    const countryCode = typeof body.country_code === 'string' ? body.country_code.toUpperCase() : '';
     if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
     if (!method) return apiError(ErrorCode.VALIDATION_ERROR, 'payment_method is invalid', 400);
-    if (method === 'pix' && countryCode !== 'BR') {
+    const providerPaymentMethodId = typeof body.payment_method_id === 'string' ? body.payment_method_id.trim() : '';
+    if (method !== 'pix' && !/^pm_[A-Za-z0-9_]+$/.test(providerPaymentMethodId)) {
+      return apiError(ErrorCode.VALIDATION_ERROR, locale === 'en-US' ? 'Card token is invalid' : 'Token do cartão inválido', 400);
+    }
+    if (method === 'pix' && await resolveRequestCountry(req.headers) !== 'BR') {
       return apiError(ErrorCode.VALIDATION_ERROR, locale === 'en-US' ? 'Pix is available only in Brazil' : 'Pix está disponível apenas no Brasil', 400);
     }
     if (method === 'pix' && (typeof body.customer_name !== 'string' || typeof body.cpf_cnpj !== 'string')) {
@@ -115,6 +119,7 @@ export async function POST(req: NextRequest) {
         currency: price.currency,
         amountCents: price.amount_cents,
         providerPriceId: price.provider_price_id,
+        providerPaymentMethodId: method === 'pix' ? null : providerPaymentMethodId,
         returnUrl: `${appBaseUrl(req.url)}/app/checkout/return`,
       });
       const { error: updateError } = await admin.from('billing_checkout_attempts').update({

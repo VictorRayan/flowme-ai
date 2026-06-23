@@ -14,7 +14,7 @@
 - [x] Pro web pricing:
   - Monthly: R$59,90/month.
   - Annual: R$39,90/month billed annually, equivalent to R$478,80/year.
-- [x] Web payments use Stripe Checkout + Stripe Billing + Stripe Customer Portal.
+- [x] Web card payments use Stripe.js Card Elements + Stripe Billing; payment-method updates use a focused Stripe-hosted surface.
 - [x] Mobile app will use Free entry + mandatory Google sign-in + native IAP:
   - iOS: App Store In-App Purchase.
   - Android: Google Play Billing.
@@ -272,14 +272,14 @@
 - [x] Use a dedicated responsive `/app/checkout` surface with the Flow Me logo, Pro benefits, monthly/annual selector, secure-payment messaging, and an order summary.
 - [x] Default to annual and show the real discount against twelve monthly payments: R$718,80 versus R$478,80, saving R$240,00 (33%).
 - [x] Render localized product content from `subscription_plan_localizations`, falling back from the requested locale to `pt-BR`.
-- [x] Offer Pix through Asaas and card through Stripe. Offer Apple Pay and Google Pay through Stripe Express Checkout only when Stripe reports the wallet as available on the current device/browser.
+- [x] Offer Pix through Asaas only for server-resolved Brazilian IPs and card through Stripe in every supported market. Wallet buttons remain a separate follow-up.
 - [x] “Google Play” in web checkout means Google Pay. Google Play Billing remains exclusive to native Android in-app subscriptions.
 - [x] Stripe Elements owns all card and wallet fields. Flow Me never receives raw PAN, CVC, or wallet credentials.
 - [x] Pix checkout collects the payer name and CPF/CNPJ, sends it only to the server/Asaas, and does not persist the document in checkout metadata.
 
 ### Provider Boundary
 
-- [x] Define a `BillingGateway` port whose checkout result is a discriminated domain response (`stripe_elements` or `pix_qr_code`).
+- [x] Define a `BillingGateway` port whose checkout result is a discriminated domain response (`stripe_card_subscription` or `pix_qr_code`).
 - [x] Implement a provider registry. Routes and UI request a payment method; the orchestrator resolves the active provider route from the database.
 - [x] Keep provider identifiers on checkout attempts and normalized subscriptions. Entitlement code receives only normalized statuses.
 - [x] Route changes apply only to new checkout attempts. Existing subscriptions keep their original provider until an explicit migration/cancellation flow.
@@ -296,8 +296,8 @@
 
 ### Stripe Adapter
 
-- [x] Create a Checkout Session in `subscription` + `ui_mode: elements` (the current SDK name for the custom Elements flow), returning only its client secret to Stripe Checkout Elements.
-- [x] Render Payment Element for card and Express Checkout Element for available Apple Pay/Google Pay wallets.
+- [x] Tokenize split Card Elements directly in Stripe.js with the publishable key and send only the resulting `pm_...` identifier to Flow Me.
+- [x] Create a `default_incomplete` Stripe Billing subscription, return only the first-invoice confirmation client secret, and complete SCA in Stripe.js.
 - [ ] Register the production domain for wallet use in both Stripe test and live modes.
 - [x] Use `invoice.paid` as the authoritative payment event before activating/renewing Stripe access; checkout completion alone is not fulfillment.
 - [x] Read period boundaries from subscription items for the current Stripe API contract.
@@ -334,7 +334,7 @@
 ### Required Tests
 
 - [x] Catalog locale normalization, annual discount, provider route resolution, and invalid checkout input.
-- [x] Stripe custom-session contract and authoritative invoice payment mapping.
+- [x] Stripe PaymentMethod/subscription contract and authoritative invoice payment mapping.
 - [x] Asaas customer reuse, Pix subscription/QR contract, safe provider error mapping, token verification, payment received, overdue, and refund normalization.
 - [x] Cover duplicate webhook delivery without repeating entitlement effects.
 - [ ] Add Asaas sandbox fixture coverage for a second-cycle renewal.
@@ -345,8 +345,8 @@
 
 ### Stripe Setup
 
-- [x] Use Stripe Checkout in subscription mode for the simplest PCI path.
-- [x] Use Stripe-hosted Checkout to keep card data out of Flow Me.
+- [x] Use split Stripe.js Card Elements so PAN, expiry, and CVC go directly from the browser to Stripe.
+- [x] Send only tokenized PaymentMethod identifiers to Flow Me and use Stripe Billing for subscription creation.
 - [x] Use Stripe Billing for recurring payments.
 - [x] Use Stripe-hosted surfaces only for PCI-sensitive actions:
   - Update payment method through a focused Stripe payment method update flow.
@@ -365,9 +365,10 @@
   - Requires auth.
   - Accepts `price_id` or `interval`.
   - Creates/reuses Stripe Customer.
-  - Creates Checkout Session with `mode: subscription`.
+  - Accepts only a Stripe `pm_...` PaymentMethod identifier for card.
+  - Creates a `default_incomplete` Stripe Billing subscription.
   - Adds metadata: `user_id`, `plan_code`.
-  - Returns checkout URL.
+  - Returns normalized subscription identifiers and a first-invoice confirmation client secret when SCA is required.
 - [x] `POST /api/billing/portal`
   - Requires auth.
   - Creates focused payment method update session for the user's Stripe Customer.
@@ -926,7 +927,7 @@
 
 ## Security and Compliance
 
-- [x] Use Stripe-hosted Checkout and Portal to minimize PCI scope.
+- [x] Use Stripe.js Elements for collection/tokenization and focused Stripe-hosted management surfaces to minimize PCI scope.
 - [x] Verify Stripe webhook signature with raw body.
 - [x] Never store card data.
 - [x] Store provider customer/subscription IDs only.

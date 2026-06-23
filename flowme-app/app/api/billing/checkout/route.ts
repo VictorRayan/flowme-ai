@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
         planCode,
         localizedName: localization.name,
         localizedDescription: localization.description,
+        locale,
         interval,
         paymentMethod: method,
         currency: price.currency,

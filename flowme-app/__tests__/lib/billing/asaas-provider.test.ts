@@ -11,6 +11,7 @@ const input: GatewayCheckoutInput = {
   planCode: 'pro',
   localizedName: 'Flow Me Pro',
   localizedDescription: 'Assinatura Flow Me Pro',
+  locale: 'pt-BR',
   interval: 'monthly',
   paymentMethod: 'pix',
   currency: 'BRL',

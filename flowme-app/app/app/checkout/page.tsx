@@ -32,7 +32,7 @@ import {
   useCheckoutElements,
 } from '@stripe/react-stripe-js/checkout';
 import type { StripeExpressCheckoutElementConfirmEvent } from '@stripe/stripe-js';
-import { checkoutPresentation, PAYMENT_METHOD_COPY } from '@/lib/billing/checkout-ui';
+import { checkoutCopy, checkoutLocaleFromUiLanguage, checkoutPresentation, type CheckoutLocale } from '@/lib/billing/checkout-ui';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -58,8 +58,9 @@ function money(cents: number, locale: string) {
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'BRL' }).format(cents / 100);
 }
 
-function StripePaymentForm({ returnUrl }: { returnUrl: string }) {
+function StripePaymentForm({ returnUrl, locale }: { returnUrl: string; locale: CheckoutLocale }) {
   const checkoutState = useCheckoutElements();
+  const copy = checkoutCopy(locale);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -83,14 +84,14 @@ function StripePaymentForm({ returnUrl }: { returnUrl: string }) {
   return (
     <Stack spacing={2.5}>
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>Pagamento rápido</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>{copy.quickPayment}</Typography>
         <ExpressCheckoutElement onConfirm={event => void confirm(event)} />
       </Box>
-      <Divider><Typography variant="caption" color="text.secondary">ou pague com cartão</Typography></Divider>
+      <Divider><Typography variant="caption" color="text.secondary">{copy.cardDivider}</Typography></Divider>
       <PaymentElement options={{ layout: 'accordion' }} />
       {error && <Alert severity="error">{error}</Alert>}
       <Button variant="contained" size="large" disabled={submitting} onClick={() => void confirm()} sx={{ minHeight: 52, fontWeight: 800 }}>
-        {submitting ? <CircularProgress size={22} color="inherit" /> : 'Assinar Flow Me Pro'}
+        {submitting ? <CircularProgress size={22} color="inherit" /> : copy.subscribe}
       </Button>
     </Stack>
   );
@@ -98,7 +99,7 @@ function StripePaymentForm({ returnUrl }: { returnUrl: string }) {
 
 function CheckoutPageContent() {
   const params = useSearchParams();
-  const [locale, setLocale] = React.useState('pt-BR');
+  const [locale, setLocale] = React.useState<CheckoutLocale | null>(null);
   const [plan, setPlan] = React.useState<Plan | null>(null);
   const [interval, setInterval] = React.useState<Interval>(params.get('interval') === 'monthly' ? 'monthly' : 'annual');
   const [method, setMethod] = React.useState<Method>('pix');
@@ -112,18 +113,30 @@ function CheckoutPageContent() {
   const [paid, setPaid] = React.useState(false);
 
   React.useEffect(() => {
-    setLocale(navigator.language.startsWith('en') ? 'en-US' : 'pt-BR');
+    const updateLocale = () => setLocale(checkoutLocaleFromUiLanguage(localStorage.getItem('ui_language')));
+    updateLocale();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'ui_language') updateLocale();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   React.useEffect(() => {
-    fetch(`/api/billing/catalog?locale=${encodeURIComponent(locale)}`, { cache: 'no-store' })
+    if (!locale) return;
+    const controller = new AbortController();
+    fetch(`/api/billing/catalog?locale=${encodeURIComponent(locale)}`, { cache: 'no-store', signal: controller.signal })
       .then(response => response.json())
       .then(payload => {
         const pro = (payload.plans || []).find((item: Plan) => item.code === 'pro');
-        if (!pro) throw new Error('Plano Pro indisponível.');
+        if (!pro) throw new Error(checkoutCopy(locale).unavailablePlan);
         setPlan(pro);
       })
-      .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar o checkout.'));
+      .catch(loadError => {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+        setError(loadError instanceof Error ? loadError.message : checkoutCopy(locale).checkoutLoadError);
+      });
+    return () => controller.abort();
   }, [locale]);
 
   React.useEffect(() => {
@@ -140,6 +153,7 @@ function CheckoutPageContent() {
   }, [attemptId, paid, pixCheckout]);
 
   const startCheckout = async (selectedMethod: Method = method) => {
+    if (!locale) return;
     setLoading(true);
     setError(null);
     try {
@@ -155,13 +169,13 @@ function CheckoutPageContent() {
         }),
       });
       const payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error?.message || 'Não foi possível iniciar o pagamento.');
+      if (!response.ok || !payload.ok) throw new Error(payload.error?.message || checkoutCopy(locale).paymentStartError);
       setAttemptId(payload.attempt_id);
       const presentation = checkoutPresentation(payload.checkout);
       setStripeCheckout(presentation.stripeCheckout);
       setPixCheckout(presentation.pixCheckout);
     } catch (checkoutError) {
-      setError(checkoutError instanceof Error ? checkoutError.message : 'Não foi possível iniciar o pagamento.');
+      setError(checkoutError instanceof Error ? checkoutError.message : checkoutCopy(locale).paymentStartError);
     } finally {
       setLoading(false);
     }
@@ -178,7 +192,8 @@ function CheckoutPageContent() {
     if (value === 'card') void startCheckout('card');
   };
 
-  if (!plan) return <Box sx={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>{error ? <Alert severity="error">{error}</Alert> : <CircularProgress />}</Box>;
+  if (!locale || !plan) return <Box sx={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>{error ? <Alert severity="error">{error}</Alert> : <CircularProgress />}</Box>;
+  const copy = checkoutCopy(locale);
   const selectedPrice = plan.prices.find(price => price.interval === interval);
   const monthlyEquivalent = interval === 'annual' && selectedPrice ? Math.round(selectedPrice.amount_cents / 12) : selectedPrice?.amount_cents || 0;
 
@@ -197,29 +212,29 @@ function CheckoutPageContent() {
               {plan.feature_highlights.map(feature => <Box key={feature} sx={{ display: 'flex', gap: 1.2, alignItems: 'center' }}><CheckCircleRoundedIcon color="success" /><Typography>{feature}</Typography></Box>)}
             </Stack>
             <ToggleButtonGroup value={interval} exclusive fullWidth disabled={loading || Boolean(attemptId)} onChange={(_, value: Interval | null) => value && setInterval(value)} sx={{ mb: 3 }}>
-              <ToggleButton value="monthly" sx={{ minHeight: 54 }}>Mensal</ToggleButton>
-              <ToggleButton value="annual" sx={{ minHeight: 54 }}><Stack direction="row" spacing={1} alignItems="center"><span>Anual</span><Chip size="small" color="success" label={`-${plan.annual_savings.percent}%`} /></Stack></ToggleButton>
+              <ToggleButton value="monthly" sx={{ minHeight: 54 }}>{copy.monthly}</ToggleButton>
+              <ToggleButton value="annual" sx={{ minHeight: 54 }}><Stack direction="row" spacing={1} alignItems="center"><span>{copy.annual}</span><Chip size="small" color="success" label={`-${plan.annual_savings.percent}%`} /></Stack></ToggleButton>
             </ToggleButtonGroup>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
-              <Typography variant="h3" fontWeight={900}>{money(monthlyEquivalent, locale)}</Typography><Typography color="text.secondary">/mês</Typography>
+              <Typography variant="h3" fontWeight={900}>{money(monthlyEquivalent, locale)}</Typography><Typography color="text.secondary">{copy.perMonth}</Typography>
             </Box>
-            {interval === 'annual' && selectedPrice && <Typography color="success.light" fontWeight={700}>Economize {money(plan.annual_savings.amountCents, locale)} · {money(selectedPrice.amount_cents, locale)} por ano</Typography>}
+            {interval === 'annual' && selectedPrice && <Typography color="success.light" fontWeight={700}>{copy.save} {money(plan.annual_savings.amountCents, locale)} · {money(selectedPrice.amount_cents, locale)} {copy.perYear}</Typography>}
           </Paper>
 
           <Paper sx={{ p: { xs: 2.5, sm: 3.5 }, borderRadius: 4, boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
-            {paid ? <Stack alignItems="center" spacing={2} sx={{ py: 5, textAlign: 'center' }}><CheckCircleRoundedIcon color="success" sx={{ fontSize: 72 }} /><Typography variant="h4" fontWeight={900}>Pagamento confirmado!</Typography><Typography color="text.secondary">Seu Flow Me Pro está liberado.</Typography><Button href="/app" variant="contained">Entrar no Flow Me</Button></Stack>
-              : pixCheckout ? <Stack spacing={2.5} alignItems="center"><Typography variant="h5" fontWeight={900}>Escaneie o QR Code Pix</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>Copiar código Pix</Button><Alert severity="info">A confirmação acontece automaticamente após o pagamento. Não feche esta tela.</Alert></Stack>
-              : stripeCheckout ? <CheckoutElementsProvider key={stripeCheckout.clientSecret} stripe={stripePromise} options={{ clientSecret: stripeCheckout.clientSecret, elementsOptions: { appearance: { theme: 'night', variables: { colorPrimary: '#818cf8', borderRadius: '10px' } } } }}><StripePaymentForm returnUrl={`${window.location.origin}/app/checkout/return?attempt_id=${attemptId}`} /></CheckoutElementsProvider>
+            {paid ? <Stack alignItems="center" spacing={2} sx={{ py: 5, textAlign: 'center' }}><CheckCircleRoundedIcon color="success" sx={{ fontSize: 72 }} /><Typography variant="h4" fontWeight={900}>{copy.confirmed}</Typography><Typography color="text.secondary">{copy.released}</Typography><Button href="/app" variant="contained">{copy.enterApp}</Button></Stack>
+              : pixCheckout ? <Stack spacing={2.5} alignItems="center"><Typography variant="h5" fontWeight={900}>{copy.pixHeading}</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>{copy.copyPix}</Button><Alert severity="info">{copy.pixConfirmation}</Alert></Stack>
+              : stripeCheckout ? <CheckoutElementsProvider key={stripeCheckout.clientSecret} stripe={stripePromise} options={{ clientSecret: stripeCheckout.clientSecret, elementsOptions: { appearance: { theme: 'night', variables: { colorPrimary: '#818cf8', borderRadius: '10px' } } } }}><StripePaymentForm locale={locale} returnUrl={`${window.location.origin}/app/checkout/return?attempt_id=${attemptId}`} /></CheckoutElementsProvider>
               : <Stack spacing={2.5}>
-                <Box><Typography variant="h5" fontWeight={900}>Como você quer pagar?</Typography><Typography color="text.secondary">Escolha uma opção segura para concluir.</Typography></Box>
+                <Box><Typography variant="h5" fontWeight={900}>{copy.headline}</Typography><Typography color="text.secondary">{copy.paymentPrompt}</Typography></Box>
                 <ToggleButtonGroup value={method} exclusive fullWidth disabled={loading} onChange={(_, value: Method | null) => selectPaymentMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
-                  <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{PAYMENT_METHOD_COPY.pix.title}</Typography><Typography variant="caption">{PAYMENT_METHOD_COPY.pix.detail}</Typography></Box></Stack></ToggleButton>
-                  <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{PAYMENT_METHOD_COPY.card.title}</Typography><Typography variant="caption">{PAYMENT_METHOD_COPY.card.detail}</Typography></Box></Stack></ToggleButton>
+                  <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>
+                  <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.cardTitle}</Typography><Typography variant="caption">{copy.cardDetail}</Typography></Box></Stack></ToggleButton>
                 </ToggleButtonGroup>
-                {method === 'pix' && <Stack spacing={2}><TextField label="Nome completo" value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label="CPF ou CNPJ" value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText="Necessário para emitir a cobrança Pix com segurança." /></Stack>}
+                {method === 'pix' && <Stack spacing={2}><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} /></Stack>}
                 {error && <Alert severity="error">{error}</Alert>}
-                <Button variant="contained" size="large" disabled={loading || !selectedPrice || (method === 'pix' && (!name.trim() || !taxId.trim()))} onClick={() => void startCheckout(method)} sx={{ minHeight: 54, fontWeight: 900, fontSize: '1rem' }}>{loading ? <CircularProgress size={22} color="inherit" /> : method === 'card' ? 'Carregar pagamento seguro' : plan.checkout_cta}</Button>
-                <Stack direction="row" spacing={1} justifyContent="center" alignItems="center"><LockRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary">Pagamento protegido. Cancele quando quiser.</Typography></Stack>
+                <Button variant="contained" size="large" disabled={loading || !selectedPrice || (method === 'pix' && (!name.trim() || !taxId.trim()))} onClick={() => void startCheckout(method)} sx={{ minHeight: 54, fontWeight: 900, fontSize: '1rem' }}>{loading ? <CircularProgress size={22} color="inherit" /> : method === 'card' ? copy.loadPayment : plan.checkout_cta}</Button>
+                <Stack direction="row" spacing={1} justifyContent="center" alignItems="center"><LockRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary">{copy.protectedPayment}</Typography></Stack>
               </Stack>}
           </Paper>
         </Box>

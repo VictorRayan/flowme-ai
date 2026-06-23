@@ -11,6 +11,7 @@ const input: GatewayCheckoutInput = {
   planCode: 'pro',
   localizedName: 'Flow Me Pro',
   localizedDescription: 'Flow Me Pro subscription',
+  locale: 'en-US',
   interval: 'annual',
   paymentMethod: 'card',
   currency: 'BRL',
@@ -29,6 +30,7 @@ describe('StripeGateway', () => {
     });
     const gateway = new StripeGateway({
       stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } }, subscriptions: { update: jest.fn(), cancel: jest.fn() } },
+      priceIdForInterval: interval => interval === 'annual' ? 'price_live_annual' : 'price_live_monthly',
     });
 
     await expect(gateway.createCheckout(input)).resolves.toEqual({
@@ -45,17 +47,33 @@ describe('StripeGateway', () => {
       mode: 'subscription',
       ui_mode: 'elements',
       customer: 'cus_1',
-      line_items: [{ price: 'price_annual', quantity: 1 }],
+      line_items: [{ price: 'price_live_annual', quantity: 1 }],
+      locale: 'en',
     }));
   });
 
   it('reuses an existing customer', async () => {
     const createCustomer = jest.fn();
     const createSession = jest.fn().mockResolvedValue({ id: 'cs_1', client_secret: 'secret', expires_at: 1_800_000_000 });
-    const gateway = new StripeGateway({ stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } }, subscriptions: { update: jest.fn(), cancel: jest.fn() } } });
+    const gateway = new StripeGateway({ stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } }, subscriptions: { update: jest.fn(), cancel: jest.fn() } }, priceIdForInterval: () => 'price_live_annual' });
     await gateway.createCheckout({ ...input, existingCustomerId: 'cus_saved' });
     expect(createCustomer).not.toHaveBeenCalled();
     expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ customer: 'cus_saved' }));
+  });
+
+  it('uses the configured Stripe price instead of a stale catalog provider ID', async () => {
+    const createSession = jest.fn().mockResolvedValue({ id: 'cs_1', client_secret: 'secret', expires_at: 1_800_000_000 });
+    const gateway = new StripeGateway({
+      stripe: { customers: { create: jest.fn().mockResolvedValue({ id: 'cus_1' }) }, checkout: { sessions: { create: createSession } }, subscriptions: { update: jest.fn(), cancel: jest.fn() } },
+      priceIdForInterval: () => 'price_from_production_secret',
+    });
+
+    await gateway.createCheckout({ ...input, providerPriceId: 'price_MENSAL_REAL', interval: 'monthly', locale: 'pt-BR' });
+
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({
+      line_items: [{ price: 'price_from_production_secret', quantity: 1 }],
+      locale: 'pt-BR',
+    }));
   });
 
   it('schedules cancellation through the provider port', async () => {

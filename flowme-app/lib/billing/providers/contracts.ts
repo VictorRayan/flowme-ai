@@ -1,4 +1,5 @@
 import type { BillingInterval } from '@/lib/billing/stripe-adapter';
+import type { CatalogLocale } from '@/lib/billing/catalog';
 
 export type WebBillingProvider = 'stripe' | 'asaas';
 export type WebPaymentMethod = 'pix' | 'card' | 'apple_pay' | 'google_pay';
@@ -13,6 +14,7 @@ export type GatewayCheckoutInput = {
   planCode: string;
   localizedName: string;
   localizedDescription: string;
+  locale: CatalogLocale;
   interval: BillingInterval;
   paymentMethod: WebPaymentMethod;
   currency: string;

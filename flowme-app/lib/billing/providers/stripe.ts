@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
-import { getStripeClient } from '@/lib/billing/stripe-adapter';
+import { getStripeClient, stripePriceIdForInterval } from '@/lib/billing/stripe-adapter';
+import type { BillingInterval } from '@/lib/billing/stripe-adapter';
 import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutInput, StripeElementsCheckout } from './contracts';
 
 type StripeClient = {
@@ -24,9 +25,11 @@ type StripeClient = {
 export class StripeGateway implements BillingGateway {
   readonly provider = 'stripe' as const;
   private readonly stripe: StripeClient;
+  private readonly priceIdForInterval: (interval: BillingInterval) => string;
 
-  constructor(options: { stripe: StripeClient }) {
+  constructor(options: { stripe: StripeClient; priceIdForInterval?: (interval: BillingInterval) => string }) {
     this.stripe = options.stripe;
+    this.priceIdForInterval = options.priceIdForInterval || stripePriceIdForInterval;
   }
 
   async createCheckout(input: GatewayCheckoutInput): Promise<StripeElementsCheckout> {
@@ -44,7 +47,8 @@ export class StripeGateway implements BillingGateway {
       mode: 'subscription',
       ui_mode: 'elements',
       customer: customerId,
-      line_items: [{ price: input.providerPriceId, quantity: 1 }],
+      line_items: [{ price: this.priceIdForInterval(input.interval), quantity: 1 }],
+      locale: input.locale === 'pt-BR' ? 'pt-BR' : 'en',
       return_url: `${input.returnUrl}?attempt_id=${encodeURIComponent(input.attemptId)}&session_id={CHECKOUT_SESSION_ID}`,
       client_reference_id: input.userId,
       metadata: {

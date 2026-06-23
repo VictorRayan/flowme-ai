@@ -69,6 +69,7 @@ describe('POST /api/billing/checkout', () => {
       attemptId: 'attempt-1',
       interval: 'monthly',
       paymentMethod: 'card',
+      locale: 'pt-BR',
       providerPriceId: 'price_monthly',
     }));
   });

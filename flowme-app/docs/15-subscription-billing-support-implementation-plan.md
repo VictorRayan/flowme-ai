@@ -63,10 +63,10 @@
   - Image generation, unless we choose to allow a tiny sample allowance.
 - [x] Free daily AI credits reset every day in the user's timezone.
 - [x] Free AI credit display should be understandable:
-  - Example: "Você tem 7 de 10 créditos de IA hoje."
+  - Example: "Você tem 3 de 5 créditos de IA hoje."
   - Avoid: "Você usou 12.830 tokens."
 - [x] Initial Free allowance:
-  - 10 AI credits/day.
+  - 5 AI credits/day.
   - Simple Balys text answer: 1 credit.
   - Tool action: 2-4 credits depending on cost.
   - Web search/grounded answer: locked or 4 credits.

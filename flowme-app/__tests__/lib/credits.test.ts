@@ -42,7 +42,7 @@ describe('AI credit policy', () => {
     const client = makeClient([{ credits: 3 }, { credits: 2 }]);
     const state = await getAiCreditState(client, 'user-1', 'America/Sao_Paulo', new Date('2026-06-20T15:00:00Z'));
     expect(state.used).toBe(5);
-    expect(state.remaining).toBe(5);
+    expect(state.remaining).toBe(0);
     expect(client.chain.gte).toHaveBeenCalledWith('created_at', '2026-06-20T03:00:00.000Z');
     expect(client.chain.lt).toHaveBeenCalledWith('created_at', '2026-06-21T03:00:00.000Z');
   });
@@ -58,11 +58,11 @@ describe('AI credit policy', () => {
   it('delegates atomic consumption to the database function', async () => {
     const client = makeClient();
     client.rpc.mockResolvedValue({
-      data: { allowed: true, plan_code: 'free', unlimited: false, daily_limit: 10, used: 3, remaining: 7, local_date: '2026-06-20', timezone: 'UTC', resets_at: '2026-06-21T00:00:00Z' },
+      data: { allowed: true, plan_code: 'free', unlimited: false, daily_limit: 5, used: 3, remaining: 2, local_date: '2026-06-20', timezone: 'UTC', resets_at: '2026-06-21T00:00:00Z' },
       error: null,
     });
     const state = await consumeAiCredits({ supabase: client, userId: 'user-1', timezone: 'UTC', source: 'tool', featureKey: 'connector_read', credits: 3 });
-    expect(state.remaining).toBe(7);
+    expect(state.remaining).toBe(2);
     expect(client.rpc).toHaveBeenCalledWith('consume_ai_credits', expect.objectContaining({ p_credits: 3, p_feature_key: 'connector_read' }));
   });
 

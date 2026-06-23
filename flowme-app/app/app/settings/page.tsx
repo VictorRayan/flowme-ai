@@ -66,8 +66,8 @@ type BillingInvoice = {
 };
 
 function billingProviderLabel(provider: BillingInfo['provider']) {
-  if (provider === 'stripe') return 'Stripe';
-  if (provider === 'asaas') return 'Asaas';
+  if (provider === 'stripe') return 'Cartão ou carteira digital';
+  if (provider === 'asaas') return 'Pix';
   if (provider === 'apple') return 'App Store';
   if (provider === 'google') return 'Google Play';
   return 'Flow Me';
@@ -391,7 +391,7 @@ function SettingsPageContent() {
               {entitlements?.has_pro ? 'Pro' : 'Free'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              {entitlements?.ai_credits?.label || '10 créditos de IA por dia'}
+              {entitlements?.ai_credits?.label || '5 créditos de IA por dia'}
             </Typography>
             {billing && (
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>

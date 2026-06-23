@@ -78,7 +78,7 @@ BEGIN
       "images": false,
       "support": true
     }'::jsonb,
-    '{"unlimited": false, "daily_limit": 10, "label": "10 créditos de IA por dia"}'::jsonb,
+    '{"unlimited": false, "daily_limit": 5, "label": "5 créditos de IA por dia"}'::jsonb,
     NOW()
   )
   ON CONFLICT (user_id) DO UPDATE SET

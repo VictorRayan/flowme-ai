@@ -32,6 +32,7 @@ import {
   useCheckoutElements,
 } from '@stripe/react-stripe-js/checkout';
 import type { StripeExpressCheckoutElementConfirmEvent } from '@stripe/stripe-js';
+import { checkoutPresentation, PAYMENT_METHOD_COPY } from '@/lib/billing/checkout-ui';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -138,7 +139,7 @@ function CheckoutPageContent() {
     return () => window.clearInterval(timer);
   }, [attemptId, paid, pixCheckout]);
 
-  const startCheckout = async () => {
+  const startCheckout = async (selectedMethod: Method = method) => {
     setLoading(true);
     setError(null);
     try {
@@ -149,20 +150,32 @@ function CheckoutPageContent() {
           plan_code: 'pro',
           interval,
           locale,
-          payment_method: method,
-          ...(method === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
+          payment_method: selectedMethod,
+          ...(selectedMethod === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
         }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error?.message || 'Não foi possível iniciar o pagamento.');
       setAttemptId(payload.attempt_id);
-      if (payload.checkout.kind === 'pix_qr_code') setPixCheckout(payload.checkout);
-      else setStripeCheckout(payload.checkout);
+      const presentation = checkoutPresentation(payload.checkout);
+      setStripeCheckout(presentation.stripeCheckout);
+      setPixCheckout(presentation.pixCheckout);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Não foi possível iniciar o pagamento.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectPaymentMethod = (value: Method | null) => {
+    if (!value || loading || value === method) return;
+    setMethod(value);
+    setError(null);
+    setAttemptId(null);
+    setStripeCheckout(null);
+    setPixCheckout(null);
+    setPaid(false);
+    if (value === 'card') void startCheckout('card');
   };
 
   if (!plan) return <Box sx={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>{error ? <Alert severity="error">{error}</Alert> : <CircularProgress />}</Box>;
@@ -183,7 +196,7 @@ function CheckoutPageContent() {
             <Stack spacing={1.4} sx={{ my: 3.5 }}>
               {plan.feature_highlights.map(feature => <Box key={feature} sx={{ display: 'flex', gap: 1.2, alignItems: 'center' }}><CheckCircleRoundedIcon color="success" /><Typography>{feature}</Typography></Box>)}
             </Stack>
-            <ToggleButtonGroup value={interval} exclusive fullWidth onChange={(_, value: Interval | null) => value && setInterval(value)} sx={{ mb: 3 }}>
+            <ToggleButtonGroup value={interval} exclusive fullWidth disabled={loading || Boolean(attemptId)} onChange={(_, value: Interval | null) => value && setInterval(value)} sx={{ mb: 3 }}>
               <ToggleButton value="monthly" sx={{ minHeight: 54 }}>Mensal</ToggleButton>
               <ToggleButton value="annual" sx={{ minHeight: 54 }}><Stack direction="row" spacing={1} alignItems="center"><span>Anual</span><Chip size="small" color="success" label={`-${plan.annual_savings.percent}%`} /></Stack></ToggleButton>
             </ToggleButtonGroup>
@@ -196,16 +209,16 @@ function CheckoutPageContent() {
           <Paper sx={{ p: { xs: 2.5, sm: 3.5 }, borderRadius: 4, boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
             {paid ? <Stack alignItems="center" spacing={2} sx={{ py: 5, textAlign: 'center' }}><CheckCircleRoundedIcon color="success" sx={{ fontSize: 72 }} /><Typography variant="h4" fontWeight={900}>Pagamento confirmado!</Typography><Typography color="text.secondary">Seu Flow Me Pro está liberado.</Typography><Button href="/app" variant="contained">Entrar no Flow Me</Button></Stack>
               : pixCheckout ? <Stack spacing={2.5} alignItems="center"><Typography variant="h5" fontWeight={900}>Escaneie o QR Code Pix</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>Copiar código Pix</Button><Alert severity="info">A confirmação acontece automaticamente após o pagamento. Não feche esta tela.</Alert></Stack>
-              : stripeCheckout ? <CheckoutElementsProvider stripe={stripePromise} options={{ clientSecret: stripeCheckout.clientSecret, elementsOptions: { appearance: { theme: 'night', variables: { colorPrimary: '#818cf8', borderRadius: '10px' } } } }}><StripePaymentForm returnUrl={`${window.location.origin}/app/checkout/return?attempt_id=${attemptId}`} /></CheckoutElementsProvider>
+              : stripeCheckout ? <CheckoutElementsProvider key={stripeCheckout.clientSecret} stripe={stripePromise} options={{ clientSecret: stripeCheckout.clientSecret, elementsOptions: { appearance: { theme: 'night', variables: { colorPrimary: '#818cf8', borderRadius: '10px' } } } }}><StripePaymentForm returnUrl={`${window.location.origin}/app/checkout/return?attempt_id=${attemptId}`} /></CheckoutElementsProvider>
               : <Stack spacing={2.5}>
                 <Box><Typography variant="h5" fontWeight={900}>Como você quer pagar?</Typography><Typography color="text.secondary">Escolha uma opção segura para concluir.</Typography></Box>
-                <ToggleButtonGroup value={method} exclusive fullWidth onChange={(_, value: Method | null) => value && setMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
-                  <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>Pix</Typography><Typography variant="caption">Asaas · aprovação rápida</Typography></Box></Stack></ToggleButton>
-                  <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>Cartão</Typography><Typography variant="caption">Stripe · Apple Pay · Google Pay</Typography></Box></Stack></ToggleButton>
+                <ToggleButtonGroup value={method} exclusive fullWidth disabled={loading} onChange={(_, value: Method | null) => selectPaymentMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
+                  <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{PAYMENT_METHOD_COPY.pix.title}</Typography><Typography variant="caption">{PAYMENT_METHOD_COPY.pix.detail}</Typography></Box></Stack></ToggleButton>
+                  <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{PAYMENT_METHOD_COPY.card.title}</Typography><Typography variant="caption">{PAYMENT_METHOD_COPY.card.detail}</Typography></Box></Stack></ToggleButton>
                 </ToggleButtonGroup>
                 {method === 'pix' && <Stack spacing={2}><TextField label="Nome completo" value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label="CPF ou CNPJ" value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText="Necessário para emitir a cobrança Pix com segurança." /></Stack>}
                 {error && <Alert severity="error">{error}</Alert>}
-                <Button variant="contained" size="large" disabled={loading || !selectedPrice || (method === 'pix' && (!name.trim() || !taxId.trim()))} onClick={() => void startCheckout()} sx={{ minHeight: 54, fontWeight: 900, fontSize: '1rem' }}>{loading ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button>
+                <Button variant="contained" size="large" disabled={loading || !selectedPrice || (method === 'pix' && (!name.trim() || !taxId.trim()))} onClick={() => void startCheckout(method)} sx={{ minHeight: 54, fontWeight: 900, fontSize: '1rem' }}>{loading ? <CircularProgress size={22} color="inherit" /> : method === 'card' ? 'Carregar pagamento seguro' : plan.checkout_cta}</Button>
                 <Stack direction="row" spacing={1} justifyContent="center" alignItems="center"><LockRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary">Pagamento protegido. Cancele quando quiser.</Typography></Stack>
               </Stack>}
           </Paper>

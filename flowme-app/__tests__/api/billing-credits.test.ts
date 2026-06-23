@@ -20,9 +20,9 @@ describe('GET /api/billing/credits', () => {
       allowed: true,
       plan_code: 'free',
       unlimited: false,
-      daily_limit: 10,
+      daily_limit: 5,
       used: 3,
-      remaining: 7,
+      remaining: 2,
       local_date: '2026-06-20',
       timezone: 'America/Sao_Paulo',
       resets_at: '2026-06-21T03:00:00.000Z',
@@ -33,7 +33,7 @@ describe('GET /api/billing/credits', () => {
     const response = await GET(new NextRequest('http://localhost/api/billing/credits?timezone=America%2FSao_Paulo'));
     const body = await response.json();
     expect(response.status).toBe(200);
-    expect(body.credits.remaining).toBe(7);
+    expect(body.credits.remaining).toBe(2);
     expect(mockedGetState).toHaveBeenCalledWith({}, 'user-1', 'America/Sao_Paulo');
   });
 

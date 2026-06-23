@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS public.billing_notifications (
 
 INSERT INTO public.subscription_plans (code, name, status, metadata)
 VALUES
-  ('free', 'Free', 'active', '{"ai_daily_credits": 10}'::jsonb),
+  ('free', 'Free', 'active', '{"ai_daily_credits": 5}'::jsonb),
   ('pro', 'Pro', 'active', '{"ai_credits": "unlimited"}'::jsonb)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,

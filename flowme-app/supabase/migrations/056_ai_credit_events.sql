@@ -52,6 +52,7 @@ DECLARE
   local_date DATE;
   used_credits INTEGER;
   has_unlimited BOOLEAN;
+  free_daily_limit INTEGER;
   reset_at TIMESTAMPTZ;
 BEGIN
   IF auth.uid() IS DISTINCT FROM p_user_id AND auth.role() <> 'service_role' THEN
@@ -72,6 +73,12 @@ BEGIN
   local_date := (NOW() AT TIME ZONE resolved_timezone)::DATE;
   reset_at := ((local_date + 1)::TIMESTAMP AT TIME ZONE resolved_timezone);
 
+  SELECT GREATEST(1, COALESCE((metadata->>'ai_daily_credits')::INTEGER, 5))
+  INTO free_daily_limit
+  FROM public.subscription_plans
+  WHERE code = 'free';
+  free_daily_limit := COALESCE(free_daily_limit, 5);
+
   PERFORM pg_advisory_xact_lock(hashtextextended(p_user_id::TEXT || ':' || local_date::TEXT, 0));
 
   SELECT EXISTS (
@@ -90,14 +97,14 @@ BEGIN
   WHERE user_id = p_user_id
     AND (created_at AT TIME ZONE resolved_timezone)::DATE = local_date;
 
-  IF NOT has_unlimited AND used_credits + p_credits > 10 THEN
+  IF NOT has_unlimited AND used_credits + p_credits > free_daily_limit THEN
     RETURN jsonb_build_object(
       'allowed', false,
       'plan_code', 'free',
       'unlimited', false,
-      'daily_limit', 10,
+      'daily_limit', free_daily_limit,
       'used', used_credits,
-      'remaining', GREATEST(0, 10 - used_credits),
+      'remaining', GREATEST(0, free_daily_limit - used_credits),
       'local_date', local_date,
       'timezone', resolved_timezone,
       'resets_at', reset_at
@@ -117,9 +124,9 @@ BEGIN
     'allowed', true,
     'plan_code', CASE WHEN has_unlimited THEN 'pro' ELSE 'free' END,
     'unlimited', has_unlimited,
-    'daily_limit', CASE WHEN has_unlimited THEN NULL ELSE 10 END,
+    'daily_limit', CASE WHEN has_unlimited THEN NULL ELSE free_daily_limit END,
     'used', used_credits,
-    'remaining', CASE WHEN has_unlimited THEN NULL ELSE GREATEST(0, 10 - used_credits) END,
+    'remaining', CASE WHEN has_unlimited THEN NULL ELSE GREATEST(0, free_daily_limit - used_credits) END,
     'local_date', local_date,
     'timezone', resolved_timezone,
     'resets_at', reset_at

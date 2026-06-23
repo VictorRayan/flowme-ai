@@ -9,7 +9,7 @@ export const SUPPORT_KNOWLEDGE_BASE: SupportKnowledgeSection[] = [
   { key: 'getting_started', title: 'Começando no Flow Me', keywords: ['começar', 'inicio', 'início', 'onboarding', 'flow me'], body: 'Comece criando notas e conversando com o Balys. No Pro, conecte Calendar e fontes externas, defina uma meta e use Today para executar o plano do dia.' },
   { key: 'plans', title: 'Free e Pro', keywords: ['free', 'pro', 'plano', 'preço', 'assinatura'], body: 'O Free inclui Notes, Balys com créditos diários, configurações, cobrança e suporte. O Pro libera todas as áreas, canais, automações e créditos de IA ilimitados na experiência do usuário.' },
   { key: 'credits', title: 'Créditos de IA', keywords: ['crédito', 'creditos', 'créditos', 'credits', 'ia', 'ai', 'limite', 'limit'], body: 'Créditos medem o uso de IA em linguagem simples. Perguntas simples usam menos; ações com busca, arquivos ou análise usam mais. Créditos Free renovam diariamente no fuso do usuário; Pro aparece como ilimitado.' },
-  { key: 'billing', title: 'Cobrança e pagamento', keywords: ['pagamento', 'cobrança', 'cartão', 'fatura', 'stripe', 'falhou'], body: 'Assinaturas web são cobradas pelo Stripe. Faturas ficam em Configurações. Para atualizar o cartão, use Atualizar pagamento. Assinaturas Apple ou Google são gerenciadas na loja correspondente.' },
+  { key: 'billing', title: 'Cobrança e pagamento', keywords: ['pagamento', 'cobrança', 'cartão', 'fatura', 'stripe', 'falhou'], body: 'Assinaturas web podem ser pagas com cartão, carteiras digitais ou Pix. Faturas ficam em Configurações. Para atualizar o cartão, use Atualizar pagamento. Assinaturas Apple ou Google são gerenciadas na loja correspondente.' },
   { key: 'apple_billing', title: 'Assinaturas pela Apple', keywords: ['apple', 'app store', 'ios', 'iphone'], body: 'No iPhone, a assinatura Pro é comprada e gerenciada pela App Store. A Flow Me valida o comprovante com a Apple e compartilha o acesso Pro com a mesma conta em todas as plataformas.' },
   { key: 'google_billing', title: 'Assinaturas pelo Google Play', keywords: ['google play', 'android', 'play store'], body: 'No Android, a assinatura Pro é comprada e gerenciada pelo Google Play. A Flow Me consulta o Google Play para manter o acesso da mesma conta sincronizado.' },
   { key: 'notes_balys', title: 'Notes e BalysAI', keywords: ['nota', 'notes', 'balys', 'assistente', 'chat'], body: 'Notes registra conhecimento e contexto. O Balys usa o que está disponível na sua conta para responder e agir, mas só confirma uma alteração depois que a ferramenta correspondente conclui a ação.' },
@@ -31,7 +31,7 @@ const ENGLISH_SUPPORT_COPY: Record<string, string> = {
   getting_started: 'Start by creating notes and talking to Balys. On Pro, connect Calendar and external sources, define a goal, and use Today to execute your daily plan.',
   plans: 'Free includes Notes, Balys with daily AI credits, settings, billing, and support. Pro unlocks every area, channel, automation, and unlimited AI credits in the user experience.',
   credits: 'AI credits describe usage in simple terms. Simple questions use less; searches, files, and analysis use more. Free credits renew daily in your timezone, while Pro appears as unlimited.',
-  billing: 'Web subscriptions are billed by Stripe. To fix a payment, open Settings, choose Billing, and select Update payment. Apple and Google subscriptions are managed in their respective stores.',
+  billing: 'Web subscriptions can be paid by card, digital wallets, or Pix. To fix a payment, open Settings, choose Billing, and select Update payment. Apple and Google subscriptions are managed in their respective stores.',
   apple_billing: 'On iPhone, Pro is purchased and managed through the App Store. Flow Me verifies the purchase with Apple and shares Pro access with the same account on every platform.',
   google_billing: 'On Android, Pro is purchased and managed through Google Play. Flow Me checks Google Play to keep access synchronized for the same account.',
   notes_balys: 'Notes stores knowledge and context. Balys uses the information available in your account, but only confirms a change after the corresponding action succeeds.',
@@ -65,8 +65,8 @@ const FUNNEL_ANSWERS: Record<SupportQuestionKey, Record<'pt-BR' | 'en-US', strin
     'en-US': 'Your subscription includes your plan, provider, current status, and next renewal. I can now explain how payment and recurrence work.',
   },
   payment_and_recurrence: {
-    'pt-BR': 'A recorrência segue o provider da compra. Stripe gerencia cartões e carteiras; Asaas gera cobranças Pix por ciclo; Apple e Google seguem as regras da loja. Posso explicar o processo de cancelamento se você ainda quiser seguir.',
-    'en-US': 'Recurrence follows the purchase provider. Stripe manages cards and wallets; Asaas creates a Pix charge each cycle; Apple and Google follow store rules. I can explain the cancellation process if you still want to continue.',
+    'pt-BR': 'A recorrência segue a forma de pagamento escolhida. Cartões e carteiras digitais renovam automaticamente; no Pix, uma nova cobrança é gerada a cada ciclo; Apple e Google seguem as regras da loja. Posso explicar o processo de cancelamento se você ainda quiser seguir.',
+    'en-US': 'Recurrence follows the selected payment method. Cards and digital wallets renew automatically; Pix creates a new charge each cycle; Apple and Google follow store rules. I can explain the cancellation process if you still want to continue.',
   },
   cancel_subscription: {
     'pt-BR': 'O cancelamento começa com uma solicitação detalhada para análise humana. Enviar a solicitação não interrompe a cobrança imediatamente; um manager registra a decisão e a execução no provider. O formulário está disponível abaixo.',
@@ -105,7 +105,7 @@ export function answerSupportQuestion(
       ? 'I could not find a safe answer in the support knowledge base. I can preserve the context for human review.'
       : 'Não encontrei uma resposta segura na base de suporte. Posso registrar o contexto para revisão humana.';
   if (!billing) return answer;
-  const providerNames: Record<string, string> = { stripe: 'Stripe', asaas: 'Asaas', apple: 'App Store', google: 'Google Play' };
+  const providerNames: Record<string, string> = { stripe: english ? 'card payment' : 'pagamento por cartão', asaas: 'Pix', apple: 'App Store', google: 'Google Play' };
   const provider = billing.provider ? providerNames[billing.provider] || billing.provider : null;
   if (english) return `${answer}\n\nYour account is on ${billing.plan.toUpperCase()}${provider ? `, managed by ${provider}` : ''}, with status ${billing.state}.`;
   return `${answer}\n\nSua conta está no plano ${billing.plan.toUpperCase()}${provider ? `, gerenciado por ${provider}` : ''}, com estado ${billing.state}.`;

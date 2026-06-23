@@ -92,8 +92,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_checkout_attempts_provider_payment
 INSERT INTO public.subscription_plan_localizations
   (plan_code, locale, name, short_description, description, checkout_badge, checkout_cta, feature_highlights)
 VALUES
-  ('free', 'pt-BR', 'Flow Me Free', 'Organize suas notas e conheça a Balys.', 'Comece a organizar sua vida com notas e créditos diários de IA.', NULL, 'Continuar no Free', '["Notas inteligentes", "10 créditos de IA por dia"]'::jsonb),
-  ('free', 'en-US', 'Flow Me Free', 'Organize your notes and meet Balys.', 'Start organizing your life with notes and daily AI credits.', NULL, 'Continue with Free', '["Smart notes", "10 AI credits per day"]'::jsonb),
+  ('free', 'pt-BR', 'Flow Me Free', 'Organize suas notas e conheça a Balys.', 'Comece a organizar sua vida com notas e créditos diários de IA.', NULL, 'Continuar no Free', '["Notas inteligentes", "5 créditos de IA por dia"]'::jsonb),
+  ('free', 'en-US', 'Flow Me Free', 'Organize your notes and meet Balys.', 'Start organizing your life with notes and daily AI credits.', NULL, 'Continue with Free', '["Smart notes", "5 AI credits per day"]'::jsonb),
   ('pro', 'pt-BR', 'Flow Me Pro', 'Sua vida inteira fluindo em um só lugar.', 'Desbloqueie IA ilimitada, calendário, metas, finanças, conectores, automações, reuniões e muito mais.', 'Mais escolhido', 'Desbloquear meu Flow Me', '["Créditos de IA ilimitados", "Calendário, Today, metas e finanças", "Conectores, WhatsApp e automações", "Revisões, reuniões e geração de imagens"]'::jsonb),
   ('pro', 'en-US', 'Flow Me Pro', 'Your whole life flowing in one place.', 'Unlock unlimited AI, calendar, goals, finances, connectors, automations, meetings, and more.', 'Most popular', 'Unlock my Flow Me', '["Unlimited AI credits", "Calendar, Today, goals, and finances", "Connectors, WhatsApp, and automations", "Reviews, meetings, and image generation"]'::jsonb)
 ON CONFLICT (plan_code, locale) DO UPDATE SET

@@ -1,4 +1,4 @@
-export const FREE_AI_CREDITS_PER_DAY = 10;
+export const FREE_AI_CREDITS_PER_DAY = 5;
 
 export const FEATURE_KEYS = [
   'notes',

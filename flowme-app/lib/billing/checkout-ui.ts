@@ -1,5 +1,42 @@
 export type CheckoutLocale = 'pt-BR' | 'en-US';
 
+const CARD_ERROR_COPY = {
+  'pt-BR': {
+    incorrect_security_code: 'O código de segurança do cartão está incorreto. Confira o CVC e tente novamente.',
+    card_declined: 'O cartão foi recusado. Tente outro cartão ou fale com o banco emissor.',
+    expired_card: 'Este cartão está vencido. Confira a validade ou tente outro cartão.',
+    invalid_card: 'Os dados do cartão são inválidos. Confira as informações e tente novamente.',
+    insufficient_funds: 'O cartão não possui limite disponível para esta compra. Tente outro cartão.',
+    processing_error: 'Não foi possível processar o cartão agora. Aguarde um instante e tente novamente.',
+  },
+  'en-US': {
+    incorrect_security_code: 'The card security code is incorrect. Check the CVC and try again.',
+    card_declined: 'The card was declined. Try another card or contact the issuing bank.',
+    expired_card: 'This card has expired. Check the expiry date or try another card.',
+    invalid_card: 'The card details are invalid. Check the information and try again.',
+    insufficient_funds: 'The card does not have enough available credit for this purchase. Try another card.',
+    processing_error: 'The card could not be processed right now. Wait a moment and try again.',
+  },
+} as const;
+
+type CardErrorCode = keyof typeof CARD_ERROR_COPY['pt-BR'];
+
+const CARD_ERROR_ALIASES: Record<string, CardErrorCode> = {
+  incorrect_cvc: 'incorrect_security_code',
+  incorrect_security_code: 'incorrect_security_code',
+  card_declined: 'card_declined',
+  expired_card: 'expired_card',
+  incorrect_number: 'invalid_card',
+  invalid_number: 'invalid_card',
+  invalid_expiry_month: 'invalid_card',
+  invalid_expiry_year: 'invalid_card',
+  invalid_card: 'invalid_card',
+  insufficient_funds: 'insufficient_funds',
+  generic_decline: 'card_declined',
+  do_not_honor: 'card_declined',
+  processing_error: 'processing_error',
+};
+
 const CHECKOUT_COPY = {
   'pt-BR': {
     headline: 'Como você quer pagar?',
@@ -83,4 +120,10 @@ export function checkoutLocaleFromUiLanguage(language: string | null | undefined
 
 export function checkoutCopy(locale: CheckoutLocale) {
   return CHECKOUT_COPY[locale];
+}
+
+export function checkoutCardErrorMessage(code: string | undefined, locale: CheckoutLocale, fallbackCode?: string): string {
+  const normalizedCode = (code ? CARD_ERROR_ALIASES[code] : undefined)
+    || (fallbackCode ? CARD_ERROR_ALIASES[fallbackCode] : undefined);
+  return normalizedCode ? CARD_ERROR_COPY[locale][normalizedCode] : checkoutCopy(locale).paymentStartError;
 }

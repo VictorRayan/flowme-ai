@@ -1,4 +1,4 @@
-import { checkoutCopy, checkoutLocaleFromUiLanguage } from '@/lib/billing/checkout-ui';
+import { checkoutCardErrorMessage, checkoutCopy, checkoutLocaleFromUiLanguage } from '@/lib/billing/checkout-ui';
 
 describe('checkout UI state', () => {
   it('describes payment methods without exposing gateway brands', () => {
@@ -18,5 +18,12 @@ describe('checkout UI state', () => {
     expect(checkoutCopy('en-US').headline).toBe('How would you like to pay?');
     expect(checkoutCopy('en-US').cardNumber).toBe('Card number');
     expect(checkoutCopy('pt-BR').cardReady).toContain('diretamente');
+  });
+
+  it('localizes safe card errors and hides unknown provider messages', () => {
+    expect(checkoutCardErrorMessage('incorrect_cvc', 'pt-BR')).toContain('código de segurança');
+    expect(checkoutCardErrorMessage('insufficient_funds', 'en-US')).toContain('available credit');
+    expect(checkoutCardErrorMessage('unknown_decline', 'en-US', 'card_declined')).toContain('declined');
+    expect(checkoutCardErrorMessage('unknown_provider_code', 'pt-BR')).toBe('Não foi possível iniciar o pagamento.');
   });
 });

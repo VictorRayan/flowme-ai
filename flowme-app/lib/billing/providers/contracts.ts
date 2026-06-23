@@ -4,6 +4,21 @@ import type { CatalogLocale } from '@/lib/billing/catalog';
 export type WebBillingProvider = 'stripe' | 'asaas';
 export type WebPaymentMethod = 'pix' | 'card' | 'apple_pay' | 'google_pay';
 
+export type GatewayCheckoutErrorCode =
+  | 'incorrect_security_code'
+  | 'card_declined'
+  | 'expired_card'
+  | 'invalid_card'
+  | 'insufficient_funds'
+  | 'processing_error';
+
+export class GatewayCheckoutError extends Error {
+  constructor(readonly code: GatewayCheckoutErrorCode) {
+    super(code);
+    this.name = 'GatewayCheckoutError';
+  }
+}
+
 export type GatewayCheckoutInput = {
   attemptId: string;
   userId: string;

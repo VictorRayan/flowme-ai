@@ -54,6 +54,20 @@ describe('StripeGateway', () => {
     await expect(gateway.createCheckout({ ...input, providerPaymentMethodId: '4242424242424242' })).rejects.toThrow('Stripe payment method is invalid');
   });
 
+  it('normalizes an incorrect CVC without exposing the Stripe error', async () => {
+    const create = jest.fn().mockRejectedValue({
+      type: 'StripeCardError', code: 'card_declined', decline_code: 'incorrect_cvc', message: 'raw provider message',
+    });
+    const gateway = new StripeGateway({
+      stripe: stripeClient({ subscriptions: { create, update: jest.fn(), cancel: jest.fn() } }),
+      priceIdForInterval: () => 'price_live',
+    });
+
+    await expect(gateway.createCheckout(input)).rejects.toMatchObject({
+      name: 'GatewayCheckoutError', code: 'incorrect_security_code', message: 'incorrect_security_code',
+    });
+  });
+
   it('schedules cancellation through the provider port', async () => {
     const update = jest.fn().mockResolvedValue({ id: 'sub_1', cancel_at: 1_800_000_000, cancel_at_period_end: true });
     const gateway = new StripeGateway({ stripe: stripeClient({ subscriptions: { create: jest.fn(), update, cancel: jest.fn() } }) });

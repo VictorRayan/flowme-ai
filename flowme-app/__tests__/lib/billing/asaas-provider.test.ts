@@ -68,4 +68,13 @@ describe('AsaasGateway', () => {
       .rejects.toThrow('Asaas rejected the billing request');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+
+  it('removes an Asaas subscription without a request body', async () => {
+    const fetcher = jest.fn(async () => Response.json({ deleted: true }));
+    const gateway = new AsaasGateway({ apiKey: 'secret', baseUrl: 'https://api-sandbox.asaas.com/v3', fetcher });
+    await expect(gateway.cancelSubscription({ providerSubscriptionId: 'sub_1', mode: 'period_end', reason: 'approved' }))
+      .resolves.toEqual(expect.objectContaining({ provider: 'asaas', state: 'canceled' }));
+    expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('/subscriptions/sub_1'), expect.objectContaining({ method: 'DELETE' }));
+    expect((fetcher.mock.calls[0][1] as RequestInit).body).toBeUndefined();
+  });
 });

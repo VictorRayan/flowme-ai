@@ -1,4 +1,4 @@
-import type { BillingGateway, GatewayCheckoutInput, PixQrCheckout } from './contracts';
+import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutInput, PixQrCheckout } from './contracts';
 
 type Fetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -62,18 +62,20 @@ export class AsaasGateway implements BillingGateway {
     this.fetcher = options.fetcher || fetch;
   }
 
-  private async request(path: string, body?: Record<string, unknown>): Promise<unknown> {
+  private async request(path: string, options: { method?: 'GET' | 'POST' | 'DELETE'; body?: Record<string, unknown> } = {}): Promise<unknown> {
+    const method = options.method || (options.body ? 'POST' : 'GET');
     const response = await this.fetcher(`${this.baseUrl}${path}`, {
-      method: body ? 'POST' : 'GET',
+      method,
       headers: {
         accept: 'application/json',
         access_token: this.apiKey,
-        ...(body ? { 'content-type': 'application/json' } : {}),
+        ...(options.body ? { 'content-type': 'application/json' } : {}),
       },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
     });
     if (!response.ok) throw new Error('Asaas rejected the billing request');
-    return response.json() as Promise<unknown>;
+    if (response.status === 204) return {};
+    return response.json().catch(() => ({})) as Promise<unknown>;
   }
 
   async createCheckout(input: GatewayCheckoutInput): Promise<PixQrCheckout> {
@@ -81,17 +83,17 @@ export class AsaasGateway implements BillingGateway {
     const taxId = normalizeCpfCnpj(input.customerTaxId || '');
     let customerId = input.existingCustomerId;
     if (!customerId) {
-      const customer = await this.request('/customers', {
+      const customer = await this.request('/customers', { body: {
         name: input.customerName,
         cpfCnpj: taxId,
         email: input.userEmail,
         externalReference: input.userId,
         notificationDisabled: true,
-      });
+      } });
       customerId = requiredString(customer, 'id');
     }
 
-    const subscription = await this.request('/subscriptions', {
+    const subscription = await this.request('/subscriptions', { body: {
       customer: customerId,
       billingType: 'PIX',
       nextDueDate: new Date().toISOString().slice(0, 10),
@@ -99,7 +101,7 @@ export class AsaasGateway implements BillingGateway {
       cycle: input.interval === 'annual' ? 'YEARLY' : 'MONTHLY',
       description: input.localizedDescription.slice(0, 500),
       externalReference: input.attemptId,
-    });
+    } });
     const subscriptionId = requiredString(subscription, 'id');
     const payments = await this.request(`/subscriptions/${encodeURIComponent(subscriptionId)}/payments`);
     const paymentId = firstPaymentId(payments);
@@ -115,6 +117,13 @@ export class AsaasGateway implements BillingGateway {
       qrCodeBase64: requiredString(qrCode, 'encodedImage'),
       copyPasteCode: requiredString(qrCode, 'payload'),
       expiresAt: requiredString(qrCode, 'expirationDate'),
+    };
+  }
+
+  async cancelSubscription(input: GatewayCancellationInput): Promise<GatewayCancellationResult> {
+    await this.request(`/subscriptions/${encodeURIComponent(input.providerSubscriptionId)}`, { method: 'DELETE' });
+    return {
+      provider: 'asaas', providerSubscriptionId: input.providerSubscriptionId, state: 'canceled', effectiveAt: new Date().toISOString(),
     };
   }
 }

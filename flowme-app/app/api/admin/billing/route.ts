@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const CANCELLATION_STATUSES = ['open', 'in_review', 'retained', 'approved_cancel', 'canceled', 'closed'] as const;
+const CANCELLATION_STATUSES = ['open', 'in_review', 'needs_info'] as const;
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -43,12 +43,11 @@ export async function PATCH(req: NextRequest) {
     const adminNotes = typeof body.admin_notes === 'string' ? body.admin_notes.trim() : '';
     if (!requestId || !status) return apiError(ErrorCode.VALIDATION_ERROR, 'request_id and a valid status are required', 400);
     if (adminNotes.length > 4000) return apiError(ErrorCode.VALIDATION_ERROR, 'admin_notes must have at most 4000 characters', 400);
-    const resolved = ['retained', 'canceled', 'closed'].includes(status);
     const { data, error } = await getSupabaseAdmin().from('subscription_cancellation_requests').update({
       status,
       admin_notes: adminNotes || null,
       assigned_to: user.id,
-      resolved_at: resolved ? new Date().toISOString() : null,
+      resolved_at: null,
       updated_at: new Date().toISOString(),
     }).eq('id', requestId).select('id,status,admin_notes,assigned_to,resolved_at,updated_at').single();
     if (error) return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);

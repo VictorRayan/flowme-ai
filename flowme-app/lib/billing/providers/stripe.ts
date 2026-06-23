@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 import { getStripeClient } from '@/lib/billing/stripe-adapter';
-import type { BillingGateway, GatewayCheckoutInput, StripeElementsCheckout } from './contracts';
+import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutInput, StripeElementsCheckout } from './contracts';
 
 type StripeClient = {
   customers: {
@@ -14,6 +14,10 @@ type StripeClient = {
         expires_at: number;
       }>;
     };
+  };
+  subscriptions: {
+    update(id: string, params: Stripe.SubscriptionUpdateParams): PromiseLike<{ id: string; cancel_at: number | null; cancel_at_period_end: boolean }>;
+    cancel(id: string, params?: Stripe.SubscriptionCancelParams): PromiseLike<{ id: string; canceled_at: number | null }>;
   };
 };
 
@@ -68,6 +72,24 @@ export class StripeGateway implements BillingGateway {
       providerPaymentId: null,
       clientSecret: session.client_secret,
       expiresAt: new Date(session.expires_at * 1000).toISOString(),
+    };
+  }
+
+  async cancelSubscription(input: GatewayCancellationInput): Promise<GatewayCancellationResult> {
+    if (input.mode === 'period_end') {
+      const subscription = await this.stripe.subscriptions.update(input.providerSubscriptionId, {
+        cancel_at_period_end: true,
+        metadata: { flowme_cancellation_reason: input.reason.slice(0, 500) },
+      });
+      return {
+        provider: 'stripe', providerSubscriptionId: subscription.id, state: 'scheduled',
+        effectiveAt: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
+      };
+    }
+    const subscription = await this.stripe.subscriptions.cancel(input.providerSubscriptionId, { prorate: false, invoice_now: false });
+    return {
+      provider: 'stripe', providerSubscriptionId: subscription.id, state: 'canceled',
+      effectiveAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : new Date().toISOString(),
     };
   }
 }

@@ -25,19 +25,31 @@ function makeSubscriptionChain() {
 }
 
 function makeCancellationChain() {
-  return {
+  const chain: any = {
+    select: jest.fn(), eq: jest.fn(), in: jest.fn(), limit: jest.fn(),
+    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
     insert: mockInsert.mockReturnValue({
       select: mockSelectAfterInsert.mockReturnValue({
         single: mockSingle,
       }),
     }),
   };
+  for (const method of ['select', 'eq', 'in', 'limit']) chain[method].mockReturnValue(chain);
+  return chain;
+}
+
+function makeFunnelChain() {
+  const chain: any = { maybeSingle: jest.fn().mockResolvedValue({ data: { id: 'funnel-1', current_stage: 'cancel_subscription', expires_at: '2099-01-01T00:00:00.000Z' }, error: null }) };
+  for (const method of ['select', 'eq']) chain[method] = jest.fn().mockReturnValue(chain);
+  return chain;
 }
 
 const mockFrom = jest.fn((table: string) => {
   if (table === 'user_subscriptions') return makeSubscriptionChain();
+  if (table === 'subscription_cancellation_funnel_sessions') return makeFunnelChain();
   if (table === 'subscription_cancellation_requests') return makeCancellationChain();
   if (table === 'billing_admin_alerts') return { insert: mockAlertInsert };
+  if (table === 'subscription_cancellation_request_events') return { insert: jest.fn().mockResolvedValue({ error: null }) };
   return {};
 });
 
@@ -68,6 +80,9 @@ describe('POST /api/support/cancellation-requests', () => {
     const req = new NextRequest('http://localhost/api/support/cancellation-requests', {
       method: 'POST',
       body: JSON.stringify({
+        funnel_session_id: 'funnel-1',
+        reason_code: 'not_using',
+        locale: 'pt-BR',
         reason: 'Eu quero cancelar porque não consegui encaixar o Flow Me na minha rotina diária e ainda não percebi retorno claro suficiente para justificar a cobrança mensal.',
         disappointing_features: 'Revisões e conectores',
         unmet_expectation: 'Esperava orientação mais prática no dia a dia',
@@ -99,6 +114,8 @@ describe('POST /api/support/cancellation-requests', () => {
     const req = new NextRequest('http://localhost/api/support/cancellation-requests', {
       method: 'POST',
       body: JSON.stringify({
+        funnel_session_id: 'funnel-1',
+        reason_code: 'other',
         reason: 'curto',
         disappointing_features: 'Conectores',
         unmet_expectation: 'Mais clareza',
@@ -110,7 +127,7 @@ describe('POST /api/support/cancellation-requests', () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(body.error.code).toBe('CANCELLATION_REASON_REQUIRED');
     expect(mockInsert).not.toHaveBeenCalled();
   });
 });

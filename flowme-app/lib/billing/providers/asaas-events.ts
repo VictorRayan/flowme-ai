@@ -14,6 +14,8 @@ export type NormalizedAsaasEvent = {
   subscriptionId: string | null;
   externalReference: string | null;
   paymentDate: string | null;
+  amountCents: number | null;
+  currency: string;
   raw: Record<string, unknown>;
 };
 
@@ -71,6 +73,8 @@ export function normalizeAsaasEvent(value: unknown): NormalizedAsaasEvent {
     subscriptionId: optionalString(payment, 'subscription'),
     externalReference: optionalString(payment, 'externalReference'),
     paymentDate: optionalString(payment, 'paymentDate') || optionalString(payment, 'clientPaymentDate'),
+    amountCents: typeof payment.value === 'number' && Number.isFinite(payment.value) ? Math.round(payment.value * 100) : null,
+    currency: 'BRL',
     raw,
   };
 }

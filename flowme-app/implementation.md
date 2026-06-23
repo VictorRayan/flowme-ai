@@ -13,6 +13,18 @@ experience before returning to the connector backlog.
 For Asaas work, read `../.codex/skills/asaas-billing/SKILL.md` and its referenced
 contracts before changing API calls, events, or entitlement transitions.
 
+## Next Product Track: Support Experience
+
+The bilingual Balys Support and controlled cancellation funnel is planned in
+`docs/16-support-experience-improvement-plan.md`. It addresses invisible quick-question
+responses, the required subscription-management/recurrence/cancellation progression,
+detailed cancellation requests, manager review and provider execution, plan/revenue
+history, localized errors, safe logging, responsive information hierarchy, and
+pt-BR/en-US parity.
+
+Implementation status: complete in code as of 2026-06-22. Deployment requires
+`060_support_experience.sql`, manager role assignment, and final bilingual/mobile QA.
+
 ## Previous Priority: Balys Connectors
 
 Balys connector behavior is product-critical. Before changing connector tools, chat commands, Google OAuth, Gmail, Docs, Sheets, Drive flows, or connector UI feedback, read:

@@ -149,6 +149,18 @@ export async function POST(req: NextRequest) {
           await clearBillingFailureNotifications(admin, attempt.user_id);
         }
       }
+
+      if (event.amountCents !== null && ['PAYMENT_RECEIVED', 'PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'].includes(event.type)) {
+        await admin.from('billing_revenue_events').upsert({
+          user_id: attempt.user_id,
+          provider: 'asaas',
+          provider_event_id: event.id,
+          kind: event.type === 'PAYMENT_RECEIVED' ? 'payment_received' : 'refund',
+          currency: event.currency,
+          amount_cents: event.type === 'PAYMENT_RECEIVED' ? event.amountCents : -event.amountCents,
+          occurred_at: event.occurredAt,
+        }, { onConflict: 'provider,provider_event_id,kind' });
+      }
     }
 
     await admin.from('billing_events').update({ processed_at: new Date().toISOString() })

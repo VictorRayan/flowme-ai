@@ -49,6 +49,31 @@ const ENGLISH_SUPPORT_COPY: Record<string, string> = {
   troubleshooting: 'First confirm the connection, then retry the action. For payment failures, update the method on the indicated billing surface. Reconnect Google or Slack when authorization fails. Escalate persistent problems to human support.',
 };
 
+const ENGLISH_SUPPORT_TITLES: Record<string, string> = {
+  getting_started: 'Getting started with Flow Me', plans: 'Free and Pro', credits: 'AI credits', billing: 'Billing and payment',
+  apple_billing: 'Apple subscriptions', google_billing: 'Google Play subscriptions', notes_balys: 'Notes and BalysAI',
+  calendar_today: 'Calendar and Today', goals: 'Goals and plans', finance: 'Finance', reviews: 'Reviews', council: 'Mentorship council',
+  connectors: 'Connectors', whatsapp_reminders: 'WhatsApp and reminders', briefings: 'Briefings', meetings_images: 'Meetings and images',
+  privacy: 'Privacy and data', cancellation: 'Cancellation', troubleshooting: 'Troubleshooting',
+};
+
+export type SupportQuestionKey = 'manage_subscription' | 'payment_and_recurrence' | 'cancel_subscription';
+
+const FUNNEL_ANSWERS: Record<SupportQuestionKey, Record<'pt-BR' | 'en-US', string>> = {
+  manage_subscription: {
+    'pt-BR': 'Sua assinatura reúne plano, provider, estado atual e próxima renovação. Posso explicar agora como o pagamento e a recorrência funcionam.',
+    'en-US': 'Your subscription includes your plan, provider, current status, and next renewal. I can now explain how payment and recurrence work.',
+  },
+  payment_and_recurrence: {
+    'pt-BR': 'A recorrência segue o provider da compra. Stripe gerencia cartões e carteiras; Asaas gera cobranças Pix por ciclo; Apple e Google seguem as regras da loja. Posso explicar o processo de cancelamento se você ainda quiser seguir.',
+    'en-US': 'Recurrence follows the purchase provider. Stripe manages cards and wallets; Asaas creates a Pix charge each cycle; Apple and Google follow store rules. I can explain the cancellation process if you still want to continue.',
+  },
+  cancel_subscription: {
+    'pt-BR': 'O cancelamento começa com uma solicitação detalhada para análise humana. Enviar a solicitação não interrompe a cobrança imediatamente; um manager registra a decisão e a execução no provider. O formulário está disponível abaixo.',
+    'en-US': 'Cancellation starts with a detailed request for human review. Submitting it does not immediately stop billing; a manager records the decision and provider execution. The form is now available below.',
+  },
+};
+
 function normalize(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
@@ -63,21 +88,29 @@ export function findSupportKnowledge(query: string, limit = 3): SupportKnowledge
     .map(item => item.section);
 }
 
-function prefersEnglish(query: string): boolean {
-  return /\b(how|what|why|payment|billing|cancel|subscription|credits|help|start|connect|problem)\b/i.test(query);
+export function answerSupportQuestionKey(key: SupportQuestionKey, locale: 'pt-BR' | 'en-US'): string {
+  return FUNNEL_ANSWERS[key][locale];
 }
 
-export function answerSupportQuestion(query: string, billing?: { plan: string; provider: string | null; state: string }): string {
+export function answerSupportQuestion(
+  query: string,
+  billing?: { plan: string; provider: string | null; state: string },
+  locale: 'pt-BR' | 'en-US' = 'pt-BR',
+): string {
   const sections = findSupportKnowledge(query);
-  const english = prefersEnglish(query);
+  const english = locale === 'en-US';
   const answer = sections.length > 0
     ? sections.map(section => english ? ENGLISH_SUPPORT_COPY[section.key] || section.body : section.body).join('\n\n')
     : english
       ? 'I could not find a safe answer in the support knowledge base. I can preserve the context for human review.'
       : 'Não encontrei uma resposta segura na base de suporte. Posso registrar o contexto para revisão humana.';
   if (!billing) return answer;
-  const providerNames: Record<string, string> = { stripe: 'Stripe', apple: 'App Store', google: 'Google Play' };
+  const providerNames: Record<string, string> = { stripe: 'Stripe', asaas: 'Asaas', apple: 'App Store', google: 'Google Play' };
   const provider = billing.provider ? providerNames[billing.provider] || billing.provider : null;
   if (english) return `${answer}\n\nYour account is on ${billing.plan.toUpperCase()}${provider ? `, managed by ${provider}` : ''}, with status ${billing.state}.`;
   return `${answer}\n\nSua conta está no plano ${billing.plan.toUpperCase()}${provider ? `, gerenciado por ${provider}` : ''}, com estado ${billing.state}.`;
+}
+
+export function localizedSupportSource(section: SupportKnowledgeSection, locale: 'pt-BR' | 'en-US') {
+  return { key: section.key, title: locale === 'en-US' ? ENGLISH_SUPPORT_TITLES[section.key] || section.title : section.title };
 }

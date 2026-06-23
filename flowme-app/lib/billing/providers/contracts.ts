@@ -46,7 +46,21 @@ export type PixQrCheckout = {
 
 export type GatewayCheckoutResult = StripeElementsCheckout | PixQrCheckout;
 
+export type GatewayCancellationInput = {
+  providerSubscriptionId: string;
+  mode: 'immediate' | 'period_end';
+  reason: string;
+};
+
+export type GatewayCancellationResult = {
+  provider: WebBillingProvider;
+  providerSubscriptionId: string;
+  state: 'scheduled' | 'canceled';
+  effectiveAt: string | null;
+};
+
 export interface BillingGateway {
   readonly provider: WebBillingProvider;
   createCheckout(input: GatewayCheckoutInput): Promise<GatewayCheckoutResult>;
+  cancelSubscription(input: GatewayCancellationInput): Promise<GatewayCancellationResult>;
 }

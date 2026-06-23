@@ -28,7 +28,7 @@ describe('StripeGateway', () => {
       expires_at: 1_800_000_000,
     });
     const gateway = new StripeGateway({
-      stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } } },
+      stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } }, subscriptions: { update: jest.fn(), cancel: jest.fn() } },
     });
 
     await expect(gateway.createCheckout(input)).resolves.toEqual({
@@ -52,9 +52,19 @@ describe('StripeGateway', () => {
   it('reuses an existing customer', async () => {
     const createCustomer = jest.fn();
     const createSession = jest.fn().mockResolvedValue({ id: 'cs_1', client_secret: 'secret', expires_at: 1_800_000_000 });
-    const gateway = new StripeGateway({ stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } } } });
+    const gateway = new StripeGateway({ stripe: { customers: { create: createCustomer }, checkout: { sessions: { create: createSession } }, subscriptions: { update: jest.fn(), cancel: jest.fn() } } });
     await gateway.createCheckout({ ...input, existingCustomerId: 'cus_saved' });
     expect(createCustomer).not.toHaveBeenCalled();
     expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ customer: 'cus_saved' }));
+  });
+
+  it('schedules cancellation through the provider port', async () => {
+    const update = jest.fn().mockResolvedValue({ id: 'sub_1', cancel_at: 1_800_000_000, cancel_at_period_end: true });
+    const gateway = new StripeGateway({
+      stripe: { customers: { create: jest.fn() }, checkout: { sessions: { create: jest.fn() } }, subscriptions: { update, cancel: jest.fn() } },
+    });
+    await expect(gateway.cancelSubscription({ providerSubscriptionId: 'sub_1', mode: 'period_end', reason: 'approved' }))
+      .resolves.toEqual(expect.objectContaining({ provider: 'stripe', state: 'scheduled', providerSubscriptionId: 'sub_1' }));
+    expect(update).toHaveBeenCalledWith('sub_1', expect.objectContaining({ cancel_at_period_end: true }));
   });
 });

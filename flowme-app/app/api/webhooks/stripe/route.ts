@@ -16,6 +16,8 @@ type StripeInvoiceObject = {
   subscription?: string | { id?: string } | null;
   metadata?: Record<string, string> | null;
   parent?: { subscription_details?: { subscription?: string | { id?: string } | null } | null } | null;
+  amount_paid?: number;
+  currency?: string;
 };
 
 function adminClient() {
@@ -209,11 +211,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (event.type === 'invoice.paid') {
-      const context = await resolveInvoiceContext(admin, event.data.object as unknown as StripeInvoiceObject);
+      const invoice = event.data.object as unknown as StripeInvoiceObject;
+      const context = await resolveInvoiceContext(admin, invoice);
       if (context.userId) {
         await updateStripeAttempt(admin, context.attemptId, { status: 'paid', paid_at: new Date().toISOString() });
         await clearBillingFailureNotifications(admin, context.userId);
         await resolvePaymentFailureAdminAlerts(admin, context.userId);
+        if (typeof invoice.amount_paid === 'number' && invoice.currency) {
+          await admin.from('billing_revenue_events').upsert({
+            user_id: context.userId, provider: 'stripe', provider_event_id: event.id, kind: 'payment_received',
+            currency: invoice.currency.toUpperCase(), amount_cents: invoice.amount_paid, occurred_at: new Date(event.created * 1000).toISOString(),
+          }, { onConflict: 'provider,provider_event_id,kind' });
+        }
       }
     }
 

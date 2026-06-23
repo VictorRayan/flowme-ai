@@ -28,7 +28,7 @@ describe('support knowledge base', () => {
   });
 
   it('answers English questions in English', () => {
-    const answer = answerSupportQuestion('How do AI credits work?', { plan: 'free', provider: null, state: 'free' });
+    const answer = answerSupportQuestion('How do AI credits work?', { plan: 'free', provider: null, state: 'free' }, 'en-US');
     expect(answer).toContain('AI credits describe usage');
     expect(answer).toContain('Your account is on FREE');
   });

@@ -1,7 +1,36 @@
 import type Stripe from 'stripe';
 import { getStripeClient, stripePriceIdForInterval } from '@/lib/billing/stripe-adapter';
 import type { BillingInterval } from '@/lib/billing/stripe-adapter';
-import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutInput, StripeCardCheckout } from './contracts';
+import { GatewayCheckoutError } from './contracts';
+import type { BillingGateway, GatewayCancellationInput, GatewayCancellationResult, GatewayCheckoutErrorCode, GatewayCheckoutInput, StripeCardCheckout } from './contracts';
+
+type StripeCheckoutFailure = {
+  code?: string;
+  decline_code?: string;
+};
+
+const STRIPE_CHECKOUT_ERROR_CODES: Record<string, GatewayCheckoutErrorCode> = {
+  incorrect_cvc: 'incorrect_security_code',
+  card_declined: 'card_declined',
+  expired_card: 'expired_card',
+  incorrect_number: 'invalid_card',
+  invalid_number: 'invalid_card',
+  invalid_expiry_month: 'invalid_card',
+  invalid_expiry_year: 'invalid_card',
+  insufficient_funds: 'insufficient_funds',
+  generic_decline: 'card_declined',
+  do_not_honor: 'card_declined',
+  processing_error: 'processing_error',
+};
+
+function normalizedStripeCheckoutError(error: unknown): GatewayCheckoutError | null {
+  if (!error || typeof error !== 'object') return null;
+  const stripeError = error as StripeCheckoutFailure;
+  const normalizedCode = [stripeError.decline_code, stripeError.code]
+    .map(code => code && STRIPE_CHECKOUT_ERROR_CODES[code])
+    .find((code): code is GatewayCheckoutErrorCode => Boolean(code));
+  return normalizedCode ? new GatewayCheckoutError(normalizedCode) : null;
+}
 
 type StripeClient = {
   customers: {
@@ -42,22 +71,27 @@ export class StripeGateway implements BillingGateway {
       });
       customerId = customer.id;
     }
-    await this.stripe.paymentMethods.attach(input.providerPaymentMethodId, { customer: customerId });
-    const subscription = await this.stripe.subscriptions.create({
-      customer: customerId,
-      items: [{ price: this.priceIdForInterval(input.interval), quantity: 1 }],
-      default_payment_method: input.providerPaymentMethodId,
-      payment_behavior: 'default_incomplete',
-      payment_settings: { payment_method_types: ['card'], save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.confirmation_secret'],
-      description: input.localizedDescription,
-      metadata: {
-        checkout_attempt_id: input.attemptId,
-        user_id: input.userId,
-        plan_code: input.planCode,
-        billing_interval: input.interval,
-      },
-    });
+    let subscription;
+    try {
+      await this.stripe.paymentMethods.attach(input.providerPaymentMethodId, { customer: customerId });
+      subscription = await this.stripe.subscriptions.create({
+        customer: customerId,
+        items: [{ price: this.priceIdForInterval(input.interval), quantity: 1 }],
+        default_payment_method: input.providerPaymentMethodId,
+        payment_behavior: 'default_incomplete',
+        payment_settings: { payment_method_types: ['card'], save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.confirmation_secret'],
+        description: input.localizedDescription,
+        metadata: {
+          checkout_attempt_id: input.attemptId,
+          user_id: input.userId,
+          plan_code: input.planCode,
+          billing_interval: input.interval,
+        },
+      });
+    } catch (error) {
+      throw normalizedStripeCheckoutError(error) || error;
+    }
     const invoice = typeof subscription.latest_invoice === 'object' ? subscription.latest_invoice : null;
     return {
       kind: 'stripe_card_subscription',

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/billing/checkout/route';
+import { GatewayCheckoutError } from '@/lib/billing/providers/contracts';
 
 const mockCreateCheckout = jest.fn();
 const mockFrom = jest.fn();
@@ -120,5 +121,22 @@ describe('POST /api/billing/checkout', () => {
     const res = await POST(req);
     expect(res.status).toBe(400);
     expect(mockCreateCheckout).not.toHaveBeenCalled();
+  });
+
+  it('returns a clear localized error when the card security code is incorrect', async () => {
+    mockCreateCheckout.mockRejectedValueOnce(new GatewayCheckoutError('incorrect_security_code'));
+    const req = new NextRequest('http://localhost/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'card', payment_method_id: 'pm_card_1', locale: 'pt-BR' }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(402);
+    expect(body.error).toEqual({
+      code: 'PAYMENT_PROVIDER_ERROR',
+      message: 'O código de segurança do cartão está incorreto. Confira o CVC e tente novamente.',
+    });
   });
 });

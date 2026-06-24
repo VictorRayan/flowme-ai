@@ -17,7 +17,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import {
   CardCvcElement, CardExpiryElement, CardNumberElement, Elements, useElements, useStripe,
 } from '@stripe/react-stripe-js';
-import { checkoutCopy, checkoutLocaleFromUiLanguage, type CheckoutLocale } from '@/lib/billing/checkout-ui';
+import { checkoutCardErrorMessage, checkoutCopy, checkoutLocaleFromUiLanguage, type CheckoutLocale } from '@/lib/billing/checkout-ui';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -92,12 +92,16 @@ function CardPaymentForm({
         card: cardNumber,
         billing_details: { name: cardholderName.trim() },
       });
-      if (paymentMethod.error || !paymentMethod.paymentMethod) throw new Error(paymentMethod.error?.message || copy.paymentStartError);
+      if (paymentMethod.error || !paymentMethod.paymentMethod) {
+        throw new Error(checkoutCardErrorMessage(paymentMethod.error?.decline_code, locale, paymentMethod.error?.code));
+      }
       const response = await createCheckout(paymentMethod.paymentMethod.id);
       if (response.checkout.kind !== 'stripe_card_subscription') throw new Error(copy.paymentStartError);
       if (response.checkout.confirmationClientSecret) {
         const confirmation = await stripe.confirmCardPayment(response.checkout.confirmationClientSecret);
-        if (confirmation.error) throw new Error(confirmation.error.message || copy.paymentStartError);
+        if (confirmation.error) {
+          throw new Error(checkoutCardErrorMessage(confirmation.error.decline_code, locale, confirmation.error.code));
+        }
       }
       setPending(true);
       onPending(response.attempt_id);

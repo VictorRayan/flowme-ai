@@ -7,6 +7,8 @@ import { normalizeCatalogLocale } from '@/lib/billing/catalog';
 import { getBillingGateway } from '@/lib/billing/providers/registry';
 import type { WebBillingProvider, WebPaymentMethod } from '@/lib/billing/providers/contracts';
 import { resolveRequestCountry } from '@/lib/billing/ip-country';
+import { checkoutCardErrorMessage } from '@/lib/billing/checkout-ui';
+import { GatewayCheckoutError } from '@/lib/billing/providers/contracts';
 
 const PAYMENT_METHODS: WebPaymentMethod[] = ['pix', 'card', 'apple_pay', 'google_pay'];
 
@@ -135,6 +137,9 @@ export async function POST(req: NextRequest) {
       return apiSuccess({ attempt_id: attempt.id, checkout: result });
     } catch (gatewayError) {
       await admin.from('billing_checkout_attempts').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', attempt.id);
+      if (gatewayError instanceof GatewayCheckoutError) {
+        return apiError(ErrorCode.PAYMENT_PROVIDER_ERROR, checkoutCardErrorMessage(gatewayError.code, locale), 402);
+      }
       const message = gatewayError instanceof Error && gatewayError.message === 'invalid CPF/CNPJ'
         ? 'CPF/CNPJ inválido'
         : 'Não foi possível iniciar o pagamento';

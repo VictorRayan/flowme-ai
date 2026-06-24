@@ -1,4 +1,5 @@
 export type CheckoutLocale = 'pt-BR' | 'en-US';
+export const CHECKOUT_OFFER_DURATION_SECONDS = 15 * 60;
 
 const CARD_ERROR_COPY = {
   'pt-BR': {
@@ -41,6 +42,8 @@ const CHECKOUT_COPY = {
   'pt-BR': {
     headline: 'Como você quer pagar?',
     paymentPrompt: 'Escolha uma opção segura para concluir.',
+    limitedOffer: 'Oferta por tempo limitado',
+    offerExpired: 'Tempo da oferta encerrado',
     pixTitle: 'Pix',
     pixDetail: 'QR Code · aprovação rápida',
     cardTitle: 'Cartão',
@@ -78,6 +81,8 @@ const CHECKOUT_COPY = {
   'en-US': {
     headline: 'How would you like to pay?',
     paymentPrompt: 'Choose a secure option to complete your purchase.',
+    limitedOffer: 'Limited-time offer',
+    offerExpired: 'Offer timer ended',
     pixTitle: 'Pix',
     pixDetail: 'QR code · fast approval',
     cardTitle: 'Card',
@@ -126,4 +131,15 @@ export function checkoutCardErrorMessage(code: string | undefined, locale: Check
   const normalizedCode = (code ? CARD_ERROR_ALIASES[code] : undefined)
     || (fallbackCode ? CARD_ERROR_ALIASES[fallbackCode] : undefined);
   return normalizedCode ? CARD_ERROR_COPY[locale][normalizedCode] : checkoutCopy(locale).paymentStartError;
+}
+
+export function checkoutOfferRemainingSeconds(expiresAt: number, now: number): number {
+  return Math.max(0, Math.ceil((expiresAt - now) / 1000));
+}
+
+export function formatCheckoutCountdown(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }

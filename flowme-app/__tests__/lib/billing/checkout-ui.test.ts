@@ -1,4 +1,11 @@
-import { checkoutCardErrorMessage, checkoutCopy, checkoutLocaleFromUiLanguage } from '@/lib/billing/checkout-ui';
+import {
+  CHECKOUT_OFFER_DURATION_SECONDS,
+  checkoutCardErrorMessage,
+  checkoutCopy,
+  checkoutLocaleFromUiLanguage,
+  checkoutOfferRemainingSeconds,
+  formatCheckoutCountdown,
+} from '@/lib/billing/checkout-ui';
 
 describe('checkout UI state', () => {
   it('describes payment methods without exposing gateway brands', () => {
@@ -25,5 +32,15 @@ describe('checkout UI state', () => {
     expect(checkoutCardErrorMessage('insufficient_funds', 'en-US')).toContain('available credit');
     expect(checkoutCardErrorMessage('unknown_decline', 'en-US', 'card_declined')).toContain('declined');
     expect(checkoutCardErrorMessage('unknown_provider_code', 'pt-BR')).toBe('Não foi possível iniciar o pagamento.');
+  });
+
+  it('formats and bounds the limited-offer countdown', () => {
+    expect(CHECKOUT_OFFER_DURATION_SECONDS).toBe(900);
+    expect(checkoutOfferRemainingSeconds(901_000, 1_000)).toBe(900);
+    expect(checkoutOfferRemainingSeconds(1_001, 1_000)).toBe(1);
+    expect(checkoutOfferRemainingSeconds(999, 1_000)).toBe(0);
+    expect(formatCheckoutCountdown(900)).toBe('15:00');
+    expect(formatCheckoutCountdown(61)).toBe('01:01');
+    expect(formatCheckoutCountdown(-1)).toBe('00:00');
   });
 });

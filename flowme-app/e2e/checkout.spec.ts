@@ -34,6 +34,8 @@ test.describe('checkout responsive contract', () => {
 
     const switcher = page.getByRole('group', { name: 'Como você quer pagar?' });
     await expect(switcher).toBeVisible();
+    await expect(page.getByTestId('checkout-offer-countdown')).toBeVisible();
+    await expect(page.getByRole('timer')).toHaveText(/14:5\d|15:00/);
     await expect(page.getByText('Número do cartão')).toBeVisible();
     expect(checkoutPosts).toBe(0);
 
@@ -42,6 +44,7 @@ test.describe('checkout responsive contract', () => {
     await expect(page.getByLabel('Nome completo')).toBeVisible();
     await page.getByRole('button', { name: /Cartão/ }).click();
     await expect(switcher).toBeVisible();
+    await expect(page.getByRole('timer')).toBeVisible();
     await expect(page.getByText('Número do cartão')).toBeVisible();
   });
 
@@ -61,6 +64,7 @@ test.describe('checkout responsive contract', () => {
     const scroll = page.getByTestId('checkout-scroll');
     await scroll.evaluate(element => element.scrollTo({ top: element.scrollHeight }));
     await expect(page.getByText('Pagamento protegido. Cancele quando quiser.')).toBeVisible();
+    await expect(page.getByTestId('checkout-offer-countdown')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 });

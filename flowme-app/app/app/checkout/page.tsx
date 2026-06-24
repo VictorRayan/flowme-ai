@@ -13,11 +13,20 @@ import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import PixIcon from '@mui/icons-material/Pix';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   CardCvcElement, CardExpiryElement, CardNumberElement, Elements, useElements, useStripe,
 } from '@stripe/react-stripe-js';
-import { checkoutCardErrorMessage, checkoutCopy, checkoutLocaleFromUiLanguage, type CheckoutLocale } from '@/lib/billing/checkout-ui';
+import {
+  CHECKOUT_OFFER_DURATION_SECONDS,
+  checkoutCardErrorMessage,
+  checkoutCopy,
+  checkoutLocaleFromUiLanguage,
+  checkoutOfferRemainingSeconds,
+  formatCheckoutCountdown,
+  type CheckoutLocale,
+} from '@/lib/billing/checkout-ui';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -40,11 +49,20 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : Promise.resolve(null);
 
+const CHECKOUT_OFFER_EXPIRY_KEY = 'flowme_checkout_offer_expires_at';
+
 const cardElementOptions = {
   style: {
-    base: { color: '#f1f5f9', fontSize: '16px', fontFamily: 'Inter, system-ui, sans-serif', '::placeholder': { color: '#78859b' } },
+    base: { color: '#f1f5f9', iconColor: '#a5b4fc', fontSize: '16px', fontFamily: 'Inter, system-ui, sans-serif', '::placeholder': { color: '#78859b' } },
     invalid: { color: '#fca5a5' },
   },
+};
+
+const cardNumberElementOptions = {
+  ...cardElementOptions,
+  showIcon: true,
+  iconStyle: 'solid' as const,
+  disableLink: false,
 };
 
 function money(cents: number, locale: string) {
@@ -115,7 +133,7 @@ function CardPaymentForm({
   return (
     <Stack spacing={2.2} data-testid="card-payment-panel">
       <TextField label={copy.cardholderName} value={cardholderName} onChange={event => setCardholderName(event.target.value)} fullWidth disabled={submitting || disabled} />
-      <CardField label={copy.cardNumber}><CardNumberElement options={cardElementOptions} /></CardField>
+      <CardField label={copy.cardNumber}><CardNumberElement options={cardNumberElementOptions} /></CardField>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <CardField label={copy.cardExpiry}><CardExpiryElement options={cardElementOptions} /></CardField>
         <CardField label={copy.cardCvc}><CardCvcElement options={cardElementOptions} /></CardField>
@@ -145,6 +163,19 @@ function CheckoutPageContent() {
   const [pixCheckout, setPixCheckout] = React.useState<PixCheckout | null>(null);
   const [pendingAttempts, setPendingAttempts] = React.useState<string[]>([]);
   const [paid, setPaid] = React.useState(false);
+  const [offerRemainingSeconds, setOfferRemainingSeconds] = React.useState(CHECKOUT_OFFER_DURATION_SECONDS);
+
+  React.useEffect(() => {
+    const storedExpiry = Number(sessionStorage.getItem(CHECKOUT_OFFER_EXPIRY_KEY));
+    const expiresAt = Number.isFinite(storedExpiry) && storedExpiry > 0
+      ? storedExpiry
+      : Date.now() + CHECKOUT_OFFER_DURATION_SECONDS * 1000;
+    sessionStorage.setItem(CHECKOUT_OFFER_EXPIRY_KEY, String(expiresAt));
+    const updateCountdown = () => setOfferRemainingSeconds(checkoutOfferRemainingSeconds(expiresAt, Date.now()));
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   React.useEffect(() => {
     const updateLocale = () => setLocale(checkoutLocaleFromUiLanguage(localStorage.getItem('ui_language')));
@@ -262,12 +293,17 @@ function CheckoutPageContent() {
           <Paper sx={{ p: { xs: 2.5, sm: 3.5 }, minWidth: 0, borderRadius: 4, boxShadow: '0 24px 80px rgba(0,0,0,.3)', position: { lg: 'sticky' }, top: { lg: 24 } }}>
             <Stack spacing={2.5}>
               <Box><Typography variant="h5" fontWeight={900}>{copy.headline}</Typography><Typography color="text.secondary">{copy.paymentPrompt}</Typography></Box>
+              {!paid && <Box data-testid="checkout-offer-countdown" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2, minHeight: 56, px: 2, py: 1.2, borderRadius: 2.5, color: '#fff', background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)', border: '1px solid rgba(255,255,255,.16)', boxShadow: '0 10px 28px rgba(234,88,12,.24)' }}>
+                <AccessTimeRoundedIcon aria-hidden="true" sx={{ fontSize: 22, opacity: 0.9 }} />
+                <Typography component="span" role="timer" aria-label={`${copy.limitedOffer}: ${formatCheckoutCountdown(offerRemainingSeconds)}`} fontWeight={950} sx={{ fontSize: '1.35rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '.02em' }}>{formatCheckoutCountdown(offerRemainingSeconds)}</Typography>
+                <Typography component="span" fontWeight={750} sx={{ fontSize: { xs: '.78rem', sm: '.86rem' }, lineHeight: 1.2 }}>{offerRemainingSeconds > 0 ? copy.limitedOffer : copy.offerExpired}</Typography>
+              </Box>}
               <ToggleButtonGroup aria-label={copy.headline} value={method} exclusive fullWidth disabled={loadingPix} onChange={(_, value: Method | null) => value && setMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
                 {pixAvailable && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
                 <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.cardTitle}</Typography><Typography variant="caption">{copy.cardDetail}</Typography></Box></Stack></ToggleButton>
               </ToggleButtonGroup>
 
-              {paid && <Stack alignItems="center" spacing={2} sx={{ py: 4, textAlign: 'center' }}><CheckCircleRoundedIcon color="success" sx={{ fontSize: 72 }} /><Typography variant="h4" fontWeight={900}>{copy.confirmed}</Typography><Typography color="text.secondary">{copy.released}</Typography><Button href="/app" variant="contained">{copy.enterApp}</Button></Stack>}
+              {paid && <Stack alignItems="center" spacing={2} sx={{ py: 4, textAlign: 'center' }}><CheckCircleRoundedIcon color="success" sx={{ fontSize: 72 }} /><Typography variant="h4" fontWeight={900}>{copy.confirmed}</Typography><Typography color="text.secondary">{copy.released}</Typography><Button href="/app?billing=success" variant="contained">{copy.enterApp}</Button></Stack>}
 
               <Box sx={{ display: paid || method !== 'card' ? 'none' : 'block' }}>
                 <Elements stripe={stripePromise} options={{ locale: locale === 'pt-BR' ? 'pt-BR' : 'en' }}>

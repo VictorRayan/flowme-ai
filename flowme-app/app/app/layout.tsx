@@ -4,7 +4,7 @@ import * as React from 'react';
 import {
   Box, Drawer, AppBar, Toolbar, List, Typography, Divider,
   IconButton, ListItem, ListItemButton, ListItemIcon, ListItemText,
-  useMediaQuery, useTheme, Tooltip,
+  useMediaQuery, useTheme, Tooltip, Avatar,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -35,6 +35,7 @@ const drawerWidth = 240;
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [uiLang, setUiLang] = React.useState<UiLang>('en');
+  const [currentUser, setCurrentUser] = React.useState<{ email: string | null; name: string | null; avatar_url: string | null } | null>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const pathname = usePathname();
@@ -55,6 +56,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  React.useEffect(() => {
+    fetch('/api/me')
+      .then((res) => res.ok ? res.json() : null)
+      .then((body) => {
+        if (body?.ok && body.user) setCurrentUser(body.user);
+      })
+      .catch(() => { /* keep fallback footer */ });
   }, []);
 
   // Parallax: update --sidebar-parallax-y on main content scroll
@@ -95,18 +105,18 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     router.push(`/app/ai?new=${Date.now()}`);
   }, [pathname, router]);
 
-  const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; feature?: FeatureKey }> = [
-    { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today', feature: 'today' },
-    { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals', feature: 'goals' },
-    { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar', feature: 'calendar' },
-    { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance', feature: 'finance' },
-    { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes' },
-    { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews', feature: 'reviews' },
-    { text: nav.balysAi,    icon: <BalysIcon             sx={{ fontSize: 20 }} />, path: '/app/ai' },
-    { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors', feature: 'connectors' },
-    { text: nav.tutorials,  icon: <SchoolIcon             sx={{ fontSize: 20 }} />, path: '/app/tutorials' },
-    { text: nav.support,    icon: <SupportAgentIcon       sx={{ fontSize: 20 }} />, path: '/app/support' },
-    { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings' },
+  const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; feature?: FeatureKey; color: string }> = [
+    { text: nav.today,      icon: <TodayIcon             sx={{ fontSize: 20 }} />, path: '/app/today', feature: 'today', color: '#38bdf8' },
+    { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals', feature: 'goals', color: '#f97316' },
+    { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar', feature: 'calendar', color: '#60a5fa' },
+    { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance', feature: 'finance', color: '#34d399' },
+    { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes', color: '#facc15' },
+    { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews', feature: 'reviews', color: '#fb7185' },
+    { text: nav.balysAi,    icon: <BalysIcon             sx={{ fontSize: 22 }} />, path: '/app/ai', color: '#a78bfa' },
+    { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors', feature: 'connectors', color: '#22d3ee' },
+    { text: nav.tutorials,  icon: <SchoolIcon             sx={{ fontSize: 20 }} />, path: '/app/tutorials', color: '#818cf8' },
+    { text: nav.support,    icon: <SupportAgentIcon       sx={{ fontSize: 20 }} />, path: '/app/support', color: '#2dd4bf' },
+    { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings', color: '#cbd5e1' },
   ];
 
   const drawer = (
@@ -178,8 +188,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                   } : undefined,
                 }}
               >
-                <ListItemIcon sx={{ color: active ? 'primary.light' : locked ? '#f6ad55' : 'text.secondary', minWidth: 36 }}>
-                  {item.icon}
+                <ListItemIcon sx={{ color: locked ? '#f6ad55' : item.color, minWidth: 36, opacity: active ? 1 : 0.82, filter: active ? `drop-shadow(0 0 8px ${item.color}55)` : 'none' }}>
+                  <Box sx={{ color: 'inherit', display: 'grid', placeItems: 'center' }}>{item.icon}</Box>
                 </ListItemIcon>
                 <ListItemText
                   primary={item.text}
@@ -231,7 +241,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <Divider />
 
       {/* Footer: logout */}
-      <List sx={{ px: 0.5, py: 1 }}>
+      <Box sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.1 }}>
+        <Avatar
+          src={currentUser?.avatar_url || undefined}
+          alt={currentUser?.name || currentUser?.email || 'User'}
+          sx={{ width: 34, height: 34, border: '1px solid rgba(129,140,248,0.28)', bgcolor: 'rgba(99,102,241,0.18)' }}
+        >
+          {currentUser?.name?.[0] || currentUser?.email?.[0] || 'F'}
+        </Avatar>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" noWrap sx={{ fontWeight: 750, color: 'text.primary', maxWidth: 150 }}>{currentUser?.name || 'Flow Me'}</Typography>
+          <Typography variant="caption" noWrap sx={{ color: 'text.disabled', display: 'block', maxWidth: 150 }}>{currentUser?.email || (uiLang === 'pt' ? 'Conta conectada' : 'Connected account')}</Typography>
+        </Box>
+      </Box>
+      <List sx={{ px: 0.5, pb: 1, pt: 0 }}>
         <ListItem disablePadding>
           <Tooltip title={nav.logOut} placement="right">
             <ListItemButton onClick={handleLogout} sx={{ borderRadius: '0 8px 8px 0', py: 1 }}>

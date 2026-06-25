@@ -1,12 +1,18 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import ThemeRegistry from '@/components/ThemeRegistry';
 
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter',
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-plus-jakarta',
 });
 
 export const metadata: Metadata = {
@@ -18,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" style={{ colorScheme: 'dark' }}>
-      <body className={`${inter.variable} ${inter.className}`}>
+      <body className={`${inter.variable} ${plusJakarta.variable} ${inter.className}`}>
         <ThemeRegistry>{children}</ThemeRegistry>
       </body>
     </html>

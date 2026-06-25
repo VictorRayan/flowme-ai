@@ -6,8 +6,9 @@ const mockFrom = jest.fn();
 
 function makeChain() {
   const chain: any = {};
-  for (const method of ['select', 'eq', 'order', 'limit']) chain[method] = jest.fn().mockReturnValue(chain);
+  for (const method of ['select', 'eq', 'gt', 'order', 'limit', 'update', 'insert']) chain[method] = jest.fn().mockReturnValue(chain);
   chain.maybeSingle = mockMaybeSingle;
+  chain.single = jest.fn().mockResolvedValue({ data: { id: 'funnel-1' }, error: null });
   return chain;
 }
 
@@ -20,7 +21,9 @@ describe('POST /api/support/chat', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFrom.mockReturnValue(makeChain());
-    mockMaybeSingle.mockResolvedValue({ data: { plan_code: 'pro', billing_provider: 'stripe', status: 'active' }, error: null });
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { plan_code: 'pro', billing_provider: 'stripe', status: 'active' }, error: null });
   });
 
   it('returns a KB answer with billing context and source keys', async () => {
@@ -49,4 +52,19 @@ describe('POST /api/support/chat', () => {
       expect(detectsCancellationIntent(message)).toBe(true);
     },
   );
+
+  it('routes free-form cancellation text into the guided support funnel', async () => {
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { plan_code: 'pro', billing_provider: 'stripe', status: 'active' }, error: null });
+    const request = new NextRequest('http://localhost/api/support/chat', {
+      method: 'POST', body: JSON.stringify({ message: 'quero cancelar minha assinatura' }),
+    });
+    const response = await POST(request);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.intent).toBe('cancel_subscription');
+    expect(body.funnel_stage).toBe('manage_subscription');
+    expect(body.next_actions).toEqual(['payment_and_recurrence']);
+  });
 });

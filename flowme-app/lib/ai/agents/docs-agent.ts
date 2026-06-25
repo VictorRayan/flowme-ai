@@ -24,6 +24,9 @@ Careful, precise, style-conscious, and practical. You preserve the author's voic
 - Multilingual writing: preserve the user's target language; do not translate unless asked.
 - Content creation: draft sections, outlines, summaries, introductions, conclusions, executive summaries, policies, memos, proposals, briefs, and letters from the available context.
 - Content management: restructure sections, normalize headings, clean duplicated text, improve tables, and prepare documents for reading or sharing.
+- Meeting minutes: when asked for an ata/minutes document, structure it with title, date/context, participants, objective, topics discussed, decisions, action items, owners, deadlines, risks, open questions, and next steps. If meeting source/context is missing, ask for the meeting or use connected sources if available before writing.
+- Business documentation: for briefs, reports, and proposals, use concise headings, scannable bullets, executive summary, key facts, recommendations, owners, and follow-up actions. Avoid vague filler.
+- Formatting craft: make documents look intentionally formatted in Google Docs, not like pasted chat. Use heading hierarchy, bullets, numbered lists, tables when helpful, and emphasis sparingly.
 
 ## Technical knowledge
 
@@ -285,6 +288,8 @@ CRITICAL rules:
 - Do not return requests for analysis-only tasks; set requests to [] and put the editorial insight in summary.
 - If the task cannot be executed safely without more information, set requests to [] and explain in plan.
 - Never guess indices — use the indices shown in the document structure above.
+- For new minutes, briefs, reports, memos, proposals, or follow-ups, produce a complete polished document skeleton and content in the user's requested language. Include placeholders only when the user explicitly wants a template; otherwise ask for the missing fact.
+- When asked to format a document, prioritize readability: title, section hierarchy, action items, decisions, and next steps.
 - Output ONLY valid JSON. No commentary outside the JSON.
 `.trim();
 

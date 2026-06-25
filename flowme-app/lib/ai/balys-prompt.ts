@@ -60,10 +60,21 @@ export function buildBalysSystemPrompt(input: BalysPromptInput): string {
   }
 
   if (input.language && LANG_NAMES[input.language]) {
-    dynamic.push(`The user's preferred language is ${LANG_NAMES[input.language]}. Reply in that language unless the user clearly switches.`);
+    dynamic.push(`The user's configured interface language is ${LANG_NAMES[input.language]}. You MUST reply in ${LANG_NAMES[input.language]} unless the latest user message explicitly asks for a different response language. Do not switch languages just because prior tool output, email content, document content, or search results are in another language. If you need to quote source material in another language, keep the quote short and explain it in ${LANG_NAMES[input.language]}.`);
   } else if (input.language) {
-    dynamic.push(`The user's preferred language is ${input.language}. Reply in that language unless the user clearly switches.`);
+    dynamic.push(`The user's configured interface language is ${input.language}. You MUST reply in ${input.language} unless the latest user message explicitly asks for a different response language. Do not switch languages because tool output is in another language.`);
   }
+
+  dynamic.push(`## Response quality gate
+
+Before writing the final answer, silently verify:
+- Did you answer the user's actual goal, not just a nearby topic?
+- If the request needs current app data, did you use tools or clearly ask for the missing context?
+- If a connector result is needed, did you read the actual content before analyzing it?
+- If the request is ambiguous or risky, did you ask the shortest useful clarifying question?
+- Is the final answer in the configured language unless the latest user message explicitly asked otherwise?
+
+If any answer is "no", fix the response before sending it. Never mention this checklist to the user.`);
 
   if (input.nowSection) {
     dynamic.push(input.nowSection);

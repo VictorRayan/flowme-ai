@@ -15,13 +15,27 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     const locale = normalizeSupportLocale(body.locale);
-    let questionKey: FunnelAction | null = isFunnelAction(body.question_key) ? body.question_key : null;
-    if (!questionKey && detectsCancellationIntent(message)) questionKey = 'manage_subscription';
-    if (!questionKey && (message.length < 2 || message.length > 4000)) {
+    const explicitQuestionKey: FunnelAction | null = isFunnelAction(body.question_key) ? body.question_key : null;
+    if (!explicitQuestionKey && (message.length < 2 || message.length > 4000)) {
       return apiError(ErrorCode.SUPPORT_MESSAGE_INVALID, 'SUPPORT_MESSAGE_INVALID', 400);
     }
 
     const admin = getSupabaseAdmin();
+    const { data: session } = await admin.from('subscription_cancellation_funnel_sessions')
+      .select('id,current_stage,completed_stages,expires_at')
+      .eq('user_id', user.id)
+      .gt('expires_at', new Date().toISOString())
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let questionKey: FunnelAction | null = explicitQuestionKey;
+    if (!questionKey && detectsCancellationIntent(message)) {
+      questionKey = session?.current_stage === 'manage_subscription'
+        ? 'payment_and_recurrence'
+        : session?.current_stage === 'payment_and_recurrence'
+          ? 'cancel_subscription'
+          : 'manage_subscription';
+    }
     const { data: subscription } = await admin.from('user_subscriptions')
       .select('plan_code,billing_provider,status')
       .eq('user_id', user.id)
@@ -34,15 +48,24 @@ export async function POST(req: NextRequest) {
       state: subscription?.status || 'free',
     };
     if (questionKey) {
-      const { data: session } = await admin.from('subscription_cancellation_funnel_sessions')
-        .select('id,current_stage,completed_stages,expires_at')
-        .eq('user_id', user.id)
-        .gt('expires_at', new Date().toISOString())
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
       const transition = advanceFunnel(session?.current_stage || null, questionKey);
       if (!transition.ok) {
+        if (!explicitQuestionKey) {
+          return apiSuccess({
+            answer: answerSupportQuestion(message, billing, locale),
+            sources: [],
+            can_escalate: true,
+            intent: 'cancel_subscription',
+            funnel_session_id: session?.id || null,
+            funnel_stage: session?.current_stage || null,
+            next_actions: session?.current_stage === 'manage_subscription'
+              ? ['payment_and_recurrence']
+              : session?.current_stage === 'payment_and_recurrence'
+                ? ['cancel_subscription']
+                : ['manage_subscription'],
+            cancellation_form_available: session?.current_stage === 'cancel_subscription',
+          });
+        }
         return apiError(ErrorCode.CANCELLATION_FUNNEL_STEP_REQUIRED, transition.code, 409, {
           funnel_stage: session?.current_stage || null,
         });

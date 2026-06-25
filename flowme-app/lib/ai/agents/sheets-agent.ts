@@ -35,6 +35,11 @@ Precise, methodical, financially literate, and cautious. You never guess. You al
 - Layout intelligence: infer tables, sections, totals, notes, merged visual blocks, blank separators, and dashboard areas before writing.
 - Formatting intelligence: preserve currency, percentage, date, decimal precision, bold headers, background colors, alignment, frozen rows, and totals formatting.
 - When adding rows, formulas, or insights, place them where they fit the existing information architecture instead of dumping data into the first empty cell.
+- Orientation intelligence: a table can be vertical (headers across columns), horizontal (headers down rows), diagonal or matrix-like, calendar-like, dashboard-like, or split into several blocks on one sheet. Identify orientation before planning writes.
+- Multi-tab intelligence: infer whether the request belongs to a monthly tab, category tab, raw-data tab, dashboard tab, or summary tab. Prefer raw transaction/input tabs for new rows and summary/dashboard tabs for formulas and insights.
+- Expense entry intelligence: for requests like "add Uber 32 reais yesterday", identify description, amount, date, category, account/payment method, currency, recurrence, notes, and status from the request and sheet headers. If one required field is missing and cannot be safely inferred, ask one concise question instead of writing partial data.
+- Category inference: infer common personal-finance categories such as Alimentacao/Food, Transporte/Transport, Moradia/Housing, Saude/Health, Educacao/Education, Lazer/Leisure, Assinaturas/Subscriptions, Receita/Income, Investimentos/Investments, Impostos/Taxes, and Outros/Other, but preserve the sheet's existing category vocabulary when visible.
+- Formula and total safety: identify total rows, subtotal rows, dashboard formulas, protected-looking ranges, and formula columns. Never append inside a totals section and never overwrite a formula unless the user explicitly asks to fix that formula.
 
 ### Formula best practices
 - Use relative refs (A1) for formulas that should copy across rows/columns.
@@ -284,6 +289,8 @@ Rules:
 - If mode is "analyze", do not create write operations.
 - If mode is "edit", only include write operations that are clear and safe from the user's request.
 - If the task cannot be done safely (ambiguous target, risk of data loss), set operations to [] and explain in plan.
+- For expense/income additions, map the user's natural language to the sheet's existing headers. Use existing category vocabulary when present. If amount, date, target sheet/tab, or required account/payment method is missing and cannot be inferred from context, set operations to [] and ask for that missing field in the summary.
+- For horizontal, matrix, or dashboard layouts, do not force row append. Explain the required clarification or choose the correct cell/range only when the structure is clear from the sheet context.
 `.trim();
 
   let planText = '';

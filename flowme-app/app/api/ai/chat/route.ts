@@ -14,6 +14,7 @@ import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/
 import { summarizeAndPersistThread, SUMMARIZE_EVERY_N_USER_TURNS } from '@/lib/ai/memory/recall';
 import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/ai/threads';
 import { extractConnectorContextItems, hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
+import { improveBalysAnswerIfNeeded } from '@/lib/ai/answer-satisfaction';
 import { consumeAiCredits, creditPreflightMessage, estimateBalysCreditUsage, isValidTimezone } from '@/lib/billing/credits';
 import { getUserEntitlements } from '@/lib/billing/entitlements';
 import { getSupabaseAdmin } from '@/lib/api/admin';
@@ -145,6 +146,35 @@ function preferredConnectorType(connectorIntent: ConnectorIntent | null, message
   return undefined;
 }
 
+function inferImplicitConnectorIntent(text: string): ConnectorIntent | null {
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (/\b(gmail|email|emails|e-mail|inbox|caixa de entrada|rascunho|draft|reply|responda|responder|follow-up)\b/.test(normalized)) {
+    return { id: 'implicit-gmail', label: '/gmail', action: 'gmail' };
+  }
+  if (/\b(planilha|planilhas|spreadsheet|spreadsheets|sheets|sheet|finance 2026|despesa|gasto|gastos|receita|categoria|formula|celula|aba)\b/.test(normalized)) {
+    return { id: 'implicit-sheets', label: '/sheets', action: 'sheets' };
+  }
+  if (/\b(google docs|documento|documentos|docs|ata|memo|briefing executivo|relatorio|proposta|escrivao|escrivao|editar documento)\b/.test(normalized)) {
+    return { id: 'implicit-docs', label: '/docs', action: 'docs' };
+  }
+  if (/\b(drive|arquivo|arquivos|pasta|pdf|slides|contrato)\b/.test(normalized)) {
+    return { id: 'implicit-drive', label: '/drive', action: 'drive' };
+  }
+  if (/\b(clima|tempo|weather|forecast|previsao)\b/.test(normalized)) {
+    return { id: 'implicit-weather', label: '/weather', action: 'weather' };
+  }
+  if (/\b(imagem|image|generate image|gerar imagem|crie uma imagem)\b/.test(normalized)) {
+    return { id: 'implicit-image', label: '/image', action: 'image' };
+  }
+  if (/\b(lembrete|reminder|lembrar|remind me)\b/.test(normalized)) {
+    return { id: 'implicit-reminder', label: '/reminder', action: 'reminder' };
+  }
+  if (/\b(priorizar|prioridade|prioridades|focus|foco|semana|hoje|direcionamento|o que devo fazer)\b/.test(normalized)) {
+    return { id: 'implicit-briefing', label: '/briefing', action: 'briefing' };
+  }
+  return null;
+}
+
 function userSafeLoopErrorMessage(error: any): string {
   const raw = error?.message || String(error);
   if (/429|rate limit|quota|insufficient_quota/i.test(raw)) {
@@ -214,6 +244,7 @@ export async function POST(request: NextRequest) {
       : typeof messages[messages.length - 1]?.content === 'string'
         ? messages[messages.length - 1].content
         : '';
+    const preflightConnectorIntent = parsedConnectorIntent || inferImplicitConnectorIntent(preflightText);
     const preflightRoute = routeBalysRequest({
       messages,
       rawUserInput: preflightText,
@@ -224,14 +255,14 @@ export async function POST(request: NextRequest) {
       text: preflightText,
       provider: preflightTarget.provider,
       model: preflightTarget.model,
-      action: parsedConnectorIntent?.action,
+      action: preflightConnectorIntent?.action,
       needsTools: preflightRoute.needsTools,
       toolDomain: preflightRoute.toolDomain,
     });
     const entitlements = await getUserEntitlements(auth.supabase, auth.user.id);
     if (entitlements.has_pro) {
       const workload = resolveAiGuardWorkload({
-        action: parsedConnectorIntent?.action,
+        action: preflightConnectorIntent?.action,
         taskType: preflightRoute.taskType,
         toolDomain: preflightRoute.toolDomain,
         needsTools: preflightRoute.needsTools,
@@ -275,7 +306,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         route_tier: preflightRoute.tier,
         execution_plan: preflightRoute.executionPlan,
-        connector_action: parsedConnectorIntent?.action || null,
+        connector_action: preflightConnectorIntent?.action || null,
       },
     });
     if (!creditState.allowed) {
@@ -334,25 +365,32 @@ export async function POST(request: NextRequest) {
       systemAddendum: typeof systemAddendum === 'string' ? systemAddendum : undefined,
       contextScores: contextScores ?? undefined,
     });
+    const latestUserText = typeof rawUserInput === 'string' && rawUserInput.trim() ? rawUserInput : transcribedUserText;
+    const effectiveConnectorIntent = parsedConnectorIntent || inferImplicitConnectorIntent(latestUserText);
 
     const connectorMemoryPrompt = renderConnectorContextForPrompt(messages);
-    const connectorIntentPrompt = parsedConnectorIntent?.action
+    const connectorIntentPrompt = effectiveConnectorIntent?.action
       ? [
-          `Structured command intent: ${parsedConnectorIntent.label || parsedConnectorIntent.action}.`,
-          'Treat this as deterministic metadata selected by the user, not as optional decoration.',
-          parsedConnectorIntent.action === 'gmail'
-            ? 'Use Gmail tools. SHORT-CIRCUIT: if asked to read or show the content of an email, immediately call gmail.read_message using the message_id from the history or natural sender/subject fields. Do not call gmail.search_messages first if the email was already listed.'
+          `${parsedConnectorIntent ? 'Structured command intent' : 'Inferred command intent'}: ${effectiveConnectorIntent.label || effectiveConnectorIntent.action}.`,
+          parsedConnectorIntent
+            ? 'Treat this as deterministic metadata selected by the user, not as optional decoration.'
+            : 'Treat this as the most likely action domain inferred from the user wording. Use relevant tools and ask a short clarifying question only if the target is ambiguous.',
+          effectiveConnectorIntent.action === 'gmail'
+            ? 'Use Gmail tools. SHORT-CIRCUIT: if asked to read or show the content of an email, immediately call gmail.read_message using the message_id from the history or natural sender/subject fields. Do not call gmail.search_messages first if the email was already listed. For drafting, create a draft only after recipient, subject, and intent are clear; never send.'
             : '',
-          parsedConnectorIntent.action === 'docs'
-            ? 'Use Google Docs connector tools. SHORT-CIRCUIT: if the user asks what files are here, call connectors.search_docs immediately and list them. Use connectors.find_and_read_doc to read a named document.'
+          effectiveConnectorIntent.action === 'docs'
+            ? 'Use Google Docs connector tools. SHORT-CIRCUIT: if the user asks what files are here, call connectors.search_docs immediately and list them. Use connectors.find_and_read_doc to read a named document. For creation requests, produce polished document structure with headings, bullets, decisions, action items, owners, dates, and next steps.'
             : '',
-          parsedConnectorIntent.action === 'sheets'
-            ? 'Use Google Sheets connector tools. SHORT-CIRCUIT: if asked to list sheets, call connectors.search_docs immediately. Read or analyze actual spreadsheet content before giving insights.'
+          effectiveConnectorIntent.action === 'sheets'
+            ? 'Use Google Sheets connector tools. SHORT-CIRCUIT: if asked to list sheets, call connectors.search_docs immediately. Read or analyze actual spreadsheet content before giving insights. For expenses or financial updates, infer table layout, category, value, date, currency, and target tab; ask only for missing essential fields.'
             : '',
-          parsedConnectorIntent.action === 'drive'
+          effectiveConnectorIntent.action === 'drive'
             ? 'Use Google Drive connector tools. SHORT-CIRCUIT: if asked what files are here, call connectors.search_docs immediately. Discover files before selecting and reading the relevant file.'
             : '',
-          parsedConnectorIntent.action === 'image'
+          effectiveConnectorIntent.action === 'briefing'
+            ? 'For prioritization, today, this week, focus, planning, or direction questions, gather available context from calendar, goals, notes, reminders, Gmail, Docs, Sheets, Drive, meetings, finance, and user profile when connected. Produce a concise priority recommendation with what to do, why it matters, and what to ignore for now.'
+            : '',
+          effectiveConnectorIntent.action === 'image'
             ? 'Use images.generate to create an image from the user description. If the user did not provide a description, ask one short clarifying question before calling the tool.'
             : '',
         ].filter(Boolean).join(' ')
@@ -409,7 +447,7 @@ export async function POST(request: NextRequest) {
         try {
           let toolCallObserved = false;
           const latestTextForTools = typeof rawUserInput === 'string' ? rawUserInput : transcribedUserText;
-          const requiredFirstTool = requiredFirstToolForConnector(route, parsedConnectorIntent, latestTextForTools, messages);
+          const requiredFirstTool = requiredFirstToolForConnector(route, effectiveConnectorIntent, latestTextForTools, messages);
           const preExecuteFirstTool = Boolean(
             requiredFirstTool
             && ['gmail.search_messages', 'connectors.search_docs'].includes(requiredFirstTool)
@@ -419,7 +457,7 @@ export async function POST(request: NextRequest) {
             {
               messages: [{ role: 'system', content: systemPromptFull }, ...loopMessages],
               tools: ALL_TOOLS,
-              maxSteps: computeAgentMaxSteps(route, parsedConnectorIntent),
+              maxSteps: computeAgentMaxSteps(route, effectiveConnectorIntent),
               requiredFirstTool,
               preExecuteFirstTool,
               provider: skillTarget.provider,
@@ -430,7 +468,7 @@ export async function POST(request: NextRequest) {
                 nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
                 timezone: requestedTimezone,
                 threadId: threadIdForTools,
-                preferredConnectorType: preferredConnectorType(parsedConnectorIntent, messages),
+                preferredConnectorType: preferredConnectorType(effectiveConnectorIntent, messages),
                 userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
                   ? { lat: userLocation.lat, lon: userLocation.lon, name: userLocation.name }
                   : undefined,
@@ -483,11 +521,18 @@ export async function POST(request: NextRequest) {
 
           console.log('[balys-debug] Agent loop completed. Steps:', loopResult.steps, '| Has content:', !!loopResult.content, '| model:', `${finalTarget.provider}:${finalTarget.model}`);
 
-          const finalText = loopResult.content && loopResult.content.trim()
+          const draftFinalText = loopResult.content && loopResult.content.trim()
             ? loopResult.content
             : requiredFirstTool
               ? 'Tive um problema ao acessar essa conexão agora. Tenta de novo em instantes.'
               : 'I finished but had nothing to add. If you expected an answer, try rephrasing.';
+          const finalText = await improveBalysAnswerIfNeeded({
+            userGoal: latestTextForTools,
+            draftAnswer: draftFinalText,
+            uiLanguage: typeof language === 'string' ? language : undefined,
+            connectorIntent: effectiveConnectorIntent?.action || null,
+            toolsUsed: Array.from(new Set(thinkingForPersistence.map((step) => String(step.tool || '')).filter(Boolean))),
+          });
           assistantFinalText = finalText;
           send({ type: 'text', text: finalText });
           send({ type: 'done' });

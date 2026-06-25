@@ -12,7 +12,6 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import LinkAccountModal from '@/components/calendar/LinkAccountModal';
 import WhatsAppChannelPanel from '@/components/settings/WhatsAppChannelPanel';
 import RemindersPanel from '@/components/settings/RemindersPanel';
@@ -263,10 +262,6 @@ function SettingsPageContent() {
     }
   }, []);
 
-  const requestCancellation = useCallback(() => {
-    window.location.href = '/app/support?intent=cancel_subscription&source=billing_page';
-  }, []);
-
   const updateFinanceProfile = useCallback(async (currency: string) => {
     setFinanceSaving(true);
     try {
@@ -462,15 +457,6 @@ function SettingsPageContent() {
                     disabled={Boolean(billingAction)}
                   >
                     Ver faturas
-                  </Button>
-                  <Button
-                    variant="text"
-                    color="warning"
-                    startIcon={<SupportAgentIcon />}
-                    onClick={requestCancellation}
-                    disabled={Boolean(billingAction)}
-                  >
-                    Solicitar cancelamento
                   </Button>
                 </>
               )}

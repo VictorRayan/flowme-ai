@@ -1,6 +1,18 @@
 export type TutorialLang = 'en' | 'pt';
 
-export type TutorialIconId = 'balys' | 'notes' | 'briefing' | 'connections' | 'goals' | 'calendar' | 'today';
+export type TutorialIconId =
+  | 'balys'
+  | 'notes'
+  | 'briefing'
+  | 'connections'
+  | 'goals'
+  | 'calendar'
+  | 'today'
+  | 'gmail'
+  | 'docs'
+  | 'sheets'
+  | 'drive'
+  | 'support';
 
 export type TutorialBlock =
   | { kind: 'heading'; text: string }
@@ -165,6 +177,93 @@ const TUTORIALS: Record<TutorialLang, Tutorial[]> = {
         ] },
         { kind: 'usecase', title: 'Caso real: achar arquivo pelo nome', text: 'Com o Google Sheets conectado, abra o Balys e peça "Resuma minha planilha Financeiro 2026". Você não precisa colar link nenhum: o Balys encontra a planilha pelo nome, lê os dados e te devolve a resposta. O mesmo vale para "leia o contrato em PDF no meu Drive".' },
         { kind: 'tip', text: 'No chat, digite /gmail, /docs, /sheets ou /drive para forçar o Balys a usar uma fonte específica naquela pergunta.' },
+      ],
+    },
+    {
+      slug: 'gmail',
+      iconId: 'gmail',
+      title: 'Gmail: leitura, análise e rascunhos',
+      summary: 'Peça ao Balys para encontrar e-mails, resumir threads, identificar pendências e preparar respostas com o tom certo.',
+      readMinutes: 4,
+      blocks: [
+        { kind: 'paragraph', text: 'Com o Gmail conectado, o Balys vira uma camada inteligente sobre a sua caixa de entrada. Ele pode pesquisar mensagens, abrir threads relevantes, resumir contexto, encontrar pendências e criar rascunhos. Ele não envia e-mails automaticamente: quando houver envio ou resposta sensível, ele prepara o texto para você revisar.' },
+        { kind: 'steps', title: 'Como usar no chat', items: [
+          'No menu lateral, clique em "BalysAI".',
+          'Você pode clicar na ação Gmail ou simplesmente pedir em linguagem natural, como "mostre meus e-mails importantes de hoje".',
+          'Para aprofundar, responda na conversa: "explique melhor o e-mail do Felipe" ou "crie um rascunho de resposta educado".',
+          'Se faltar destinatário, contexto, tom ou objetivo, o Balys pergunta antes de criar o rascunho.',
+        ] },
+        { kind: 'usecase', title: 'Caso real: triagem rápida', text: 'Peça "o que chegou de importante hoje no Gmail?". O Balys busca as mensagens recentes, lê as mais relevantes e te devolve uma lista com remetente, assunto, urgência, próximos passos e o que pode esperar.' },
+        { kind: 'usecase', title: 'Caso real: rascunho de resposta', text: 'Depois de abrir uma thread, peça "responda dizendo que consigo entregar até sexta e pergunte se eles preferem call ou documento". O Balys monta o rascunho com saudação, contexto, compromisso, pergunta objetiva e assinatura.' },
+        { kind: 'tip', text: 'Diga o tom desejado: "mais direto", "mais caloroso", "executivo", "em inglês", "sem parecer robótico". Isso melhora muito a qualidade do rascunho.' },
+      ],
+    },
+    {
+      slug: 'planilhas',
+      iconId: 'sheets',
+      title: 'Sheets: análise e manipulação de planilhas',
+      summary: 'O Balys entende abas, colunas, categorias, fórmulas e layouts financeiros para analisar ou editar planilhas sem você passar IDs.',
+      readMinutes: 5,
+      blocks: [
+        { kind: 'paragraph', text: 'A skill de planilhas foi pensada para usuários não técnicos. Você pode falar o nome natural da planilha ("Financeiro 2026"), pedir análise, criar linhas, preencher colunas, categorizar despesas, comparar abas e sugerir fórmulas. O Balys procura o arquivo internamente e entende a estrutura antes de mexer.' },
+        { kind: 'steps', title: 'Pedidos que funcionam bem', items: [
+          'No menu lateral, clique em "BalysAI" e peça o resultado em linguagem natural.',
+          '"Adicione uma despesa de R$ 87,90 de Uber na planilha Financeiro 2026."',
+          '"Analise minha aba Janeiro e me diga onde estou gastando demais."',
+          '"Crie uma visão semanal das despesas por categoria."',
+          '"Encontre células vazias ou fórmulas quebradas nessa planilha."',
+        ] },
+        { kind: 'steps', title: 'Como o Balys decide o que preencher', items: [
+          'Ele lê os nomes das abas e identifica a aba mais provável.',
+          'Ele mapeia cabeçalhos como data, descrição, valor, categoria, forma de pagamento, status e observações.',
+          'Quando a categoria não é explícita, ele infere pelo histórico da planilha, preservando os nomes já usados.',
+          'Se uma informação obrigatória faltar, ele pergunta antes de editar.',
+        ] },
+        { kind: 'usecase', title: 'Caso real: despesa sem fricção', text: 'Você diz "adicione R$ 120 de mercado ontem". O Balys entende que isso provavelmente é categoria "Alimentação" ou "Mercado", usa a data de ontem, encontra a próxima linha disponível e preenche as colunas corretas. Se houver duas planilhas financeiras possíveis, ele pergunta qual usar.' },
+        { kind: 'tip', text: 'Não precisa dizer "coluna C" ou ID da planilha. Diga o resultado que você quer; o Balys resolve o caminho técnico por trás.' },
+      ],
+    },
+    {
+      slug: 'documentos',
+      iconId: 'docs',
+      title: 'Docs: atas, relatórios e documentos bonitos',
+      summary: 'Crie e edite documentos estruturados com títulos, seções, bullets, decisões, acionáveis e próximos passos.',
+      readMinutes: 4,
+      blocks: [
+        { kind: 'paragraph', text: 'Com Google Docs conectado, o Balys age como um escrivão e editor. Ele consegue criar atas, briefings, propostas, relatórios e documentos de acompanhamento com estrutura clara e formatação legível.' },
+        { kind: 'steps', title: 'Exemplos de comandos', items: [
+          'No menu lateral, clique em "BalysAI" para criar ou editar documentos por conversa.',
+          '"Crie uma ata da reunião sobre o lançamento do produto com decisões e responsáveis."',
+          '"Transforme este texto bagunçado em um relatório executivo."',
+          '"Abra o documento Proposta Cliente X e deixe mais profissional."',
+          '"Crie um briefing com contexto, objetivo, entregáveis, riscos e próximos passos."',
+        ] },
+        { kind: 'steps', title: 'O que o documento recebe', items: [
+          'Título claro e subtítulo quando fizer sentido.',
+          'Seções organizadas por tema.',
+          'Bullets curtos, decisões separadas e acionáveis com dono e prazo.',
+          'Perguntas em aberto e próximos passos ao final.',
+        ] },
+        { kind: 'usecase', title: 'Caso real: ata de reunião', text: 'Cole notas soltas da reunião e peça uma ata. O Balys transforma em um documento com participantes, objetivo, pauta, decisões tomadas, responsáveis, prazos, riscos e follow-up.' },
+        { kind: 'tip', text: 'Se você quiser um estilo específico, peça: "mais executivo", "mais amigável", "formato board update", "em inglês" ou "com bullets curtos".' },
+      ],
+    },
+    {
+      slug: 'suporte-balys',
+      iconId: 'support',
+      title: 'Suporte com Balys',
+      summary: 'Use o suporte para dúvidas, problemas de pagamento, conectores e cancelamento guiado sem perder contexto.',
+      readMinutes: 3,
+      blocks: [
+        { kind: 'paragraph', text: 'A tela de Suporte conversa com o Balys sobre a própria plataforma. Ela entende perguntas livres, categoriza o tema e responde com próximos passos. Cancelamento não fica exposto em Configurações: ele entra pelo funil de suporte, para entender o motivo e oferecer ajuda antes de concluir.' },
+        { kind: 'steps', title: 'Como pedir ajuda', items: [
+          'No menu lateral, clique em "Suporte".',
+          'Escolha um tópico rápido ou escreva livremente no campo "Como podemos ajudar?".',
+          'Explique o que aconteceu: pagamento, conector, tutorial, assinatura, erro ou dúvida de uso.',
+          'O Balys classifica o caso e responde com orientação prática.',
+        ] },
+        { kind: 'usecase', title: 'Caso real: conector sem autenticação', text: 'Se você pedir algo de Sheets, Docs, Drive ou Gmail sem conexão ativa, o chat mostra um cartão com o ícone da ferramenta e um botão para conectar. Depois de voltar do Google, você continua no mesmo fluxo sempre que possível.' },
+        { kind: 'tip', text: 'Para assinatura e cancelamento, escreva o motivo real. O funil ajuda a diferenciar problema técnico, cobrança, dúvida de uso e pedido definitivo.' },
       ],
     },
     {
@@ -339,6 +438,93 @@ const TUTORIALS: Record<TutorialLang, Tutorial[]> = {
         ] },
         { kind: 'usecase', title: 'Real case: find a file by name', text: 'With Google Sheets connected, open Balys and ask "Summarize my Finance 2026 sheet". You do not paste any link: Balys finds the sheet by name, reads the data, and returns the answer. The same works for "read the contract PDF in my Drive".' },
         { kind: 'tip', text: 'In chat, type /gmail, /docs, /sheets or /drive to force Balys to use a specific source for that question.' },
+      ],
+    },
+    {
+      slug: 'gmail',
+      iconId: 'gmail',
+      title: 'Gmail: reading, analysis and drafts',
+      summary: 'Ask Balys to find emails, summarize threads, detect follow-ups and prepare replies in the right tone.',
+      readMinutes: 4,
+      blocks: [
+        { kind: 'paragraph', text: 'With Gmail connected, Balys becomes an intelligent layer over your inbox. He can search messages, open relevant threads, summarize context, detect pending actions and create drafts. He does not send emails automatically: for sensitive replies, he prepares the text for your review.' },
+        { kind: 'steps', title: 'How to use it in chat', items: [
+          'In the side menu, click "BalysAI".',
+          'Click the Gmail action or simply ask in natural language, such as "show me my important emails today".',
+          'To go deeper, reply in the same conversation: "tell me more about Felipe\'s email" or "draft a polite response".',
+          'If recipient, context, tone or goal is missing, Balys asks before creating the draft.',
+        ] },
+        { kind: 'usecase', title: 'Real case: fast inbox triage', text: 'Ask "what important emails arrived today?". Balys searches recent messages, reads the relevant ones, and returns sender, subject, urgency, next step and what can wait.' },
+        { kind: 'usecase', title: 'Real case: reply draft', text: 'After opening a thread, ask "reply saying I can deliver by Friday and ask whether they prefer a call or a document". Balys drafts a complete response with greeting, context, commitment, clear ask and sign-off.' },
+        { kind: 'tip', text: 'State the tone: "more direct", "warmer", "executive", "in Portuguese", or "less robotic". It makes drafts much better.' },
+      ],
+    },
+    {
+      slug: 'planilhas',
+      iconId: 'sheets',
+      title: 'Sheets: spreadsheet analysis and editing',
+      summary: 'Balys understands tabs, columns, categories, formulas and financial layouts to analyze or edit sheets without asking you for IDs.',
+      readMinutes: 5,
+      blocks: [
+        { kind: 'paragraph', text: 'The Sheets skill is built for non-technical users. You can say the natural spreadsheet name ("Finance 2026"), ask for analysis, add rows, fill columns, categorize expenses, compare tabs and suggest formulas. Balys finds the file internally and understands the structure before editing.' },
+        { kind: 'steps', title: 'Requests that work well', items: [
+          'In the side menu, click "BalysAI" and ask for the outcome in natural language.',
+          '"Add a $87.90 Uber expense to my Finance 2026 spreadsheet."',
+          '"Analyze my January tab and tell me where I am overspending."',
+          '"Create a weekly view of expenses by category."',
+          '"Find empty cells or broken formulas in this spreadsheet."',
+        ] },
+        { kind: 'steps', title: 'How Balys decides what to fill', items: [
+          'He reads tab names and identifies the most likely target tab.',
+          'He maps headers such as date, description, amount, category, payment method, status and notes.',
+          'When the category is not explicit, he infers it from the sheet history while preserving existing category names.',
+          'If required information is missing, he asks before editing.',
+        ] },
+        { kind: 'usecase', title: 'Real case: expense capture without friction', text: 'Say "add $120 of groceries yesterday". Balys understands the likely category, uses yesterday\'s date, finds the next available row and fills the correct columns. If there are two possible finance spreadsheets, he asks which one to use.' },
+        { kind: 'tip', text: 'You do not need to say "column C" or paste a spreadsheet ID. Say the outcome you want; Balys handles the technical path.' },
+      ],
+    },
+    {
+      slug: 'documentos',
+      iconId: 'docs',
+      title: 'Docs: minutes, reports and polished documents',
+      summary: 'Create and edit structured documents with headings, sections, bullets, decisions, action items and next steps.',
+      readMinutes: 4,
+      blocks: [
+        { kind: 'paragraph', text: 'With Google Docs connected, Balys acts like a scribe and editor. He can create meeting minutes, briefings, proposals, reports and follow-up documents with clear structure and readable formatting.' },
+        { kind: 'steps', title: 'Example commands', items: [
+          'In the side menu, click "BalysAI" to create or edit documents through conversation.',
+          '"Create meeting minutes for the product launch meeting with decisions and owners."',
+          '"Turn this messy text into an executive report."',
+          '"Open the Client X proposal and make it more professional."',
+          '"Create a briefing with context, objective, deliverables, risks and next steps."',
+        ] },
+        { kind: 'steps', title: 'What the document includes', items: [
+          'Clear title and subtitle when useful.',
+          'Sections organized by theme.',
+          'Short bullets, separate decisions and action items with owner and deadline.',
+          'Open questions and next steps at the end.',
+        ] },
+        { kind: 'usecase', title: 'Real case: meeting minutes', text: 'Paste messy meeting notes and ask for minutes. Balys turns them into a document with participants, objective, agenda, decisions, owners, deadlines, risks and follow-up.' },
+        { kind: 'tip', text: 'If you want a specific style, say it: "more executive", "friendlier", "board update format", "in Portuguese" or "short bullets".' },
+      ],
+    },
+    {
+      slug: 'suporte-balys',
+      iconId: 'support',
+      title: 'Support with Balys',
+      summary: 'Use support for questions, payment issues, connectors and guided cancellation without losing context.',
+      readMinutes: 3,
+      blocks: [
+        { kind: 'paragraph', text: 'The Support screen talks with Balys about the platform itself. It understands free-form questions, categorizes the topic and answers with practical next steps. Cancellation is not exposed directly in Settings: it goes through the support funnel, so the app can understand the reason and offer help before final confirmation.' },
+        { kind: 'steps', title: 'How to ask for help', items: [
+          'In the side menu, click "Support".',
+          'Choose a quick topic or write freely in the "How can we help?" field.',
+          'Explain what happened: payment, connector, tutorial, subscription, error or product question.',
+          'Balys classifies the case and responds with practical guidance.',
+        ] },
+        { kind: 'usecase', title: 'Real case: connector not authenticated', text: 'If you ask for Sheets, Docs, Drive or Gmail without an active connection, the chat shows a card with the tool icon and a button to connect. After returning from Google, you continue the same flow whenever possible.' },
+        { kind: 'tip', text: 'For subscription and cancellation, write the real reason. The funnel separates technical issues, billing questions, usage confusion and definitive cancellation requests.' },
       ],
     },
     {

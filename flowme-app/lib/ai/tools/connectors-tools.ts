@@ -1079,6 +1079,8 @@ CONTRACT:
 - For relative dates, translate to absolute first (today is in context.nowIso) — Gmail does not understand "yesterday".
 - max_results defaults to 10. Each result costs an extra metadata fetch, so don't request more than needed.
 - Read-only. Safe to chain before gmail.create_draft.
+- Search results are discovery only. If the user asks for analysis, summary, reasons, tone, obligations, deadlines, or a reply based on one email, call gmail.read_message before answering.
+- For "today's emails", "important emails", "what needs reply", or similar triage, search recent inbox first, then read the most relevant/important messages before prioritizing.
 
 RETURNS receipt: { messages[], count }. Each message: { id, threadId, snippet, subject, from, date }.
 - id and threadId are Gmail technical IDs — NEVER read aloud or quote. Keep them only if a follow-up tool needs them.
@@ -1124,6 +1126,8 @@ CONTRACT:
 - If multiple messages are genuinely plausible and no subject was supplied, ask the user to choose by sender/subject/date, never by ID.
 - This is required before answering questions about email body content.
 - Prefer body_text for summaries and insights. body_html is sanitized and only present when Gmail returned HTML.
+- For drafting, read the message/thread first when the reply depends on context. Extract recipient, tone, commitments, dates, action items, and open questions before creating a draft.
+- If the email mentions multiple people or recipients, identify who should be addressed and ask one concise question if the target recipients are ambiguous.
 
 RETURNS receipt: { message }. The message includes subject, from, to, date, body_text, optional body_html, attachments metadata, id, and threadId.
 - id and threadId are technical IDs — never read aloud or quote.
@@ -1216,6 +1220,9 @@ CONTRACT:
 - Never invent recipient addresses. If the user says "email Anna", call gmail.search_messages first to find her address, or ask.
 - body is plain text (UTF-8). Use real line breaks for paragraphs. No markdown, no HTML — Gmail will show literal characters.
 - Side effects: a Drafts entry appears in the user's Gmail. Idempotent in spirit but each call creates a NEW draft — don't retry on success.
+- Body quality matters: write a complete email with greeting, clear purpose, context, specific ask/commitment, next step, and sign-off when appropriate.
+- Support multiple recipients when the user asks to include a group or thread participants, but verify the actual email addresses from the message/thread or ask before drafting.
+- Match the requested tone and language. If no tone is specified, use concise, professional, human language.
 
 RETURNS receipt: { draft_id, message_id, status: 'draft_created' }.
 - draft_id and message_id are TECHNICAL — never show. Keep only if the user immediately asks to edit/discard.

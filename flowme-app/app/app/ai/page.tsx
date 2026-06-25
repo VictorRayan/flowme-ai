@@ -27,10 +27,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import WbSunnyIcon from '@mui/icons-material/WbSunny';
-import EmailIcon from '@mui/icons-material/Email';
-import DescriptionIcon from '@mui/icons-material/Description';
-import GridOnIcon from '@mui/icons-material/GridOn';
-import FolderIcon from '@mui/icons-material/Folder';
+import GroupsIcon from '@mui/icons-material/Groups';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DownloadIcon from '@mui/icons-material/Download';
 import CommandPalette, { ContextItem, type CommandAction } from '@/components/ai/CommandPalette';
@@ -39,6 +36,11 @@ import { UI, resolveUiLang } from '@/lib/i18n';
 import { ensureFreshEntryThread } from '@/lib/ai/thread-entry';
 import BalysIcon from '@/components/brand/BalysIcon';
 import { useSubscription } from '@/components/billing/SubscriptionProvider';
+import SlackBrandIcon from '@/components/icons/SlackBrandIcon';
+import GmailBrandIcon from '@/components/icons/GmailBrandIcon';
+import GoogleDocsBrandIcon from '@/components/icons/GoogleDocsBrandIcon';
+import GoogleSheetsBrandIcon from '@/components/icons/GoogleSheetsBrandIcon';
+import GoogleDriveBrandIcon from '@/components/icons/GoogleDriveBrandIcon';
 
 // ── Note edit block parsing ───────────────────────────────────────────────────
 const NOTE_EDIT_RE = /%%NOTE_EDIT_START(?::([^%]+))?%%([\s\S]*?)%%NOTE_EDIT_END%%/g;
@@ -169,6 +171,11 @@ interface AiCreditState {
   remaining: number | null;
   resets_at: string;
 }
+interface CurrentUserProfile {
+  email: string | null;
+  name: string | null;
+  avatar_url: string | null;
+}
 type DestructiveDialog =
   | { kind: 'deleteThread'; threadId: string; title: string; step: 1 | 2 }
   | { kind: 'clearThread'; threadId: string; title: string; step: 1 | 2 }
@@ -261,17 +268,130 @@ function imageAttachmentFileName(att: Attachment): string {
   return `${raw}.${extension}`;
 }
 
-function pendingActionIcon(action: CommandAction): React.ReactElement | undefined {
-  const iconSx = { fontSize: '14px !important' };
-  if (action === 'weather') return <WbSunnyIcon sx={iconSx} />;
-  if (action === 'gmail') return <EmailIcon sx={iconSx} />;
-  if (action === 'drive') return <FolderIcon sx={iconSx} />;
-  if (action === 'docs') return <DescriptionIcon sx={iconSx} />;
-  if (action === 'sheets') return <GridOnIcon sx={iconSx} />;
-  if (action === 'note') return <EditNoteIcon sx={iconSx} />;
-  if (action === 'reminder') return <NotificationsActiveIcon sx={iconSx} />;
-  if (action === 'image') return <ImageIcon sx={iconSx} />;
+function actionIcon(action: CommandAction, size = 16): React.ReactElement | undefined {
+  const iconSx = { fontSize: `${size}px !important` };
+  if (action === 'gmail') return <GmailBrandIcon sx={iconSx} />;
+  if (action === 'drive') return <GoogleDriveBrandIcon sx={iconSx} />;
+  if (action === 'docs') return <GoogleDocsBrandIcon sx={iconSx} />;
+  if (action === 'sheets') return <GoogleSheetsBrandIcon sx={iconSx} />;
+  if (action === 'slack') return <SlackBrandIcon sx={iconSx} />;
+  if (action === 'weather') return <WbSunnyIcon sx={{ ...iconSx, color: '#38bdf8' }} />;
+  if (action === 'council') return <GroupsIcon sx={{ ...iconSx, color: '#a78bfa' }} />;
+  if (action === 'briefing') return <WbSunnyIcon sx={{ ...iconSx, color: '#fbbf24' }} />;
+  if (action === 'note') return <EditNoteIcon sx={{ ...iconSx, color: '#34d399' }} />;
+  if (action === 'meeting') return <MicIcon sx={{ ...iconSx, color: '#fb7185' }} />;
+  if (action === 'reminder') return <NotificationsActiveIcon sx={{ ...iconSx, color: '#f59e0b' }} />;
+  if (action === 'image') return <ImageIcon sx={{ ...iconSx, color: '#c084fc' }} />;
   return undefined;
+}
+
+function TypingDots() {
+  return (
+    <Box
+      aria-label="Balys is typing"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.55,
+        height: 18,
+        '@keyframes balysTypingDot': {
+          '0%, 80%, 100%': { transform: 'translateY(0)', opacity: 0.36 },
+          '40%': { transform: 'translateY(-4px)', opacity: 1 },
+        },
+      }}
+    >
+      {[0, 1, 2].map((dot) => (
+        <Box
+          key={dot}
+          component="span"
+          sx={{
+            width: 5.5,
+            height: 5.5,
+            borderRadius: '999px',
+            bgcolor: dot === 1 ? '#a78bfa' : '#67e8f9',
+            animation: 'balysTypingDot 1.15s ease-in-out infinite',
+            animationDelay: `${dot * 0.14}s`,
+            boxShadow: '0 0 10px rgba(103,232,249,0.24)',
+          }}
+        />
+      ))}
+    </Box>
+  );
+}
+
+type SuggestionPrompt = {
+  label: string;
+  prompt: string;
+  action?: CommandAction;
+};
+
+function suggestionPrompts(lang: 'en' | 'pt'): SuggestionPrompt[] {
+  if (lang === 'pt') {
+    return [
+      { label: 'Priorizar meu dia', prompt: 'Com base na minha agenda, goals, lembretes e fontes conectadas, o que eu deveria priorizar hoje?', action: 'briefing' },
+      { label: 'Ajustar minha agenda', prompt: 'Olhe meu calendário e sugira o que devo mover, manter ou proteger hoje.', action: 'briefing' },
+      { label: 'Próximo passo do goal', prompt: 'Qual é o próximo passo mais inteligente para meus goals esta semana?', action: 'council' },
+      { label: 'Emails importantes', prompt: 'Veja meus emails de hoje e me diga o que exige resposta ou decisão.', action: 'gmail' },
+      { label: 'Analisar planilha', prompt: 'Analise minha planilha financeira mais relevante e encontre riscos, gastos altos ou oportunidades.', action: 'sheets' },
+      { label: 'Clima e energia', prompt: 'Considere o clima e minha rotina: como devo organizar meu dia?', action: 'weather' },
+    ];
+  }
+  return [
+    { label: 'Prioritize my day', prompt: 'Based on my calendar, goals, reminders, and connected sources, what should I prioritize today?', action: 'briefing' },
+    { label: 'Review my calendar', prompt: 'Look at my calendar and suggest what I should move, keep, or protect today.', action: 'briefing' },
+    { label: 'Next goal step', prompt: 'What is the smartest next step for my goals this week?', action: 'council' },
+    { label: 'Important emails', prompt: 'Check today’s emails and tell me what needs a response or decision.', action: 'gmail' },
+    { label: 'Analyze finance sheet', prompt: 'Analyze my most relevant finance spreadsheet and find risks, high spending, or opportunities.', action: 'sheets' },
+    { label: 'Weather and energy', prompt: 'Consider the weather and my routine: how should I organize my day?', action: 'weather' },
+  ];
+}
+
+function suggestionActionMeta(suggestion: SuggestionPrompt, lang: 'en' | 'pt') {
+  if (!suggestion.action) return null;
+  const label = suggestion.action === 'briefing'
+    ? '/briefing'
+    : suggestion.action === 'council'
+      ? lang === 'pt' ? '/conselho' : '/council'
+      : suggestion.action === 'weather'
+        ? lang === 'pt' ? '/clima' : '/weather'
+        : suggestion.action === 'sheets'
+          ? lang === 'pt' ? '/planilhas' : '/sheets'
+          : `/${suggestion.action}`;
+  return {
+    id: `suggestion-${suggestion.action}`,
+    label,
+    action: suggestion.action,
+    directive: `The user clicked a Balys suggestion: "${suggestion.label}". Treat this as a deliberate ${suggestion.action} workflow and use relevant tools before making claims.`,
+  };
+}
+
+function connectorCtaFromText(text: string, lang: 'en' | 'pt'): { action: CommandAction; title: string; body: string; href: string } | null {
+  if (!/connectors?|conectores?|connect account|reconnect account|needs connection|precisa ser renovada|conex[aã]o/i.test(text)) return null;
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const action: CommandAction = /\bgmail|email/.test(normalized)
+    ? 'gmail'
+    : /\bsheets|planilha|spreadsheet/.test(normalized)
+      ? 'sheets'
+      : /\bdocs|documento/.test(normalized)
+        ? 'docs'
+        : /\bdrive|arquivo/.test(normalized)
+          ? 'drive'
+          : /\bslack/.test(normalized)
+            ? 'slack'
+            : 'drive';
+  const label = action === 'gmail' ? 'Gmail'
+    : action === 'sheets' ? 'Google Sheets'
+    : action === 'docs' ? 'Google Docs'
+    : action === 'slack' ? 'Slack'
+    : 'Google Drive';
+  return {
+    action,
+    title: lang === 'pt' ? `Conectar ${label}` : `Connect ${label}`,
+    body: lang === 'pt'
+      ? 'Conecte a fonte e volte para continuar esta conversa.'
+      : 'Connect the source and come back to continue this chat.',
+    href: `/app/connectors?return_to=${encodeURIComponent('/app/ai')}&source=balys_chat&preferred=${encodeURIComponent(action)}`,
+  };
 }
 
 export default function AIPage() {
@@ -298,6 +418,7 @@ export default function AIPage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number; name?: string } | null>(null);
   const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [creditState, setCreditState] = useState<AiCreditState | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null);
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('balysai_language') : null;
     setUiLang(resolveLang(stored));
@@ -309,6 +430,15 @@ export default function AIPage() {
     };
     if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
     return () => { if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage); };
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/me')
+      .then((res) => res.ok ? res.json() : null)
+      .then((body) => {
+        if (body?.ok && body.user) setCurrentUser(body.user);
+      })
+      .catch(() => { /* keep fallback avatar */ });
   }, []);
 
   // Request browser GPS once on mount. Tracks permission state so the weather
@@ -719,14 +849,21 @@ export default function AIPage() {
     setCmdQuery('');
   };
 
+  const handleSuggestionClick = (suggestion: SuggestionPrompt) => {
+    const action = suggestionActionMeta(suggestion, interfaceLang);
+    void sendMessage({ text: suggestion.prompt, action });
+  };
+
   const removeContext = (id: string) => setContextItems(prev => prev.filter(c => c.id !== id));
 
-  const sendMessage = async () => {
+  const sendMessage = async (override?: { text?: string; action?: typeof pendingAction }) => {
     if (activeIsWhatsAppThread) return;
     if (creditState?.remaining === 0) return;
-    if ((!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading || !activeThread) return;
+    const effectiveInput = override?.text ?? input;
+    const effectivePendingAction = override?.action ?? pendingAction;
+    if ((!effectiveInput.trim() && attachments.length === 0 && contextItems.length === 0 && !effectivePendingAction) || loading || !activeThread) return;
 
-    const rawUserInput = input.trim();
+    const rawUserInput = effectiveInput.trim();
     let messageContent = rawUserInput;
 
     if (contextItems.length > 0) {
@@ -802,18 +939,18 @@ Rules:
 - Use ONLY these HTML tags inside the block: <h2><h3><p><strong><em><ul><li><ol><code><blockquote><hr> — no divs, no wrappers`
       : '';
 
-    const actionDirective = pendingAction
-      ? `The user invoked the ${pendingAction.label} command. ${pendingAction.directive}`
+    const actionDirective = effectivePendingAction
+      ? `The user invoked the ${effectivePendingAction.label} command. ${effectivePendingAction.directive}`
       : '';
     const combinedAddendum = [actionDirective, noteEditSystemPrompt].filter(s => s && s.trim()).join('\n\n');
 
-    const selectedAction = pendingAction
-      ? { id: pendingAction.id, label: pendingAction.label, action: pendingAction.action }
+    const selectedAction = effectivePendingAction
+      ? { id: effectivePendingAction.id, label: effectivePendingAction.label, action: effectivePendingAction.action }
       : undefined;
     const userMsg: Message = { role: 'user', content: messageContent, attachments, selectedAction };
     const newMessages = [...activeThread.messages, userMsg];
-    const title = activeThread.title === 'New chat' && input.trim()
-      ? input.trim().slice(0, 40)
+    const title = activeThread.title === 'New chat' && rawUserInput
+      ? rawUserInput.slice(0, 40)
       : activeThread.title;
 
     const updatedThread: Thread = { ...activeThread, messages: newMessages, title };
@@ -1080,7 +1217,7 @@ Rules:
   );
 
   return (
-    <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', height: '100%', overflow: 'hidden', fontFamily: 'var(--font-plus-jakarta), var(--font-inter), sans-serif' }}>
 
       {/* ── Threads sidebar — desktop permanent, mobile drawer ── */}
       {/* Desktop */}
@@ -1109,7 +1246,7 @@ Rules:
           </Tooltip>
           {activeIsWhatsAppThread
             ? <WhatsAppIcon sx={{ color: '#25D366', fontSize: 20 }} />
-            : <BalysIcon color="secondary" fontSize="small" />}
+            : <BalysIcon color="secondary" sx={{ fontSize: 26, filter: 'drop-shadow(0 0 10px rgba(129,140,248,0.24))' }} />}
           <Typography variant="subtitle1" fontWeight="bold">BalysAI</Typography>
           <Box sx={{ flex: 1 }} />
           {creditState && (
@@ -1139,10 +1276,49 @@ Rules:
         {/* Messages */}
         <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, md: 3 }, py: 2 }}>
           {(!activeThread || activeThread.messages.length === 0) && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 2 }}>
-              <BalysIcon sx={{ fontSize: 64, opacity: 0.18, color: '#818cf8' }} />
-              <Typography variant="h6" color="text.secondary">{at.howCanIHelp}</Typography>
-              <Typography variant="body2" color="text.disabled">{at.sendMessageHint}</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100%', gap: 2.2, py: { xs: 3, md: 5 } }}>
+              <BalysIcon sx={{ fontSize: { xs: 76, md: 88 }, opacity: 0.36, color: '#818cf8', filter: 'drop-shadow(0 0 22px rgba(99,102,241,0.22))' }} />
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 800 }}>{at.howCanIHelp}</Typography>
+                <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>{at.sendMessageHint}</Typography>
+              </Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 1, width: 'min(100%, 760px)', px: { xs: 0.5, md: 0 } }}>
+                {suggestionPrompts(interfaceLang).map((suggestion) => (
+                  <Box
+                    key={suggestion.label}
+                    component="button"
+                    type="button"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    disabled={loading || activeIsWhatsAppThread || creditState?.remaining === 0}
+                    sx={{
+                      border: '1px solid rgba(129,140,248,0.26)',
+                      borderRadius: 2,
+                      bgcolor: 'rgba(30,36,51,0.62)',
+                      color: 'text.primary',
+                      px: 1.35,
+                      py: 1.15,
+                      minHeight: 54,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      font: 'inherit',
+                      boxShadow: '0 10px 28px rgba(2,6,23,0.16)',
+                      transition: 'transform 140ms ease, border-color 140ms ease, background 140ms ease',
+                      '&:hover': { transform: 'translateY(-1px)', borderColor: 'rgba(129,140,248,0.58)', bgcolor: 'rgba(49,56,82,0.82)' },
+                      '&:disabled': { opacity: 0.45, cursor: 'not-allowed', transform: 'none' },
+                    }}
+                  >
+                    <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: 'rgba(99,102,241,0.14)', flexShrink: 0 }}>
+                      {suggestion.action ? actionIcon(suggestion.action, 18) : <BalysIcon sx={{ fontSize: 18 }} />}
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 750, lineHeight: 1.25, color: '#dbe4ff' }}>
+                      {suggestion.label}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           )}
 
@@ -1152,11 +1328,18 @@ Rules:
               const parsed = !isUser ? parseNoteEdits(msg.content) : null;
               const displayText = parsed ? parsed.clean : msg.content;
               const edits = parsed ? parsed.edits : [];
+              const connectorCta = !isUser ? connectorCtaFromText(displayText, interfaceLang) : null;
 
               return (
                 <Box key={i} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexDirection: isUser ? 'row-reverse' : 'row' }}>
-                  <Avatar sx={{ width: 28, height: 28, bgcolor: isUser ? 'primary.main' : 'rgba(99,102,241,0.2)', flexShrink: 0 }}>
-                    {isUser ? <PersonIcon sx={{ fontSize: 15 }} /> : <BalysIcon sx={{ fontSize: 17, color: '#818cf8' }} />}
+                  <Avatar
+                    src={isUser ? currentUser?.avatar_url || undefined : undefined}
+                    alt={isUser ? currentUser?.name || currentUser?.email || 'You' : 'Balys'}
+                    sx={{ width: 34, height: 34, bgcolor: isUser ? 'primary.main' : 'rgba(99,102,241,0.18)', border: isUser ? '1px solid rgba(255,255,255,0.16)' : '1px solid rgba(129,140,248,0.22)', flexShrink: 0 }}
+                  >
+                    {isUser
+                      ? (currentUser?.name?.[0] || currentUser?.email?.[0] || <PersonIcon sx={{ fontSize: 18 }} />)
+                      : <BalysIcon sx={{ fontSize: 23, color: '#a5b4fc' }} />}
                   </Avatar>
                   <Box sx={{ maxWidth: { xs: '85%', md: '75%' }, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                     {msg.attachments?.map((att, ai) => (
@@ -1240,17 +1423,19 @@ Rules:
                     )}
                     {isUser && msg.selectedAction && (
                       <Chip
-                        icon={pendingActionIcon(msg.selectedAction.action)}
+                        icon={actionIcon(msg.selectedAction.action, 18)}
                         label={msg.selectedAction.label}
-                        size="small"
                         variant="outlined"
                         sx={{
-                          height: 22,
-                          fontSize: 11,
-                          color: 'primary.contrastText',
-                          borderColor: 'rgba(255,255,255,0.35)',
-                          bgcolor: 'rgba(255,255,255,0.08)',
-                          '& .MuiChip-icon': { color: 'inherit' },
+                          height: 30,
+                          px: 0.35,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: '#eef2ff',
+                          borderColor: 'rgba(255,255,255,0.32)',
+                          bgcolor: 'rgba(15,23,42,0.28)',
+                          boxShadow: '0 8px 22px rgba(0,0,0,0.16)',
+                          '& .MuiChip-icon': { color: 'inherit', ml: 0.75 },
                         }}
                       />
                     )}
@@ -1272,7 +1457,34 @@ Rules:
                           : (
                             <>
                               <BalysMarkdown text={displayText || ''} />
-                              {msg.role === 'assistant' && msg.content === '' && loading && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                              {connectorCta && (
+                                <Box
+                                  component="a"
+                                  href={connectorCta.href}
+                                  sx={{
+                                    mt: 1.25,
+                                    p: 1.25,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.1,
+                                    borderRadius: 1.5,
+                                    border: '1px solid rgba(129,140,248,0.34)',
+                                    bgcolor: 'rgba(99,102,241,0.1)',
+                                    color: 'inherit',
+                                    textDecoration: 'none',
+                                    '&:hover': { bgcolor: 'rgba(99,102,241,0.16)', borderColor: 'rgba(129,140,248,0.58)' },
+                                  }}
+                                >
+                                  <Box sx={{ width: 34, height: 34, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: 'rgba(15,23,42,0.36)', flexShrink: 0 }}>
+                                    {actionIcon(connectorCta.action, 22)}
+                                  </Box>
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 850 }}>{connectorCta.title}</Typography>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{connectorCta.body}</Typography>
+                                  </Box>
+                                </Box>
+                              )}
+                              {msg.role === 'assistant' && msg.content === '' && loading && <TypingDots />}
                             </>
                           )}
                       </Paper>
@@ -1291,11 +1503,11 @@ Rules:
 
           {loading && (!activeThread?.messages.length || activeThread.messages[activeThread.messages.length - 1]?.role !== 'assistant') && (
             <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', mt: 2 }}>
-              <Avatar sx={{ width: 28, height: 28, bgcolor: 'grey.300', flexShrink: 0 }}>
-                <BalysIcon sx={{ fontSize: 17, color: 'text.secondary' }} />
+              <Avatar sx={{ width: 34, height: 34, bgcolor: 'rgba(99,102,241,0.16)', border: '1px solid rgba(129,140,248,0.22)', flexShrink: 0 }}>
+                <BalysIcon sx={{ fontSize: 23, color: '#a5b4fc' }} />
               </Avatar>
-              <Paper elevation={0} sx={{ px: 2, py: 1.5, bgcolor: 'grey.100', borderRadius: '18px 18px 18px 4px', display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CircularProgress size={13} thickness={5} />
+              <Paper elevation={0} sx={{ px: 2, py: 1.45, bgcolor: '#1e2433', color: 'text.primary', border: '1px solid', borderColor: 'divider', borderRadius: '18px 18px 18px 4px', display: 'flex', alignItems: 'center', gap: 1.15 }}>
+                <TypingDots />
                 <Typography variant="body2" color="text.secondary">{at.thinking}</Typography>
               </Paper>
             </Box>
@@ -1311,12 +1523,18 @@ Rules:
         {pendingAction && (
           <Box sx={{ px: 2, pt: 1, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip
-              size="small"
-              icon={pendingActionIcon(pendingAction.action)}
+              icon={actionIcon(pendingAction.action, 18)}
               label={pendingAction.label}
               color="primary"
               onDelete={() => setPendingAction(null)}
-              sx={{ fontWeight: 600 }}
+              sx={{
+                height: 32,
+                fontWeight: 800,
+                bgcolor: 'rgba(99,102,241,0.18)',
+                border: '1px solid rgba(129,140,248,0.42)',
+                color: '#eef2ff',
+                '& .MuiChip-icon': { ml: 0.75 },
+              }}
             />
             {/* Location granted indicator */}
             {pendingAction.action === 'weather' && locationPermission === 'granted' && userLocation && (
@@ -1431,7 +1649,7 @@ Rules:
             }}
             size="small" disabled={loading || activeIsWhatsAppThread} suppressHydrationWarning />
           <span suppressHydrationWarning>
-            <IconButton color="primary" onClick={sendMessage} disabled={activeIsWhatsAppThread || creditState?.remaining === 0 || (!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
+            <IconButton color="primary" onClick={() => sendMessage()} disabled={activeIsWhatsAppThread || creditState?.remaining === 0 || (!input.trim() && attachments.length === 0 && contextItems.length === 0 && !pendingAction) || loading} sx={{ mb: 0.5 }} suppressHydrationWarning>
               {loading ? <CircularProgress size={20} /> : <SendIcon />}
             </IconButton>
           </span>

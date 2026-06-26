@@ -3,6 +3,8 @@ import OpenAI from 'openai';
 import { requireAuth } from '@/lib/api/auth';
 import { getCalendarAvailabilityText } from '@/lib/onboarding/calendar-availability';
 import { extractTimeRange } from '@/lib/goals/planner';
+import { isCalendarLinkedAccountName } from '@/lib/google/linked-account-kind';
+import { getCalendarEvents, updateCalendarEvent } from '@/lib/google/google-calendar';
 
 // ─── System Prompt (language-aware) ───────────────────────────────────
 interface PriorProposal {
@@ -26,8 +28,8 @@ function formatPriorProposals(priors: PriorProposal[], lang: string): string {
     return `- ${goalLabel}: starts at ${p.preferred_time}, ${duration} min/day, routine: ${String(p.weekly_routine || '').slice(0, 120)}`;
   });
   const rule = lang === 'pt'
-    ? 'REGRA: se o horário que o usuário pedir para esta nova meta colidir com qualquer um dos blocos acima, NÃO PROPONHA — pergunte um horário alternativo, sugerindo o próximo horário livre. Nunca sobreponha eventos sem avisar.'
-    : 'RULE: if the time the user picks for this new goal overlaps any of the booked blocks above, DO NOT PROPOSE — ask for a different time, suggesting the next free slot. Never overlap silently.';
+    ? 'REGRA: se o horário que o usuário pedir para esta nova meta colidir com qualquer um dos blocos acima, NÃO PROPONHA IMEDIATAMENTE — ofereça duas opções: 1) escolher outro horário, ou 2) que você tente realocar o compromisso existente (diga qual é o nome do compromisso) para liberar espaço.'
+    : 'RULE: if the time the user picks for this new goal overlaps any of the booked blocks above, DO NOT PROPOSE IMMEDIATELY — offer two options: 1) pick another time, or 2) have you try to relocate the existing event (name the specific event) to free up space.';
   return `\n\n## ALREADY BOOKED SLOTS\n${intro}\n${lines.join('\n')}\n${rule}`;
 }
 
@@ -101,6 +103,16 @@ You must ALWAYS return your response as a strict JSON object with this exact sch
     "weekly_routine": "The concrete weekly actions the user commits to",
     "preferred_time": "HH:MM 24h start time the user agreed to (e.g. '09:00') — REQUIRED before proposing unless the user explicitly said they will schedule later",
     "default_task_duration_minutes": 60
+  }
+}
+
+OR, if the user chooses to relocate an existing event based on the RULE, return:
+{
+  "response": "Your human-sounding response confirming you are moving the event.",
+  "type": "relocate_event",
+  "relocateData": {
+    "event_title": "Exact title of the event to move, as shown in the ALREADY BUSY SLOTS",
+    "new_time_hhmm": "HH:MM (e.g. '14:30') for the new time on the SAME DAY."
   }
 }
 
@@ -390,6 +402,52 @@ export async function POST(req: NextRequest) {
     if (!result || !result.response) {
       result = { response: '', type: 'silent_fail' };
     }
+    
+    // 5. Intercept event relocation
+    if (result.type === 'relocate_event' && result.relocateData) {
+      try {
+        const auth = await requireAuth(req).catch(() => null);
+        if (auth) {
+          const { data: accounts } = await auth.supabase
+            .from('linked_accounts')
+            .select('id, name')
+            .eq('user_id', auth.user.id)
+            .eq('provider', 'google')
+            .eq('is_active', true)
+            .eq('is_deleted', false);
+            
+          const calendarAccount = accounts?.find(a => isCalendarLinkedAccountName(a.name));
+          
+          if (calendarAccount) {
+             const now = new Date();
+             const end = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+             const events = await getCalendarEvents(calendarAccount.id, now.toISOString(), end.toISOString());
+             
+             const targetTitle = (result.relocateData.event_title || '').toLowerCase();
+             const targetEvent = events.find((e: any) => e.summary?.toLowerCase().includes(targetTitle));
+             
+             if (targetEvent && targetEvent.start?.dateTime && targetEvent.end?.dateTime) {
+                const startDate = new Date(targetEvent.start.dateTime);
+                const endDate = new Date(targetEvent.end.dateTime);
+                const durationMs = endDate.getTime() - startDate.getTime();
+                
+                const [hh, mm] = (result.relocateData.new_time_hhmm || '00:00').split(':');
+                startDate.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+                endDate.setTime(startDate.getTime() + durationMs);
+                
+                await updateCalendarEvent(calendarAccount.id, targetEvent.id!, {
+                   startAt: startDate.toISOString(),
+                   endAt: endDate.toISOString(),
+                });
+             }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to relocate event during onboarding:', err);
+      }
+      result = { type: 'clarification', response: result.response };
+    }
+
     result = enforceSchedulingConfirmation(result, lang, messages);
 
     return NextResponse.json(result);

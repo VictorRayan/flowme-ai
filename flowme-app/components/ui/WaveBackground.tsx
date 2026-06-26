@@ -1,11 +1,223 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
 
-const ribbonAMask = `url("data:image/svg+xml,%3Csvg viewBox='0 0 1200 360' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'%3E%3Cpath d='M-30 214 C112 110 230 306 380 190 C532 72 650 256 810 146 C958 44 1060 146 1230 96' fill='none' stroke='white' stroke-width='104' stroke-linecap='round'/%3E%3C/svg%3E")`;
-const ribbonBMask = `url("data:image/svg+xml,%3Csvg viewBox='0 0 1200 360' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'%3E%3Cpath d='M-40 172 C118 260 230 84 392 178 C548 270 650 106 812 198 C962 284 1074 138 1240 202' fill='none' stroke='white' stroke-width='92' stroke-linecap='round'/%3E%3C/svg%3E")`;
+type Particle = {
+  x: number;
+  y: number;
+  baseX: number;
+  baseY: number;
+  vx: number;
+  vy: number;
+  size: number;
+  hue: number;
+  row: number;
+  col: number;
+};
+
+type PointerState = {
+  x: number;
+  y: number;
+  active: boolean;
+};
 
 export default function WaveBackground() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return;
+
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let rows = 0;
+    let cols = 0;
+    let animationFrame = 0;
+    let tick = 0;
+    let reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let particles: Particle[] = [];
+    const pointer: PointerState = { x: 0, y: 0, active: false };
+
+    const createParticles = () => {
+      particles = [];
+      const spacing = Math.max(20, Math.min(30, width / 54));
+      cols = Math.ceil(width / spacing) + 5;
+      rows = Math.ceil(height / spacing) + 5;
+      const offsetX = (width - (cols - 1) * spacing) / 2;
+      const offsetY = (height - (rows - 1) * spacing) / 2;
+
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          const wave = Math.sin(col * 0.55) * 10 + Math.cos(row * 0.42) * 8;
+          const x = offsetX + col * spacing + Math.sin(row * 1.7 + col) * 5;
+          const y = offsetY + row * spacing + wave;
+          const colorBand = (row / Math.max(rows - 1, 1)) * 56 + (col / Math.max(cols - 1, 1)) * 34;
+          particles.push({
+            x,
+            y,
+            baseX: x,
+            baseY: y,
+            vx: 0,
+            vy: 0,
+            size: 0.7 + ((row * 17 + col * 13) % 10) / 12,
+            hue: 178 + colorBand,
+            row,
+            col,
+          });
+        }
+      }
+    };
+
+    const resize = () => {
+      const nextWidth = window.innerWidth;
+      const nextHeight = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = nextWidth;
+      height = nextHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pointer.x = width * 0.5;
+      pointer.y = height * 0.54;
+      createParticles();
+    };
+
+    const updatePointer = (event: PointerEvent) => {
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+      pointer.active = true;
+    };
+
+    const stopPointer = () => {
+      pointer.active = false;
+    };
+
+    const drawParticle = (particle: Particle) => {
+      const glow = pointer.active ? 0.78 : 0.54;
+      context.beginPath();
+      context.fillStyle = `hsla(${particle.hue}, 88%, 68%, ${glow})`;
+      context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+      context.fill();
+    };
+
+    const drawConnection = (particle: Particle, neighbor: Particle | undefined) => {
+      if (!neighbor) return;
+      const distanceX = particle.x - neighbor.x;
+      const distanceY = particle.y - neighbor.y;
+      const distance = Math.hypot(distanceX, distanceY);
+      if (distance > 46) return;
+      const alpha = Math.max(0, 1 - distance / 46) * 0.2;
+      context.beginPath();
+      context.strokeStyle = `hsla(${(particle.hue + neighbor.hue) / 2}, 88%, 66%, ${alpha})`;
+      context.lineWidth = 0.75;
+      context.moveTo(particle.x, particle.y);
+      context.lineTo(neighbor.x, neighbor.y);
+      context.stroke();
+    };
+
+    const render = () => {
+      tick += reducedMotion ? 0.002 : 0.008;
+      context.clearRect(0, 0, width, height);
+
+      const gradient = context.createRadialGradient(width * 0.5, height * 0.48, 0, width * 0.5, height * 0.48, Math.max(width, height) * 0.78);
+      gradient.addColorStop(0, 'rgba(18, 24, 46, 0.72)');
+      gradient.addColorStop(0.45, 'rgba(7, 10, 22, 0.72)');
+      gradient.addColorStop(1, 'rgba(3, 5, 12, 0.98)');
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, width, height);
+
+      const fieldRadius = Math.min(230, Math.max(150, width * 0.16));
+      const fieldRadiusSq = fieldRadius * fieldRadius;
+
+      for (const particle of particles) {
+        const ambientX = Math.sin(tick + particle.row * 0.27 + particle.col * 0.1) * 10;
+        const ambientY = Math.cos(tick * 0.84 + particle.col * 0.22) * 8;
+        let targetX = particle.baseX + ambientX;
+        let targetY = particle.baseY + ambientY;
+
+        const dx = particle.x - pointer.x;
+        const dy = particle.y - pointer.y;
+        const distanceSq = dx * dx + dy * dy;
+
+        if (distanceSq < fieldRadiusSq) {
+          const distance = Math.max(Math.sqrt(distanceSq), 1);
+          const force = (1 - distance / fieldRadius) ** 2;
+          const angle = Math.atan2(dy, dx);
+          const orbit = angle + Math.PI * 0.5;
+          targetX += Math.cos(angle) * force * 42 + Math.cos(orbit) * force * 26;
+          targetY += Math.sin(angle) * force * 42 + Math.sin(orbit) * force * 26;
+        }
+
+        particle.vx += (targetX - particle.x) * 0.035;
+        particle.vy += (targetY - particle.y) * 0.035;
+        particle.vx *= reducedMotion ? 0.68 : 0.86;
+        particle.vy *= reducedMotion ? 0.68 : 0.86;
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+      }
+
+      context.save();
+      context.globalCompositeOperation = 'lighter';
+
+      for (const particle of particles) {
+        const index = particle.row * cols + particle.col;
+        drawConnection(particle, particles[index + 1]);
+        drawConnection(particle, particles[index + cols]);
+      }
+
+      for (const particle of particles) {
+        drawParticle(particle);
+      }
+
+      const pointerGlow = context.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, fieldRadius * 1.1);
+      pointerGlow.addColorStop(0, pointer.active ? 'rgba(94, 234, 212, 0.22)' : 'rgba(129, 140, 248, 0.08)');
+      pointerGlow.addColorStop(0.48, pointer.active ? 'rgba(129, 140, 248, 0.12)' : 'rgba(129, 140, 248, 0.04)');
+      pointerGlow.addColorStop(1, 'rgba(3, 5, 12, 0)');
+      context.fillStyle = pointerGlow;
+      context.fillRect(pointer.x - fieldRadius * 1.1, pointer.y - fieldRadius * 1.1, fieldRadius * 2.2, fieldRadius * 2.2);
+      context.restore();
+
+      const veil = context.createLinearGradient(0, 0, 0, height);
+      veil.addColorStop(0, 'rgba(3, 5, 12, 0.16)');
+      veil.addColorStop(0.48, 'rgba(3, 5, 12, 0.34)');
+      veil.addColorStop(1, 'rgba(3, 5, 12, 0.78)');
+      context.fillStyle = veil;
+      context.fillRect(0, 0, width, height);
+
+      animationFrame = window.requestAnimationFrame(render);
+    };
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleMotionChange = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+    };
+
+    resize();
+    render();
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('pointermove', updatePointer, { passive: true });
+    window.addEventListener('pointerdown', updatePointer, { passive: true });
+    window.addEventListener('pointerleave', stopPointer);
+    motionQuery.addEventListener('change', handleMotionChange);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('pointermove', updatePointer);
+      window.removeEventListener('pointerdown', updatePointer);
+      window.removeEventListener('pointerleave', stopPointer);
+      motionQuery.removeEventListener('change', handleMotionChange);
+    };
+  }, []);
+
   return (
     <Box
       aria-hidden
@@ -16,121 +228,35 @@ export default function WaveBackground() {
         pointerEvents: 'none',
         bgcolor: '#03050c',
         zIndex: 0,
-        '@keyframes auroraDrift': {
-          '0%': { transform: 'translate3d(-8%, -4%, 0) rotate(-8deg) scale(1.08)' },
-          '50%': { transform: 'translate3d(6%, 5%, 0) rotate(5deg) scale(1.14)' },
-          '100%': { transform: 'translate3d(-8%, -4%, 0) rotate(-8deg) scale(1.08)' },
-        },
-        '@keyframes waveRibbonA': {
-          '0%': { transform: 'translate3d(-12%, 0, 0) skewY(-4deg)', backgroundPosition: '0% 50%' },
-          '50%': { transform: 'translate3d(4%, -4%, 0) skewY(2deg)', backgroundPosition: '62% 50%' },
-          '100%': { transform: 'translate3d(-12%, 0, 0) skewY(-4deg)', backgroundPosition: '0% 50%' },
-        },
-        '@keyframes waveRibbonB': {
-          '0%': { transform: 'translate3d(8%, 3%, 0) skewY(3deg)', backgroundPosition: '100% 50%' },
-          '50%': { transform: 'translate3d(-8%, -2%, 0) skewY(-3deg)', backgroundPosition: '36% 50%' },
-          '100%': { transform: 'translate3d(8%, 3%, 0) skewY(3deg)', backgroundPosition: '100% 50%' },
-        },
-        '@keyframes waveLines': {
-          '0%': { transform: 'translate3d(-7%, 0, 0) scaleX(1.08)', backgroundPosition: '0 0' },
-          '50%': { transform: 'translate3d(4%, -3%, 0) scaleX(1.14)', backgroundPosition: '340px 0' },
-          '100%': { transform: 'translate3d(-7%, 0, 0) scaleX(1.08)', backgroundPosition: '0 0' },
-        },
-        '@media (prefers-reduced-motion: reduce)': {
-          '& *': {
-            animationDuration: '1ms !important',
-            animationIterationCount: '1 !important',
-          },
-        },
         '&:before': {
           content: '""',
           position: 'absolute',
-          inset: '-18%',
+          inset: 0,
           background: [
-            'linear-gradient(112deg, rgba(44,123,229,0.28), rgba(7,13,28,0) 38%)',
-            'linear-gradient(214deg, rgba(154,92,255,0.22), rgba(5,9,20,0) 42%)',
-            'linear-gradient(16deg, rgba(36,211,181,0.12), rgba(247,181,56,0.10) 46%, rgba(5,8,17,0) 70%)',
+            'radial-gradient(circle at 26% 24%, rgba(59,130,246,0.16), transparent 32%)',
+            'radial-gradient(circle at 76% 18%, rgba(139,92,246,0.14), transparent 34%)',
+            'radial-gradient(circle at 54% 72%, rgba(20,184,166,0.13), transparent 38%)',
           ].join(','),
-          filter: 'blur(26px)',
-          opacity: 0.82,
-          animation: 'auroraDrift 20s ease-in-out infinite',
-          willChange: 'transform',
+          zIndex: 1,
         },
         '&:after': {
           content: '""',
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(180deg, rgba(3,5,12,0.18), rgba(3,5,12,0.58) 58%, rgba(3,5,12,0.86))',
+          background: 'linear-gradient(180deg, rgba(3,5,12,0.08), rgba(3,5,12,0.36) 62%, rgba(3,5,12,0.82))',
+          zIndex: 2,
         },
       }}
     >
       <Box
-        sx={{
-          position: 'absolute',
-          left: '-24%',
-          right: '-24%',
-          bottom: '-4%',
-          height: { xs: '46vh', md: '40vh' },
-          background: 'linear-gradient(92deg, rgba(37,99,235,0), rgba(65,214,191,0.44) 24%, rgba(132,92,255,0.42) 52%, rgba(250,204,21,0.16) 74%, rgba(37,99,235,0))',
-          maskImage: ribbonAMask,
-          WebkitMaskImage: ribbonAMask,
-          maskSize: '100% 100%',
-          WebkitMaskSize: '100% 100%',
-          maskRepeat: 'no-repeat',
-          WebkitMaskRepeat: 'no-repeat',
-          filter: 'blur(16px)',
-          opacity: 0.82,
-          mixBlendMode: 'screen',
-          animation: 'waveRibbonA 15s ease-in-out infinite',
-          willChange: 'transform, background-position',
-        }}
-      />
-      <Box
-        sx={{
-          position: 'absolute',
-          left: '-28%',
-          right: '-28%',
-          bottom: '-12%',
-          height: { xs: '48vh', md: '42vh' },
-          background: 'linear-gradient(86deg, rgba(13,148,136,0), rgba(32,119,255,0.36) 18%, rgba(176,92,255,0.34) 49%, rgba(244,114,182,0.18) 70%, rgba(13,148,136,0))',
-          maskImage: ribbonBMask,
-          WebkitMaskImage: ribbonBMask,
-          maskSize: '100% 100%',
-          WebkitMaskSize: '100% 100%',
-          maskRepeat: 'no-repeat',
-          WebkitMaskRepeat: 'no-repeat',
-          filter: 'blur(12px)',
-          opacity: 0.74,
-          mixBlendMode: 'screen',
-          animation: 'waveRibbonB 18s ease-in-out infinite',
-          willChange: 'transform, background-position',
-        }}
-      />
-      <Box
-        sx={{
-          position: 'absolute',
-          left: '-10%',
-          right: '-10%',
-          bottom: '2%',
-          height: { xs: '34vh', md: '30vh' },
-          opacity: 0.42,
-          mixBlendMode: 'screen',
-          backgroundRepeat: 'repeat-x',
-          backgroundSize: '720px 100%',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 720 260' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'%3E%3Cpath d='M0 152 C86 102 146 204 236 142 C326 80 396 180 496 118 C592 58 644 122 720 92' fill='none' stroke='%235eead4' stroke-width='2.2' stroke-opacity='.58'/%3E%3Cpath d='M0 190 C94 136 150 224 248 168 C342 114 430 190 532 146 C616 110 660 142 720 128' fill='none' stroke='%23818cf8' stroke-width='1.8' stroke-opacity='.52'/%3E%3Cpath d='M0 116 C84 82 158 158 250 108 C342 58 414 134 516 82 C606 36 662 78 720 58' fill='none' stroke='%23f472b6' stroke-width='1.6' stroke-opacity='.34'/%3E%3C/svg%3E")`,
-          maskImage: 'linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent)',
-          animation: 'waveLines 14s ease-in-out infinite',
-          willChange: 'transform, background-position',
-        }}
-      />
-      <Box
+        component="canvas"
+        ref={canvasRef}
         sx={{
           position: 'absolute',
           inset: 0,
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.026) 1px, transparent 1px)',
-          backgroundSize: '72px 72px',
-          maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.14), transparent 70%)',
-          opacity: 0.32,
+          width: '100%',
+          height: '100%',
+          zIndex: 0,
         }}
       />
     </Box>

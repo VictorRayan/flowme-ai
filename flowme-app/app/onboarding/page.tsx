@@ -22,6 +22,7 @@ import { proposalButtonLabel } from '@/lib/onboarding/proposal-button';
 import { buildBriefingDelivery } from '@/lib/onboarding/briefing-delivery';
 import { isAcceptProposalIntent } from '@/lib/onboarding/accept-intent';
 import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
+import WaveBackground from '@/components/ui/WaveBackground';
 
 const dict = {
   pt: {
@@ -523,11 +524,12 @@ export default function OnboardingWizard() {
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      bgcolor: '#050505',
-      backgroundImage: 'radial-gradient(circle at 50% 0%, #1e1b4b 0%, #050505 50%)',
+      bgcolor: '#040711',
       display: 'flex', 
-      flexDirection: 'column' 
+      flexDirection: 'column',
+      position: 'relative'
     }}>
+      <WaveBackground />
       
       {/* Top Nav */}
       <Box sx={{ p: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80, position: 'relative' }}>

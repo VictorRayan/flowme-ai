@@ -138,8 +138,8 @@ export async function getCalendarAvailabilityText(
     ? 'Horários JÁ OCUPADOS na agenda real do usuário nas próximas 2 semanas (evite propor sobreposição):'
     : "Slots ALREADY BUSY on the user's real calendar over the next 2 weeks (avoid overlap):";
   const rule = lang === 'pt'
-    ? 'REGRA: se o horário que o usuário pedir colidir com algum desses, NÃO PROPONHA — sugira um horário adjacente livre. Se a agenda estiver praticamente cheia em determinado horário, ofereça uma alternativa.'
-    : 'RULE: if the user picks a colliding time, DO NOT PROPOSE — suggest an adjacent free slot.';
+    ? 'REGRA: se o horário que o usuário pedir colidir com algum desses, NÃO PROPONHA IMEDIATAMENTE — ofereça duas opções: 1) agendar em outro horário livre, ou 2) realocar o compromisso existente (fale qual é o nome do compromisso) para liberar espaço.'
+    : 'RULE: if the user picks a colliding time, DO NOT PROPOSE IMMEDIATELY — offer two options: 1) schedule at another free time, or 2) relocate the existing event (name the event) to free up space.';
 
   const text = `\n\n## USER CALENDAR BUSY SLOTS\n${header}\n${lines.join('\n')}\n${rule}`;
   cache.set(userId, { expires: Date.now() + CACHE_TTL_MS, text });

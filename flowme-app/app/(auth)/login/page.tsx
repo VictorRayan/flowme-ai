@@ -5,17 +5,25 @@ import { supabase } from '@/lib/supabase';
 import { getAuthCallbackUrl } from '@/lib/auth/redirect';
 import { Box, Button, Typography, Paper, Alert, CircularProgress, Stack, Tooltip } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import EventIcon from '@mui/icons-material/Event';
-import EmailIcon from '@mui/icons-material/Email';
-import DescriptionIcon from '@mui/icons-material/Description';
-import ForumIcon from '@mui/icons-material/Forum';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import WaveBackground from '@/components/ui/WaveBackground';
+import BalysIcon from '@/components/brand/BalysIcon';
+import GmailBrandIcon from '@/components/icons/GmailBrandIcon';
+import GoogleDriveBrandIcon from '@/components/icons/GoogleDriveBrandIcon';
+import SlackBrandIcon from '@/components/icons/SlackBrandIcon';
 
 export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const capabilities = [
+    { label: 'Calendar', title: 'Calendar Sync', icon: <CalendarMonthIcon sx={{ color: '#60a5fa' }} /> },
+    { label: 'Gmail', title: 'Email Briefings', icon: <GmailBrandIcon /> },
+    { label: 'Drive', title: 'Drive Access', icon: <GoogleDriveBrandIcon /> },
+    { label: 'Slack', title: 'Team Chat', icon: <SlackBrandIcon /> },
+    { label: 'WhatsApp', title: 'Direct Messages', icon: <WhatsAppIcon sx={{ color: '#25D366' }} /> },
+    { label: 'Balys AI', title: 'Smart Assistant', icon: <BalysIcon sx={{ color: '#a5b4fc' }} /> },
+  ];
 
   const handleGoogleLogin = async () => {
     setError(null);
@@ -102,42 +110,16 @@ export default function Login() {
             INTEGRATED CAPABILITIES
           </Typography>
           <Stack direction="row" spacing={3} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
-            <Tooltip title="Calendar Sync" arrow placement="top">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <EventIcon fontSize="small" sx={{ color: '#818cf8' }} />
-                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Calendar</Typography>
-              </Box>
-            </Tooltip>
-            <Tooltip title="Email Briefings" arrow placement="top">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <EmailIcon fontSize="small" sx={{ color: '#818cf8' }} />
-                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Gmail</Typography>
-              </Box>
-            </Tooltip>
-            <Tooltip title="Document Access" arrow placement="top">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <DescriptionIcon fontSize="small" sx={{ color: '#818cf8' }} />
-                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Drive</Typography>
-              </Box>
-            </Tooltip>
-            <Tooltip title="Team Chat" arrow placement="top">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <ForumIcon fontSize="small" sx={{ color: '#818cf8' }} />
-                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Slack</Typography>
-              </Box>
-            </Tooltip>
-            <Tooltip title="Direct Messages" arrow placement="top">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <WhatsAppIcon fontSize="small" sx={{ color: '#818cf8' }} />
-                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>WhatsApp</Typography>
-              </Box>
-            </Tooltip>
-            <Tooltip title="Smart Assistant" arrow placement="top">
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <AutoAwesomeIcon fontSize="small" sx={{ color: '#818cf8' }} />
-                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>Balys AI</Typography>
-              </Box>
-            </Tooltip>
+            {capabilities.map((capability) => (
+              <Tooltip key={capability.label} title={capability.title} arrow placement="top">
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.65, color: 'text.secondary', minWidth: 48 }}>
+                  <Box sx={{ width: 26, height: 26, display: 'grid', placeItems: 'center', '& svg': { fontSize: 23 } }}>
+                    {capability.icon}
+                  </Box>
+                  <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1.1 }}>{capability.label}</Typography>
+                </Box>
+              </Tooltip>
+            ))}
           </Stack>
         </Box>
       </Paper>

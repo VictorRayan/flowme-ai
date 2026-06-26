@@ -121,10 +121,10 @@ export default function TodayPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('/api/profile');
+        const r = await fetch('/api/me');
         if (r.ok) {
           const j = await r.json();
-          const name = j?.profile?.name || j?.user?.name || j?.user?.email?.split('@')[0];
+          const name = j?.user?.name || j?.user?.email?.split('@')[0];
           if (name) setBriefingUserName(name);
         }
       } catch { /* ignore */ }
@@ -197,6 +197,16 @@ export default function TodayPage() {
     setUiLang(resolveUiLang(stored));
     const onStorage = (e: StorageEvent) => { if (e.key === 'ui_language') setUiLang(resolveUiLang(e.newValue)); };
     window.addEventListener('storage', onStorage);
+    fetch('/api/briefings/preferences')
+      .then(response => response.ok ? response.json() : null)
+      .then(body => {
+        const preferred = body?.preferences?.notification_language;
+        if (preferred === 'pt' || preferred === 'en') {
+          setUiLang(preferred);
+          localStorage.setItem('ui_language', preferred);
+        }
+      })
+      .catch(() => {});
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 

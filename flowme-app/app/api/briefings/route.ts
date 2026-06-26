@@ -68,7 +68,19 @@ export async function GET(req: NextRequest) {
     });
 
     const saved = await upsertBriefing(supabase as any, user.id, { slot, briefing_date: date, sections });
-    return apiSuccess({ briefing: saved });
+    return apiSuccess({
+      briefing: saved || {
+        id: null,
+        user_id: user.id,
+        slot,
+        briefing_date: date,
+        sections,
+        generated_at: new Date().toISOString(),
+        delivered_at: null,
+        channels_delivered: [],
+        persisted: false,
+      },
+    });
   } catch (err: any) {
     if (err.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);
     console.error('GET /api/briefings error:', err);

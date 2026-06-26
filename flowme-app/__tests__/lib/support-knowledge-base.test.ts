@@ -1,4 +1,4 @@
-import { answerSupportQuestion, findSupportKnowledge, SUPPORT_KNOWLEDGE_BASE } from '@/lib/support/knowledge-base';
+import { answerSupportQuestion, detectsPaymentSupportIntent, findSupportKnowledge, paymentSupportAnswer, SUPPORT_KNOWLEDGE_BASE } from '@/lib/support/knowledge-base';
 
 describe('support knowledge base', () => {
   it('covers the core product and billing subjects', () => {
@@ -31,5 +31,11 @@ describe('support knowledge base', () => {
     const answer = answerSupportQuestion('How do AI credits work?', { plan: 'free', provider: null, state: 'free' }, 'en-US');
     expect(answer).toContain('AI credits describe usage');
     expect(answer).toContain('Your account is on FREE');
+  });
+
+  it('detects payment support and returns a ticket-style answer', () => {
+    expect(detectsPaymentSupportIntent('I have a payment problem')).toBe(true);
+    expect(paymentSupportAnswer({ plan: 'pro', provider: 'stripe', state: 'active' }, 'en-US')).toContain('billing support review');
+    expect(paymentSupportAnswer({ plan: 'pro', provider: 'asaas', state: 'active' }, 'pt-BR')).toContain('suporte financeiro');
   });
 });

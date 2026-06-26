@@ -18,6 +18,17 @@ export function isFunnelAction(value: unknown): value is FunnelAction {
 export function advanceFunnel(currentStage: FunnelStage, action: FunnelAction) {
   const expectedIndex = currentStage === null ? 0 : (ACTION_INDEX.get(currentStage) ?? -1) + 1;
   const requestedIndex = ACTION_INDEX.get(action) ?? -1;
+  const currentIndex = currentStage === null ? -1 : ACTION_INDEX.get(currentStage) ?? -1;
+  if (requestedIndex < currentIndex) {
+    const nextAction = FUNNEL_ACTIONS[currentIndex + 1] || null;
+    return {
+      ok: true as const,
+      stage: currentStage,
+      nextAction,
+      formAvailable: currentStage === 'cancel_subscription',
+      repeated: true as const,
+    };
+  }
   if (requestedIndex !== expectedIndex && action !== currentStage) {
     return { ok: false as const, code: 'CANCELLATION_FUNNEL_STEP_REQUIRED' as const };
   }

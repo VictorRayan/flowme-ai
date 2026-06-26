@@ -16,6 +16,7 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockResolvedValue({ user: { id: 'user-1' }, supabase: {} }),
 }));
 jest.mock('@/lib/api/admin', () => ({ getSupabaseAdmin: jest.fn(() => ({ from: mockFrom })) }));
+jest.mock('@/lib/billing/admin-alerts', () => ({ recordBillingAdminAlert: jest.fn().mockResolvedValue(undefined) }));
 
 describe('POST /api/support/chat', () => {
   beforeEach(() => {
@@ -28,14 +29,14 @@ describe('POST /api/support/chat', () => {
 
   it('returns a KB answer with billing context and source keys', async () => {
     const request = new NextRequest('http://localhost/api/support/chat', {
-      method: 'POST', body: JSON.stringify({ message: 'Como funciona meu pagamento?' }),
+      method: 'POST', body: JSON.stringify({ message: 'Como funcionam os créditos de IA?' }),
     });
     const response = await POST(request);
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.answer).toContain('plano PRO');
-    expect(body.sources).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'billing' })]));
-    expect(body.can_escalate).toBe(true);
+    expect(body.sources).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'credits' })]));
+    expect(body.can_escalate).toBe(false);
   });
 
   it.each(['', 'a'])('rejects an invalid message: %p', async message => {
@@ -54,6 +55,7 @@ describe('POST /api/support/chat', () => {
   );
 
   it('routes free-form cancellation text into the guided support funnel', async () => {
+    mockMaybeSingle.mockReset();
     mockMaybeSingle
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: { plan_code: 'pro', billing_provider: 'stripe', status: 'active' }, error: null });
@@ -66,5 +68,36 @@ describe('POST /api/support/chat', () => {
     expect(body.intent).toBe('cancel_subscription');
     expect(body.funnel_stage).toBe('manage_subscription');
     expect(body.next_actions).toEqual(['payment_and_recurrence']);
+  });
+
+  it('opens billing support review for payment problems', async () => {
+    mockMaybeSingle.mockReset();
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { plan_code: 'pro', billing_provider: 'stripe', status: 'active' }, error: null });
+    const request = new NextRequest('http://localhost/api/support/chat', {
+      method: 'POST', body: JSON.stringify({ message: 'I have a payment problem', locale: 'en-US' }),
+    });
+    const response = await POST(request);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.intent).toBe('payment_support');
+    expect(body.answer).toContain('billing support review');
+    expect(body.can_escalate).toBe(true);
+  });
+
+  it('lets a previous subscription quick action recover an advanced cancellation session', async () => {
+    mockMaybeSingle.mockReset();
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: { id: 'funnel-1', current_stage: 'cancel_subscription', completed_stages: ['manage_subscription', 'payment_and_recurrence', 'cancel_subscription'], expires_at: '2099-01-01T00:00:00.000Z' }, error: null })
+      .mockResolvedValueOnce({ data: { plan_code: 'pro', billing_provider: 'stripe', status: 'active' }, error: null });
+    const request = new NextRequest('http://localhost/api/support/chat', {
+      method: 'POST', body: JSON.stringify({ question_key: 'manage_subscription', locale: 'en-US' }),
+    });
+    const response = await POST(request);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.funnel_stage).toBe('cancel_subscription');
+    expect(body.cancellation_form_available).toBe(true);
   });
 });

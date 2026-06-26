@@ -3,7 +3,8 @@ import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import { advanceFunnel, isFunnelAction, normalizeSupportLocale, type FunnelAction } from '@/lib/support/cancellation-funnel';
-import { answerSupportQuestion, answerSupportQuestionKey, findSupportKnowledge, localizedSupportSource } from '@/lib/support/knowledge-base';
+import { answerSupportQuestion, answerSupportQuestionKey, detectsPaymentSupportIntent, findSupportKnowledge, localizedSupportSource, paymentSupportAnswer } from '@/lib/support/knowledge-base';
+import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
 
 export function detectsCancellationIntent(message: string): boolean {
   return /\b(cancelar|cancelamento|cancela(?:r)?|não quero mais pagar|unsubscribe|cancel subscription)\b/i.test(message);
@@ -47,22 +48,45 @@ export async function POST(req: NextRequest) {
       provider: subscription?.billing_provider || null,
       state: subscription?.status || 'free',
     };
+    if (!questionKey && detectsPaymentSupportIntent(message)) {
+      await recordBillingAdminAlert(admin, {
+        kind: 'payment_failure',
+        severity: 'warning',
+        userId: user.id,
+        provider: billing.provider === 'stripe' || billing.provider === 'asaas' || billing.provider === 'apple' || billing.provider === 'google' ? billing.provider : null,
+        dedupeKey: `support-payment:${user.id}:${new Date().toISOString().slice(0, 10)}`,
+        metadata: { source: 'support_chat', message_preview: message.slice(0, 500), plan: billing.plan, state: billing.state },
+      });
+      return apiSuccess({
+        answer: paymentSupportAnswer(billing, locale),
+        sources: [{ key: 'billing', title: locale === 'en-US' ? 'Billing and payment' : 'Cobrança e pagamento' }],
+        can_escalate: true,
+        intent: 'payment_support',
+        next_actions: [],
+        cancellation_form_available: false,
+        support_ticket: { type: 'payment_problem', status: 'open' },
+      });
+    }
     if (questionKey) {
       const transition = advanceFunnel(session?.current_stage || null, questionKey);
       if (!transition.ok) {
-        if (!explicitQuestionKey) {
+        if (!explicitQuestionKey || session?.current_stage) {
+          const currentStage = session?.current_stage as FunnelAction | undefined;
+          const nextAction = currentStage === 'manage_subscription'
+            ? 'payment_and_recurrence'
+            : currentStage === 'payment_and_recurrence'
+              ? 'cancel_subscription'
+              : null;
           return apiSuccess({
-            answer: answerSupportQuestion(message, billing, locale),
+            answer: currentStage
+              ? `${answerSupportQuestionKey(currentStage, locale)}\n\n${locale === 'en-US' ? 'You are already in this subscription flow. Continue with the next step below.' : 'Você já está neste fluxo de assinatura. Continue pela próxima etapa abaixo.'}`
+              : answerSupportQuestion(message, billing, locale),
             sources: [],
             can_escalate: true,
             intent: 'cancel_subscription',
             funnel_session_id: session?.id || null,
             funnel_stage: session?.current_stage || null,
-            next_actions: session?.current_stage === 'manage_subscription'
-              ? ['payment_and_recurrence']
-              : session?.current_stage === 'payment_and_recurrence'
-                ? ['cancel_subscription']
-                : ['manage_subscription'],
+            next_actions: nextAction ? [nextAction] : [],
             cancellation_form_available: session?.current_stage === 'cancel_subscription',
           });
         }
@@ -73,24 +97,25 @@ export async function POST(req: NextRequest) {
       const completedStages = Array.from(new Set([...(session?.completed_stages || []), questionKey]));
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       let funnelSessionId = session?.id as string | undefined;
+      const responseStage = transition.stage || questionKey;
       if (funnelSessionId) {
         await admin.from('subscription_cancellation_funnel_sessions').update({
-          current_stage: questionKey, completed_stages: completedStages, locale, expires_at: expiresAt, updated_at: new Date().toISOString(),
+          current_stage: responseStage, completed_stages: Array.from(new Set([...(session?.completed_stages || []), responseStage])), locale, expires_at: expiresAt, updated_at: new Date().toISOString(),
         }).eq('id', funnelSessionId);
       } else {
         const { data: created, error } = await admin.from('subscription_cancellation_funnel_sessions').insert({
-          user_id: user.id, current_stage: questionKey, completed_stages: completedStages, locale, expires_at: expiresAt,
+          user_id: user.id, current_stage: responseStage, completed_stages: completedStages, locale, expires_at: expiresAt,
         }).select('id').single();
         if (error || !created?.id) return apiError(ErrorCode.SUPPORT_UNAVAILABLE, 'SUPPORT_UNAVAILABLE', 500);
         funnelSessionId = created.id;
       }
       return apiSuccess({
-        answer: `${answerSupportQuestionKey(questionKey, locale)}\n\n${locale === 'en-US' ? 'Current account' : 'Conta atual'}: ${billing.plan.toUpperCase()} · ${billing.provider || 'Flow Me'} · ${billing.state}.`,
+        answer: `${answerSupportQuestionKey(responseStage, locale)}\n\n${locale === 'en-US' ? 'Current account' : 'Conta atual'}: ${billing.plan.toUpperCase()} · ${billing.provider || 'Flow Me'} · ${billing.state}.`,
         sources: [],
         can_escalate: true,
         intent: 'cancel_subscription',
         funnel_session_id: funnelSessionId,
-        funnel_stage: transition.stage,
+        funnel_stage: responseStage,
         next_actions: transition.nextAction ? [transition.nextAction] : [],
         cancellation_form_available: transition.formAvailable,
       });

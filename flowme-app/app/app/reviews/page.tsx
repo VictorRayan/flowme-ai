@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, TextField, Typography } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Stack, TextField, Typography } from '@mui/material';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrackChangesIcon from '@mui/icons-material/TrackChanges';
+import InsightsIcon from '@mui/icons-material/Insights';
+import BalysMarkdown from '@/components/markdown/BalysMarkdown';
 
 interface Review {
   period_start: string;
@@ -101,8 +106,21 @@ export default function WeeklyReviewsPage() {
   const metrics = review?.evidence.metrics;
   const monthlySummary = monthlyReview?.evidence.financial_summary;
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 960, mx: 'auto' }}>
-      <Typography variant="h4" fontWeight={800}>Revisões</Typography>
+    <Box sx={{
+      p: { xs: 2, md: 4 },
+      maxWidth: 1120,
+      mx: 'auto',
+      width: '100%',
+      minHeight: '100%',
+      background: 'radial-gradient(circle at 12% 0%, rgba(99,102,241,0.16), transparent 34%), radial-gradient(circle at 88% 20%, rgba(34,211,238,0.10), transparent 30%)',
+    }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5}>
+        <Box>
+          <Chip icon={<AutoAwesomeIcon />} label="Balys Review OS" size="small" sx={{ mb: 1, color: '#c4b5fd', bgcolor: 'rgba(99,102,241,0.14)', border: '1px solid rgba(167,139,250,0.22)' }} />
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: -1 }}>Revisões</Typography>
+          <Typography color="text.secondary" sx={{ mt: 0.75 }}>Clareza executiva para corrigir rota, proteger metas e decidir o próximo movimento.</Typography>
+        </Box>
+      </Stack>
 
       {review && (
         <>
@@ -135,10 +153,10 @@ export default function WeeklyReviewsPage() {
 
           {review.review_content && (
             <Stack spacing={2}>
-              <ReviewCard title="O que aconteceu" text={review.review_content.what_happened} />
-              <ReviewCard title="Padrão detectado" text={review.review_content.detected_pattern} />
-              <ReviewCard title="Impacto nas metas" text={review.review_content.goal_impact} />
-              <ReviewCard title="Recomendação" text={review.review_content.recommendation} />
+              <ReviewCard icon={<InsightsIcon />} tone="cyan" title="O que aconteceu" text={review.review_content.what_happened} />
+              <ReviewCard icon={<TrendingUpIcon />} tone="amber" title="Padrão detectado" text={review.review_content.detected_pattern} />
+              <ReviewCard icon={<TrackChangesIcon />} tone="violet" title="Impacto nas metas" text={review.review_content.goal_impact} />
+              <ReviewCard icon={<AutoAwesomeIcon />} tone="green" title="Recomendação" text={review.review_content.recommendation} featured />
               {review.suggested_action_plan?.offered && <Alert severity="info">{review.suggested_action_plan.reason}</Alert>}
             </Stack>
           )}
@@ -174,11 +192,11 @@ export default function WeeklyReviewsPage() {
           )}
           {monthlyReview.review_content && (
             <Stack spacing={2}>
-              <ReviewCard title="Saúde financeira" text={monthlyReview.review_content.financial_health} />
-              <ReviewCard title="Padrão de gastos" text={monthlyReview.review_content.spending_pattern} />
-              <ReviewCard title="Investimentos" text={monthlyReview.review_content.investment_guidance} />
-              <ReviewCard title="Cortes a considerar" text={monthlyReview.review_content.cuts_to_consider} />
-              <ReviewCard title="Foco do próximo mês" text={monthlyReview.review_content.next_month_focus} />
+              <ReviewCard icon={<InsightsIcon />} tone="green" title="Saúde financeira" text={monthlyReview.review_content.financial_health} />
+              <ReviewCard icon={<TrendingUpIcon />} tone="amber" title="Padrão de gastos" text={monthlyReview.review_content.spending_pattern} />
+              <ReviewCard icon={<TrackChangesIcon />} tone="violet" title="Investimentos" text={monthlyReview.review_content.investment_guidance} />
+              <ReviewCard icon={<AutoAwesomeIcon />} tone="cyan" title="Cortes a considerar" text={monthlyReview.review_content.cuts_to_consider} />
+              <ReviewCard icon={<AutoAwesomeIcon />} tone="green" title="Foco do próximo mês" text={monthlyReview.review_content.next_month_focus} featured />
             </Stack>
           )}
         </Box>
@@ -188,9 +206,47 @@ export default function WeeklyReviewsPage() {
 }
 
 function Metric({ label, value }: { label: string; value: number | string }) {
-  return <Card sx={{ flex: 1 }}><CardContent><Typography variant="h5" fontWeight={800}>{value}</Typography><Typography variant="caption" color="text.secondary">{label}</Typography></CardContent></Card>;
+  return <Card sx={{
+    flex: 1,
+    minWidth: { sm: 150 },
+    border: '1px solid rgba(129,140,248,0.18)',
+    background: 'linear-gradient(145deg, rgba(30,41,59,0.94), rgba(15,23,42,0.88))',
+    boxShadow: '0 18px 46px rgba(0,0,0,0.24)',
+  }}><CardContent><Typography variant="h4" fontWeight={900}>{value}</Typography><Typography variant="caption" color="text.secondary" sx={{ fontSize: 14 }}>{label}</Typography></CardContent></Card>;
 }
 
-function ReviewCard({ title, text }: { title: string; text: string }) {
-  return <Card><CardContent><Typography fontWeight={700}>{title}</Typography><Typography color="text.secondary" sx={{ mt: 0.75, whiteSpace: 'pre-wrap' }}>{text}</Typography></CardContent></Card>;
+function ReviewCard({ title, text, icon, tone = 'violet', featured = false }: { title: string; text: string; icon: React.ReactNode; tone?: 'violet' | 'cyan' | 'amber' | 'green'; featured?: boolean }) {
+  const colors = {
+    violet: { main: '#a78bfa', bg: 'rgba(99,102,241,0.14)' },
+    cyan: { main: '#22d3ee', bg: 'rgba(34,211,238,0.12)' },
+    amber: { main: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+    green: { main: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  }[tone];
+  return <Card sx={{
+    position: 'relative',
+    overflow: 'hidden',
+    border: `1px solid ${featured ? colors.main : 'rgba(129,140,248,0.18)'}`,
+    background: featured
+      ? `linear-gradient(145deg, ${colors.bg}, rgba(15,23,42,0.96))`
+      : 'linear-gradient(145deg, rgba(17,24,39,0.96), rgba(15,23,42,0.90))',
+    boxShadow: featured ? `0 24px 70px ${colors.bg}` : '0 18px 46px rgba(0,0,0,0.22)',
+    '&:before': {
+      content: '""',
+      position: 'absolute',
+      inset: '0 auto 0 0',
+      width: 4,
+      bgcolor: colors.main,
+      boxShadow: `0 0 28px ${colors.main}`,
+    },
+  }}>
+    <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.25 }}>
+        <Box sx={{ width: 34, height: 34, borderRadius: 2, display: 'grid', placeItems: 'center', color: colors.main, bgcolor: colors.bg }}>{icon}</Box>
+        <Typography fontWeight={850} sx={{ fontSize: 18 }}>{title}</Typography>
+      </Stack>
+      <Box sx={{ color: 'text.secondary', fontSize: 16, lineHeight: 1.75 }}>
+        <BalysMarkdown text={text} />
+      </Box>
+    </CardContent>
+  </Card>;
 }

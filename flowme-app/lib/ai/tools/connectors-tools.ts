@@ -107,6 +107,15 @@ function responseDataToText(data: unknown): string {
   return String(data);
 }
 
+function googleWorkspaceError(service: 'Google Drive' | 'Google Docs' | 'Google Sheets', error: any): string {
+  const status = error?.response?.status || error?.code;
+  const raw = error?.response?.data?.error?.message || error?.message || `Failed to use ${service}`;
+  if (status === 401 || status === 403 || /insufficient authentication scopes|insufficient permission|permission_denied|scope|consent|unauthoriz/i.test(raw)) {
+    return `${service} connection needs reconnect. The Google account token does not include the permission needed for this action. Ask the user to open Connectors, click Reconnect account for this source, and then retry.`;
+  }
+  return `${service}: ${raw}`;
+}
+
 function extractGoogleFileId(value: string | null | undefined, allowRawId = false): string | undefined {
   const text = (value || '').trim();
   if (!text) return undefined;
@@ -282,7 +291,7 @@ async function getConnectorRowForTool(
   connectorId: string | undefined,
   expectedType: ConnectorType,
 ): Promise<ConnectorRow | null> {
-  return getConnectorRowWithFallback(context, connectorId, expectedType);
+  return getConnectorRowWithFallback(context, connectorId, expectedType, true);
 }
 
 /* ── helpers ── */
@@ -570,8 +579,7 @@ RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
         },
       };
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to read sheet';
-      return { ok: false, error: `Google Sheets: ${msg}` };
+      return { ok: false, error: googleWorkspaceError('Google Sheets', e) };
     }
   },
 });
@@ -633,8 +641,7 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
 
       return { ok: true, receipt: { files, count: files.length, connector_type: connector?.type } };
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to search Drive';
-      return { ok: false, error: `Google Drive: ${msg}` };
+      return { ok: false, error: googleWorkspaceError('Google Drive', e) };
     }
   },
 });
@@ -698,8 +705,7 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
         },
       };
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to read Drive file';
-      return { ok: false, error: `Google Drive: ${msg}` };
+      return { ok: false, error: googleWorkspaceError('Google Drive', e) };
     }
   },
 });
@@ -756,8 +762,7 @@ RETURNS receipt: { title, content, word_count }`,
         },
       };
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to read document';
-      return { ok: false, error: `Google Docs: ${msg}` };
+      return { ok: false, error: googleWorkspaceError('Google Docs', e) };
     }
   },
 });
@@ -844,8 +849,7 @@ RETURNS receipt: { title, document_id, content, word_count, matched_by, candidat
         },
       };
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to find and read document';
-      return { ok: false, error: `Google Docs: ${msg}` };
+      return { ok: false, error: googleWorkspaceError('Google Docs', e) };
     }
   },
 });
@@ -918,8 +922,7 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
         },
       };
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Failed to create document';
-      return { ok: false, error: `Google Docs: ${msg}` };
+      return { ok: false, error: googleWorkspaceError('Google Docs', e) };
     }
   },
 });

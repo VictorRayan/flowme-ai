@@ -119,4 +119,18 @@ describe('GET /api/briefings', () => {
     expect(body.briefing.sections.news.ok).toBe(true);
     expect(body.briefing.sections.trends.ok).toBe(true);
   });
+
+  it('returns a composed briefing even when persistence fails for a newer slot', async () => {
+    (getBriefing as jest.Mock).mockResolvedValue(null);
+    (upsertBriefing as jest.Mock).mockResolvedValue(null);
+
+    const res = await GET(new NextRequest('http://localhost/api/briefings?slot=afternoon'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.briefing.slot).toBe('afternoon');
+    expect(body.briefing.persisted).toBe(false);
+    expect(body.briefing.sections.news.ok).toBe(true);
+  });
 });

@@ -9,7 +9,7 @@ export const SUPPORT_KNOWLEDGE_BASE: SupportKnowledgeSection[] = [
   { key: 'getting_started', title: 'Começando no Flow Me', keywords: ['começar', 'inicio', 'início', 'onboarding', 'flow me'], body: 'Comece criando notas e conversando com o Balys. No Pro, conecte Calendar e fontes externas, defina uma meta e use Today para executar o plano do dia.' },
   { key: 'plans', title: 'Free e Pro', keywords: ['free', 'pro', 'plano', 'preço', 'assinatura'], body: 'O Free inclui Notes, Balys com créditos diários, configurações, cobrança e suporte. O Pro libera todas as áreas, canais, automações e créditos de IA ilimitados na experiência do usuário.' },
   { key: 'credits', title: 'Créditos de IA', keywords: ['crédito', 'creditos', 'créditos', 'credits', 'ia', 'ai', 'limite', 'limit'], body: 'Créditos medem o uso de IA em linguagem simples. Perguntas simples usam menos; ações com busca, arquivos ou análise usam mais. Créditos Free renovam diariamente no fuso do usuário; Pro aparece como ilimitado.' },
-  { key: 'billing', title: 'Cobrança e pagamento', keywords: ['pagamento', 'cobrança', 'cartão', 'fatura', 'stripe', 'falhou'], body: 'Assinaturas web podem ser pagas com cartão, carteiras digitais ou Pix. Faturas ficam em Configurações. Para atualizar o cartão, use Atualizar pagamento. Assinaturas Apple ou Google são gerenciadas na loja correspondente.' },
+  { key: 'billing', title: 'Cobrança e pagamento', keywords: ['pagamento', 'cobrança', 'cartão', 'fatura', 'stripe', 'falhou', 'payment', 'billing', 'invoice', 'charge', 'card'], body: 'Assinaturas web podem ser pagas com cartão, carteiras digitais ou Pix. Faturas ficam em Configurações. Para atualizar o cartão, use Atualizar pagamento. Se houver cobrança indevida, falha de acesso Pro ou pagamento aprovado sem liberação, o suporte registra uma revisão humana.' },
   { key: 'apple_billing', title: 'Assinaturas pela Apple', keywords: ['apple', 'app store', 'ios', 'iphone'], body: 'No iPhone, a assinatura Pro é comprada e gerenciada pela App Store. A Flow Me valida o comprovante com a Apple e compartilha o acesso Pro com a mesma conta em todas as plataformas.' },
   { key: 'google_billing', title: 'Assinaturas pelo Google Play', keywords: ['google play', 'android', 'play store'], body: 'No Android, a assinatura Pro é comprada e gerenciada pelo Google Play. A Flow Me consulta o Google Play para manter o acesso da mesma conta sincronizado.' },
   { key: 'notes_balys', title: 'Notes e BalysAI', keywords: ['nota', 'notes', 'balys', 'assistente', 'chat'], body: 'Notes registra conhecimento e contexto. O Balys usa o que está disponível na sua conta para responder e agir, mas só confirma uma alteração depois que a ferramenta correspondente conclui a ação.' },
@@ -18,7 +18,7 @@ export const SUPPORT_KNOWLEDGE_BASE: SupportKnowledgeSection[] = [
   { key: 'finance', title: 'Finanças', keywords: ['finança', 'financeiro', 'despesa', 'gasto', 'receita'], body: 'Finance organiza receitas, despesas, investimentos, recorrências e saúde financeira. Recomendações são informativas e não substituem aconselhamento financeiro profissional.' },
   { key: 'reviews', title: 'Revisões e conselho', keywords: ['revisão', 'review', 'conselho', 'semanal', 'mensal'], body: 'A revisão semanal analisa execução e contexto. A mensal consolida principalmente finanças e direção para o próximo mês. O conselho usa evidências existentes e não deve inventar fatos.' },
   { key: 'council', title: 'Conselho de mentoria', keywords: ['mentoria', 'mentor', 'council'], body: 'O conselho reúne perspectivas complementares para analisar decisões e revisões. Ele trabalha com o contexto real da conta e apresenta recomendações, não fatos inventados nem decisões automáticas.' },
-  { key: 'connectors', title: 'Conectores', keywords: ['conector', 'gmail', 'docs', 'sheets', 'planilha', 'drive', 'slack'], body: 'Conectores dão acesso à conta autorizada. O usuário pode pedir arquivos e mensagens por nome; IDs, OAuth e nomes de tools são detalhes internos e nunca devem ser exigidos.' },
+  { key: 'connectors', title: 'Conectores', keywords: ['conector', 'conectores', 'conectar', 'fonte', 'fontes', 'source', 'sources', 'connect', 'gmail', 'docs', 'sheets', 'planilha', 'drive', 'slack'], body: 'Conectores dão acesso à conta autorizada. Abra Conectores, escolha a fonte e clique em Conectar conta. Depois, peça ao Balys por nomes naturais, como “leia o email do banco” ou “analise a planilha Finance 2026”; IDs, OAuth e nomes de tools são detalhes internos.' },
   { key: 'whatsapp_reminders', title: 'WhatsApp e lembretes', keywords: ['whatsapp', 'lembrete', 'reminder', 'avise'], body: 'O canal WhatsApp permite conversar com o Balys e receber lembretes quando ativo. Lembretes são notificações, não tarefas nem eventos de calendário.' },
   { key: 'briefings', title: 'Briefings', keywords: ['briefing', 'resumo diário', 'notícias'], body: 'Briefings combinam agenda, contexto e tópicos escolhidos. Eles podem ser reutilizados no mesmo período para evitar custo e conteúdo duplicado.' },
   { key: 'meetings_images', title: 'Reuniões e imagens', keywords: ['reunião', 'gravar', 'transcrição', 'imagem', 'gerar'], body: 'Meeting Recording exige consentimento e permite revisar transcrição, participantes e tarefas. Image generation cria imagens no Pro a partir de uma descrição.' },
@@ -31,7 +31,7 @@ const ENGLISH_SUPPORT_COPY: Record<string, string> = {
   getting_started: 'Start by creating notes and talking to Balys. On Pro, connect Calendar and external sources, define a goal, and use Today to execute your daily plan.',
   plans: 'Free includes Notes, Balys with daily AI credits, settings, billing, and support. Pro unlocks every area, channel, automation, and unlimited AI credits in the user experience.',
   credits: 'AI credits describe usage in simple terms. Simple questions use less; searches, files, and analysis use more. Free credits renew daily in your timezone, while Pro appears as unlimited.',
-  billing: 'Web subscriptions can be paid by card, digital wallets, or Pix. To fix a payment, open Settings, choose Billing, and select Update payment. Apple and Google subscriptions are managed in their respective stores.',
+  billing: 'Web subscriptions can be paid by card, digital wallets, or Pix. To fix a card payment, open Settings, choose Billing, and select Update payment. If you were charged incorrectly, paid but Pro was not unlocked, or cannot access billing, Support opens a human review.',
   apple_billing: 'On iPhone, Pro is purchased and managed through the App Store. Flow Me verifies the purchase with Apple and shares Pro access with the same account on every platform.',
   google_billing: 'On Android, Pro is purchased and managed through Google Play. Flow Me checks Google Play to keep access synchronized for the same account.',
   notes_balys: 'Notes stores knowledge and context. Balys uses the information available in your account, but only confirms a change after the corresponding action succeeds.',
@@ -40,7 +40,7 @@ const ENGLISH_SUPPORT_COPY: Record<string, string> = {
   finance: 'Finance organizes income, expenses, investments, recurring items, and financial health. Guidance is informational and does not replace professional financial advice.',
   reviews: 'The weekly review examines execution and context. The monthly review consolidates finances and direction for the next month. Reviews use existing evidence and must not invent facts.',
   council: 'The mentorship council combines complementary perspectives for decisions and reviews. It uses real account context and provides recommendations, not automatic decisions.',
-  connectors: 'Connectors authorize an account as a source. Ask for files and messages by name; technical IDs, OAuth terms, and tool names remain internal.',
+  connectors: 'Open Connectors, choose the source, and click Connect account. After that, ask Balys using natural names, such as “read the bank email” or “analyze Finance 2026”; technical IDs, OAuth terms, and tool names remain internal.',
   whatsapp_reminders: 'WhatsApp lets you talk to Balys and receive reminders when enabled. Reminders are notifications, not tasks or calendar events.',
   briefings: 'Briefings combine your schedule, context, and selected topics. A briefing may be reused during the same period to avoid duplicate content and cost.',
   meetings_images: 'Meeting Recording requires consent and lets you review transcripts, participants, and tasks. Image generation creates images from a description on Pro.',
@@ -58,6 +58,13 @@ const ENGLISH_SUPPORT_TITLES: Record<string, string> = {
 };
 
 export type SupportQuestionKey = 'manage_subscription' | 'payment_and_recurrence' | 'cancel_subscription';
+
+export function detectsPaymentSupportIntent(message: string): boolean {
+  const text = message.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const moneyTerm = /\b(pagamento|cobranca|cartao|pix|boleto|fatura|assinatura|checkout|invoice|payment|billing|charge|charged|card|receipt|recibo|subscription)\b/.test(text);
+  const problemTerm = /\b(problema|erro|falh|falhou|falha|recusad|indevid|duplicad|nao liber|nao ativ|failed|declined|issue|problem|error|wrong|twice|not unlocked)\b/.test(text);
+  return moneyTerm && problemTerm;
+}
 
 const FUNNEL_ANSWERS: Record<SupportQuestionKey, Record<'pt-BR' | 'en-US', string>> = {
   manage_subscription: {
@@ -109,6 +116,27 @@ export function answerSupportQuestion(
   const provider = billing.provider ? providerNames[billing.provider] || billing.provider : null;
   if (english) return `${answer}\n\nYour account is on ${billing.plan.toUpperCase()}${provider ? `, managed by ${provider}` : ''}, with status ${billing.state}.`;
   return `${answer}\n\nSua conta está no plano ${billing.plan.toUpperCase()}${provider ? `, gerenciado por ${provider}` : ''}, com estado ${billing.state}.`;
+}
+
+export function paymentSupportAnswer(
+  billing: { plan: string; provider: string | null; state: string },
+  locale: 'pt-BR' | 'en-US' = 'pt-BR',
+): string {
+  const english = locale === 'en-US';
+  const providerNames: Record<string, string> = { stripe: english ? 'card payment' : 'cartão', asaas: 'Pix', apple: 'App Store', google: 'Google Play' };
+  const provider = billing.provider ? providerNames[billing.provider] || billing.provider : english ? 'Flow Me billing' : 'cobrança Flow Me';
+  if (english) {
+    return [
+      'I opened a billing support review for this account.',
+      `Current plan: ${billing.plan.toUpperCase()} · payment route: ${provider} · status: ${billing.state}.`,
+      'If you saw a failed charge, duplicate charge, missing invoice, Pix problem, or card decline, add the exact detail here and the support team will review it with the billing logs.',
+    ].join('\n\n');
+  }
+  return [
+    'Abri uma revisão de suporte financeiro para esta conta.',
+    `Plano atual: ${billing.plan.toUpperCase()} · rota de pagamento: ${provider} · status: ${billing.state}.`,
+    'Se foi cobrança duplicada, Pix, fatura, cartão recusado ou erro no checkout, escreva o detalhe aqui que o suporte revisa junto com os logs de cobrança.',
+  ].join('\n\n');
 }
 
 export function localizedSupportSource(section: SupportKnowledgeSection, locale: 'pt-BR' | 'en-US') {

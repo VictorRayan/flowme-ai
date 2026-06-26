@@ -731,6 +731,11 @@ function SettingsPageContent() {
                   setUiLanguage(v);
                   localStorage.setItem('ui_language', v);
                   window.dispatchEvent(new StorageEvent('storage', { key: 'ui_language', newValue: v }));
+                  fetch('/api/briefings/preferences', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notification_language: v }),
+                  }).catch(() => {});
                 }}
               >
                 {UI_LANGUAGES.map(l => (

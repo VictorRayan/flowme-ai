@@ -14,6 +14,7 @@ import { loadTopFacts, renderFactsForPrompt, touchFacts } from '@/lib/ai/memory/
 import { summarizeAndPersistThread, SUMMARIZE_EVERY_N_USER_TURNS } from '@/lib/ai/memory/recall';
 import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/ai/threads';
 import { extractConnectorContextItems, hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
+import { inferImplicitConnectorIntent, type ConnectorIntent } from '@/lib/ai/connector-intent';
 import { improveBalysAnswerIfNeeded } from '@/lib/ai/answer-satisfaction';
 import { consumeAiCredits, creditPreflightMessage, estimateBalysCreditUsage, isValidTimezone } from '@/lib/billing/credits';
 import { getUserEntitlements } from '@/lib/billing/entitlements';
@@ -22,11 +23,6 @@ import { acquireAiUsageGuard, releaseAiUsageGuard, resolveAiGuardWorkload } from
 import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
 
 const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
-type ConnectorIntent = {
-  id?: string;
-  label?: string;
-  action?: 'gmail' | 'drive' | 'docs' | 'sheets' | 'briefing' | 'note' | 'weather' | 'council' | 'slack' | 'reminder' | 'image';
-};
 
 async function loadUserAiSettings(supabase: any, userId: string): Promise<{ council_mode: 'cheap' | 'best'; memory_enabled: boolean }> {
   try {
@@ -71,6 +67,11 @@ function isReadFollowUp(text: string): boolean {
     || /\b(ler|leia|abre|abrir|conte[uú]do|corpo|o que tem|resume|resumir|explica|analisa|analisar)\b/i.test(text);
 }
 
+function isGmailDraftRequest(text: string): boolean {
+  return /\b(reply|respond|answer|draft|email back|write back)\b/i.test(text)
+    || /\b(responda|responder|resposta|rascunho|respondo|escreva de volta|mande uma resposta)\b/i.test(text);
+}
+
 function userReferencesNewFile(text: string, messages: any[]): boolean {
   if (/\b(this|that|it|esse|essa|esta|este|isso|aquele|aquela|o primeiro|a primeira|essa planilha|esse documento|aquele arquivo)\b/i.test(text)) {
     return false;
@@ -99,7 +100,7 @@ function requiredFirstToolForConnector(
     return 'images.generate';
   }
   if (action === 'gmail') {
-    if (isReadFollowUp(latestText) && hasRecentConnectorContext(messages, (item) => item.tool === 'gmail.search_messages')) {
+    if ((isReadFollowUp(latestText) || isGmailDraftRequest(latestText)) && hasRecentConnectorContext(messages, (item) => item.tool.startsWith('gmail.'))) {
       return undefined;
     }
     return 'gmail.search_messages';
@@ -131,7 +132,7 @@ function requiredFirstToolForConnector(
     if (recentType === 'google_docs') return 'connectors.find_and_read_doc';
     if (recentType === 'google_drive') return 'connectors.read_drive_file';
   }
-  if (route.toolDomain === 'gmail' && isReadFollowUp(latestText) && hasRecentConnectorContext(messages, (item) => item.tool === 'gmail.search_messages')) {
+  if (route.toolDomain === 'gmail' && isReadFollowUp(latestText) && hasRecentConnectorContext(messages, (item) => item.tool.startsWith('gmail.'))) {
     return undefined;
   }
   return undefined;
@@ -144,35 +145,6 @@ function preferredConnectorType(connectorIntent: ConnectorIntent | null, message
   if (connectorIntent?.action === 'drive') return 'google_drive';
   if (messages) return inferRecentConnectorType(messages);
   return undefined;
-}
-
-function inferImplicitConnectorIntent(text: string): ConnectorIntent | null {
-  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (/\b(gmail|email|emails|e-mail|inbox|caixa de entrada|rascunho|draft|reply|responda|responder|follow-up)\b/.test(normalized)) {
-    return { id: 'implicit-gmail', label: '/gmail', action: 'gmail' };
-  }
-  if (/\b(planilha|planilhas|spreadsheet|spreadsheets|sheets|sheet|finance 2026|despesa|gasto|gastos|receita|categoria|formula|celula|aba)\b/.test(normalized)) {
-    return { id: 'implicit-sheets', label: '/sheets', action: 'sheets' };
-  }
-  if (/\b(google docs|documento|documentos|docs|ata|memo|briefing executivo|relatorio|proposta|escrivao|escrivao|editar documento)\b/.test(normalized)) {
-    return { id: 'implicit-docs', label: '/docs', action: 'docs' };
-  }
-  if (/\b(drive|arquivo|arquivos|pasta|pdf|slides|contrato)\b/.test(normalized)) {
-    return { id: 'implicit-drive', label: '/drive', action: 'drive' };
-  }
-  if (/\b(clima|tempo|weather|forecast|previsao)\b/.test(normalized)) {
-    return { id: 'implicit-weather', label: '/weather', action: 'weather' };
-  }
-  if (/\b(imagem|image|generate image|gerar imagem|crie uma imagem)\b/.test(normalized)) {
-    return { id: 'implicit-image', label: '/image', action: 'image' };
-  }
-  if (/\b(lembrete|reminder|lembrar|remind me)\b/.test(normalized)) {
-    return { id: 'implicit-reminder', label: '/reminder', action: 'reminder' };
-  }
-  if (/\b(priorizar|prioridade|prioridades|focus|foco|semana|hoje|direcionamento|o que devo fazer)\b/.test(normalized)) {
-    return { id: 'implicit-briefing', label: '/briefing', action: 'briefing' };
-  }
-  return null;
 }
 
 function userSafeLoopErrorMessage(error: any): string {
@@ -244,7 +216,7 @@ export async function POST(request: NextRequest) {
       : typeof messages[messages.length - 1]?.content === 'string'
         ? messages[messages.length - 1].content
         : '';
-    const preflightConnectorIntent = parsedConnectorIntent || inferImplicitConnectorIntent(preflightText);
+    const preflightConnectorIntent = parsedConnectorIntent || inferImplicitConnectorIntent(preflightText, messages);
     const preflightRoute = routeBalysRequest({
       messages,
       rawUserInput: preflightText,
@@ -366,7 +338,7 @@ export async function POST(request: NextRequest) {
       contextScores: contextScores ?? undefined,
     });
     const latestUserText = typeof rawUserInput === 'string' && rawUserInput.trim() ? rawUserInput : transcribedUserText;
-    const effectiveConnectorIntent = parsedConnectorIntent || inferImplicitConnectorIntent(latestUserText);
+    const effectiveConnectorIntent = parsedConnectorIntent || inferImplicitConnectorIntent(latestUserText, messages);
 
     const connectorMemoryPrompt = renderConnectorContextForPrompt(messages);
     const connectorIntentPrompt = effectiveConnectorIntent?.action
@@ -376,7 +348,7 @@ export async function POST(request: NextRequest) {
             ? 'Treat this as deterministic metadata selected by the user, not as optional decoration.'
             : 'Treat this as the most likely action domain inferred from the user wording. Use relevant tools and ask a short clarifying question only if the target is ambiguous.',
           effectiveConnectorIntent.action === 'gmail'
-            ? 'Use Gmail tools. SHORT-CIRCUIT: if asked to read or show the content of an email, immediately call gmail.read_message using the message_id from the history or natural sender/subject fields. Do not call gmail.search_messages first if the email was already listed. For drafting, create a draft only after recipient, subject, and intent are clear; never send.'
+            ? 'Use Gmail tools only. Do not call Google Drive/Docs/Sheets for a Gmail reply or email follow-up. SHORT-CIRCUIT: if asked to read, summarize, explain, or draft a reply to an email, immediately call gmail.read_message using the message_id from the history or natural sender/subject fields. Do not call gmail.search_messages first if the email was already listed. For drafting, create a Gmail draft only after recipient, subject, and intent are clear; never send.'
             : '',
           effectiveConnectorIntent.action === 'docs'
             ? 'Use Google Docs connector tools. SHORT-CIRCUIT: if the user asks what files are here, call connectors.search_docs immediately and list them. Use connectors.find_and_read_doc to read a named document. For creation requests, produce polished document structure with headings, bullets, decisions, action items, owners, dates, and next steps.'

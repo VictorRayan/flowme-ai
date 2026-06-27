@@ -59,8 +59,8 @@ export async function middleware(request: NextRequest) {
     authError?.message?.includes('fetch') ||
     authError?.message?.includes('network');
 
-  // Protect /app routes — redirect to login if no user (but not on network errors)
-  if (pathname.startsWith('/app') && !user && !isNetworkError) {
+  // Protect authenticated app and standalone checkout routes.
+  if ((pathname.startsWith('/app') || pathname === '/checkout') && !user && !isNetworkError) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -105,6 +105,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/app/:path*',
+    '/checkout',
     '/login',
     '/signup',
     '/api/v1/:path*',

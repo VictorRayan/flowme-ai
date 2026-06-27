@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Alert, Snackbar } from '@mui/material';
 import type { FeatureKey, UserEntitlements } from '@/lib/billing/entitlements';
 import type { BillingInterval } from '@/lib/billing/pricing';
+import { getUiLang, type UiLang } from '@/lib/i18n';
 import UpgradeDialog from './UpgradeDialog';
 import BillingAlert from './BillingAlert';
 
@@ -42,9 +43,20 @@ type UpgradeEventDetail = {
 
 const CACHE_TTL_MS = 30_000;
 const SubscriptionContext = React.createContext<SubscriptionContextValue | null>(null);
+const CHECKOUT_RESULT_COPY: Record<UiLang, Record<'success' | 'cancelled', string>> = {
+  en: {
+    success: 'Payment confirmed. We are unlocking your Flow Me Pro.',
+    cancelled: 'Checkout cancelled. No charge was made.',
+  },
+  pt: {
+    success: 'Pagamento confirmado. Estamos liberando seu Flow Me Pro.',
+    cancelled: 'Checkout cancelado. Nenhuma cobrança foi feita.',
+  },
+};
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [lang, setLang] = React.useState<UiLang>('en');
   const [entitlements, setEntitlements] = React.useState<UserEntitlements | null>(null);
   const [billing, setBilling] = React.useState<BillingInfo | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -60,6 +72,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const initialQuery = React.useRef(
     typeof window === 'undefined' ? '' : window.location.search,
   );
+
+  React.useEffect(() => {
+    setLang(getUiLang());
+  }, []);
 
   const refresh = React.useCallback(async (force = false) => {
     if (!force && Date.now() - fetchedAt.current < CACHE_TTL_MS && entitlementsRef.current) {
@@ -172,9 +188,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert severity={checkoutResult === 'success' ? 'success' : 'info'} onClose={() => setCheckoutResult(null)}>
-          {checkoutResult === 'success'
-            ? 'Pagamento confirmado. Estamos liberando seu Flow Me Pro.'
-            : 'Checkout cancelado. Nenhuma cobrança foi feita.'}
+          {checkoutResult ? CHECKOUT_RESULT_COPY[lang][checkoutResult] : null}
         </Alert>
       </Snackbar>
     </SubscriptionContext.Provider>

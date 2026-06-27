@@ -12,9 +12,10 @@ import { useSearchParams } from 'next/navigation';
 import { resolveUiLang, type UiLang } from '@/lib/i18n';
 import { SUPPORT_UI } from '@/lib/support/ui-copy';
 import type { FunnelAction } from '@/lib/support/cancellation-funnel';
+import type { SupportRequestCategory } from '@/lib/support/requests';
 
 type Message = { role: 'user' | 'assistant'; content: string; sources?: Array<{ key: string; title: string }> };
-type SupportRequest = { id: string; type?: 'cancellation' | 'payment_problem'; status: string; created_at: string; provider_action_status?: string };
+type SupportRequest = { id: string; type?: 'cancellation' | 'support'; status: string; created_at: string; provider_action_status?: string; category?: SupportRequestCategory; subject?: string };
 
 function SupportPageContent() {
   const searchParams = useSearchParams();
@@ -30,6 +31,12 @@ function SupportPageContent() {
   const [formAvailable, setFormAvailable] = useState(false);
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [billing, setBilling] = useState<{ plan_code?: string; billing_state?: string; provider?: string | null } | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestCategory, setRequestCategory] = useState<SupportRequestCategory>('other');
+  const [requestSubject, setRequestSubject] = useState('');
+  const [requestDetails, setRequestDetails] = useState('');
+  const [requestExpectedOutcome, setRequestExpectedOutcome] = useState('');
+  const [requestSaving, setRequestSaving] = useState(false);
   const [reasonCode, setReasonCode] = useState<keyof typeof copy.reasons>('other');
   const [reason, setReason] = useState('');
   const [disappointing, setDisappointing] = useState('');
@@ -41,6 +48,7 @@ function SupportPageContent() {
   const [success, setSuccess] = useState<string | null>(null);
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const requestFormRef = useRef<HTMLDivElement>(null);
   const intentStarted = useRef(false);
 
   const localizeError = (code?: string) => copy.errors[code as keyof typeof copy.errors] || copy.errors.SUPPORT_UNAVAILABLE;
@@ -84,6 +92,17 @@ function SupportPageContent() {
     if (formAvailable) requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }, [formAvailable]);
 
+  useEffect(() => {
+    if (requestOpen) requestAnimationFrame(() => requestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [requestOpen]);
+
+  useEffect(() => {
+    if (!requestOpen) return;
+    if (requestCategory !== 'payment' && requestExpectedOutcome.trim().length === 0) {
+      setRequestExpectedOutcome(copy.requestPlaceholders.default.expectedOutcome);
+    }
+  }, [requestCategory, requestOpen, copy.requestPlaceholders.default.expectedOutcome, requestExpectedOutcome]);
+
   const send = async (options: { message?: string; questionKey?: FunnelAction; label?: string; key?: string }) => {
     const label = options.label || options.message || '';
     if (!label.trim() || loadingAction) return;
@@ -96,7 +115,15 @@ function SupportPageContent() {
       if (!response.ok || !data.ok) throw new Error(data?.error?.code || 'SUPPORT_UNAVAILABLE');
       setMessages(current => [...current, { role: 'assistant', content: data.answer, sources: data.sources || [] }]);
       setNextActions(data.next_actions || []); setFunnelSessionId(data.funnel_session_id || funnelSessionId); setFormAvailable(Boolean(data.cancellation_form_available));
-      if (data.support_ticket) await loadRequests();
+      if (data.request_form_available) {
+        const suggestedCategory = (data.suggested_request_category || 'other') as SupportRequestCategory;
+        const prefill = data.request_prefill || {};
+        setRequestCategory(suggestedCategory);
+        setRequestSubject(typeof prefill.subject === 'string' ? prefill.subject : '');
+        setRequestDetails(typeof prefill.details === 'string' ? prefill.details : '');
+        setRequestExpectedOutcome(typeof prefill.expected_outcome === 'string' ? prefill.expected_outcome : '');
+        setRequestOpen(true);
+      }
     } catch (requestError: unknown) {
       setError(localizeError(requestError instanceof Error ? requestError.message : undefined));
     } finally { setLoadingAction(null); }
@@ -123,6 +150,41 @@ function SupportPageContent() {
     } catch (requestError: unknown) { setError(localizeError(requestError instanceof Error ? requestError.message : undefined)); }
     finally { setSaving(false); }
   };
+
+  const submitGenericRequest = async () => {
+    setRequestSaving(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/support/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: requestCategory,
+          subject: requestSubject,
+          details: requestDetails,
+          expected_outcome: requestExpectedOutcome,
+          locale,
+          source: searchParams.get('source') === 'billing_page' ? 'billing_page' : 'support_balys',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data?.error?.message || data?.error?.code || 'SUPPORT_REQUEST_CREATE_FAILED');
+      setSuccess(copy.requestSuccess);
+      setRequestOpen(false);
+      setRequestCategory('other');
+      setRequestSubject('');
+      setRequestDetails('');
+      setRequestExpectedOutcome('');
+      await loadRequests();
+    } catch (requestError: unknown) {
+      setError(localizeError(requestError instanceof Error ? requestError.message : undefined));
+    } finally {
+      setRequestSaving(false);
+    }
+  };
+
+  const requestPlaceholders = requestCategory === 'payment' ? copy.requestPlaceholders.payment : copy.requestPlaceholders.default;
+  const requestValid = requestSubject.trim().length >= 8 && requestDetails.trim().length >= 24 && requestExpectedOutcome.trim().length >= 12;
 
   const quickIcon = (key: string) => {
     if (key === 'payment_problem') return <CreditCardIcon sx={{ fontSize: 16 }} />;
@@ -154,9 +216,37 @@ function SupportPageContent() {
       {loadingAction && <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 2 }}><CircularProgress size={18} /><Typography variant="body2" color="text.secondary">{copy.thinking}</Typography></Box>}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, my: 2 }}>{copy.quick.map(([key, label]) => <Chip key={key} icon={quickIcon(key)} label={label} clickable disabled={Boolean(loadingAction)} color={selected === key ? 'primary' : 'default'} variant={selected === key ? 'filled' : 'outlined'} sx={{ height: 34, borderRadius: 999, '& .MuiChip-label': { px: 0.75 } }} onClick={() => key === 'manage_subscription' ? void send({ questionKey: key, label, key }) : void send({ message: label, key })} />)}</Box>
       {nextActions.length > 0 && <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', my: 2, p: 1.25, borderRadius: 2.5, bgcolor: 'rgba(99,102,241,0.10)', border: '1px solid rgba(129,140,248,0.22)' }}><Chip icon={<AutoAwesomeIcon />} label={lang === 'pt' ? 'Próxima etapa' : 'Next step'} color="primary" />{nextActions.map(action => <Button key={action} variant="contained" onClick={() => void send({ questionKey: action, label: copy.actions[action], key: action })}>{copy.actions[action]}</Button>)}</Box>}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1, mb: 2, p: 1.5, borderRadius: 2.5, bgcolor: 'rgba(15,23,42,0.46)', border: '1px solid rgba(148,163,184,0.12)' }}>
+        <Box>
+          <Typography fontWeight={700}>{copy.requestTitle}</Typography>
+          <Typography variant="body2" color="text.secondary">{copy.requestIntro}</Typography>
+        </Box>
+        <Button variant="outlined" onClick={() => setRequestOpen(current => !current)} sx={{ minHeight: 42 }}>
+          {copy.requestTitle}
+        </Button>
+      </Box>
       <Divider sx={{ my: 2 }} />
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}><TextField fullWidth label={copy.prompt} value={chatInput} onChange={event => setChatInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send({ message: chatInput }); } }} multiline maxRows={4} /><Button variant="contained" aria-label={copy.send} disabled={!chatInput.trim() || Boolean(loadingAction)} onClick={() => void send({ message: chatInput })} sx={{ minWidth: 48, minHeight: 48 }}><SendIcon /></Button></Box>
     </Paper>
+
+    {requestOpen && <Paper ref={requestFormRef} variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 4, mt: 3, borderColor: 'rgba(59,130,246,0.24)', background: 'linear-gradient(145deg, rgba(15,23,42,0.96), rgba(17,24,39,0.92))' }}>
+      <Typography variant="h6" fontWeight={750}>{copy.requestTitle}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mb: 2 }}>{copy.requestIntro}</Typography>
+      <TextField select fullWidth label={copy.requestCategory} value={requestCategory} onChange={event => setRequestCategory(event.target.value as SupportRequestCategory)} sx={{ mb: 2 }}>
+        {Object.entries(copy.requestCategories).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}
+      </TextField>
+      <TextField fullWidth label={copy.requestSubject} value={requestSubject} onChange={event => setRequestSubject(event.target.value)} placeholder={requestPlaceholders.subject} sx={{ mb: 2 }} />
+      <TextField fullWidth multiline minRows={4} label={copy.requestDetails} value={requestDetails} onChange={event => setRequestDetails(event.target.value)} placeholder={requestPlaceholders.details} helperText={`${requestDetails.trim().length}/24`} sx={{ mb: 2 }} />
+      <TextField fullWidth multiline minRows={2} label={copy.requestExpectedOutcome} value={requestExpectedOutcome} onChange={event => setRequestExpectedOutcome(event.target.value)} placeholder={requestPlaceholders.expectedOutcome} helperText={`${requestExpectedOutcome.trim().length}/12`} />
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+        <Button variant="contained" disabled={!requestValid || requestSaving} onClick={() => void submitGenericRequest()} sx={{ minHeight: 44 }}>
+          {requestSaving ? <CircularProgress size={18} color="inherit" /> : copy.requestReview}
+        </Button>
+        <Button color="inherit" onClick={() => setRequestOpen(false)} sx={{ minHeight: 44 }}>
+          {copy.edit}
+        </Button>
+      </Box>
+    </Paper>}
 
     {formAvailable && <Paper ref={formRef} variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 4, mt: 3, borderColor: 'rgba(52,211,153,0.22)', background: 'linear-gradient(145deg, rgba(15,23,42,0.96), rgba(20,83,45,0.12))', scrollMarginTop: { xs: 80, md: 24 } }}>
       <Typography variant="h6" fontWeight={750}>{copy.formTitle}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mb: 2 }}>{copy.formIntro}</Typography>
@@ -176,7 +266,7 @@ function SupportPageContent() {
       </>}
     </Paper>}
 
-    {requests.length > 0 && <Paper variant="outlined" sx={{ p: 2, mt: 3, borderRadius: 3 }}><Typography fontWeight={700}>{copy.requests}</Typography>{requests.slice(0, 5).map(request => <Typography key={`${request.type || 'request'}-${request.id}`} variant="body2" color="text.secondary" sx={{ mt: 1 }}>{new Intl.DateTimeFormat(locale).format(new Date(request.created_at))} · {request.type === 'payment_problem' ? (lang === 'pt' ? 'pagamento' : 'payment') : (lang === 'pt' ? 'cancelamento' : 'cancellation')} · {copy.statuses[request.status as keyof typeof copy.statuses] || request.status}</Typography>)}</Paper>}
+    {requests.length > 0 && <Paper variant="outlined" sx={{ p: 2, mt: 3, borderRadius: 3 }}><Typography fontWeight={700}>{copy.requests}</Typography>{requests.slice(0, 5).map(request => <Typography key={`${request.type || 'request'}-${request.id}`} variant="body2" color="text.secondary" sx={{ mt: 1 }}>{new Intl.DateTimeFormat(locale).format(new Date(request.created_at))} · {request.type === 'cancellation' ? (lang === 'pt' ? 'cancelamento' : 'cancellation') : copy.requestCategories[(request.category || 'other') as keyof typeof copy.requestCategories]} · {copy.statuses[request.status as keyof typeof copy.statuses] || request.status}{request.subject ? ` · ${request.subject}` : ''}</Typography>)}</Paper>}
   </Box>;
 }
 

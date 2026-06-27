@@ -127,15 +127,15 @@ export function paymentSupportAnswer(
   const provider = billing.provider ? providerNames[billing.provider] || billing.provider : english ? 'Flow Me billing' : 'cobrança Flow Me';
   if (english) {
     return [
-      'I opened a billing support review for this account.',
+      'Let’s register this correctly so support can act on it instead of guessing from chat.',
       `Current plan: ${billing.plan.toUpperCase()} · payment route: ${provider} · status: ${billing.state}.`,
-      'If you saw a failed charge, duplicate charge, missing invoice, Pix problem, or card decline, add the exact detail here and the support team will review it with the billing logs.',
+      'Open the request form below with what happened, when it happened, and what you need resolved. For duplicate charges, Pix, missing invoice, declined card, or paid-but-not-unlocked access, the team reviews it against billing logs.',
     ].join('\n\n');
   }
   return [
-    'Abri uma revisão de suporte financeiro para esta conta.',
+    'Vamos registrar isso direito para o suporte agir sem ficar adivinhando pelo chat.',
     `Plano atual: ${billing.plan.toUpperCase()} · rota de pagamento: ${provider} · status: ${billing.state}.`,
-    'Se foi cobrança duplicada, Pix, fatura, cartão recusado ou erro no checkout, escreva o detalhe aqui que o suporte revisa junto com os logs de cobrança.',
+    'Abra o formulário abaixo com o que aconteceu, quando aconteceu e qual resultado você espera. Em cobrança duplicada, Pix, fatura ausente, cartão recusado ou pagamento aprovado sem liberação, o time cruza isso com os logs de cobrança.',
   ].join('\n\n');
 }
 

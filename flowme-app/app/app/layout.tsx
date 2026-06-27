@@ -19,6 +19,7 @@ import RateReviewIcon from '@mui/icons-material/RateReview';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -110,6 +111,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     { text: nav.goals,      icon: <TrackChangesIcon      sx={{ fontSize: 20 }} />, path: '/app/goals', feature: 'goals', color: '#f97316' },
     { text: nav.calendar,   icon: <CalendarMonthIcon     sx={{ fontSize: 20 }} />, path: '/app/calendar', feature: 'calendar', color: '#60a5fa' },
     { text: nav.finance,    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />, path: '/app/finance', feature: 'finance', color: '#34d399' },
+    { text: nav.checklists, icon: <ChecklistRoundedIcon  sx={{ fontSize: 20 }} />, path: '/app/checklists', color: '#4ade80' },
     { text: nav.notes,      icon: <NoteIcon              sx={{ fontSize: 20 }} />, path: '/app/notes', color: '#facc15' },
     { text: nav.reviews,    icon: <RateReviewIcon        sx={{ fontSize: 20 }} />, path: '/app/reviews', feature: 'reviews', color: '#fb7185' },
     { text: nav.balysAi,    icon: <BalysIcon             sx={{ fontSize: 22 }} />, path: '/app/ai', color: '#a78bfa' },

@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
 import { advanceFunnel, isFunnelAction, normalizeSupportLocale, type FunnelAction } from '@/lib/support/cancellation-funnel';
 import { answerSupportQuestion, answerSupportQuestionKey, detectsPaymentSupportIntent, findSupportKnowledge, localizedSupportSource, paymentSupportAnswer } from '@/lib/support/knowledge-base';
-import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
+import { inferSupportRequestCategory } from '@/lib/support/requests';
 
 export function detectsCancellationIntent(message: string): boolean {
   return /\b(cancelar|cancelamento|cancela(?:r)?|não quero mais pagar|unsubscribe|cancel subscription)\b/i.test(message);
@@ -49,14 +49,6 @@ export async function POST(req: NextRequest) {
       state: subscription?.status || 'free',
     };
     if (!questionKey && detectsPaymentSupportIntent(message)) {
-      await recordBillingAdminAlert(admin, {
-        kind: 'payment_failure',
-        severity: 'warning',
-        userId: user.id,
-        provider: billing.provider === 'stripe' || billing.provider === 'asaas' || billing.provider === 'apple' || billing.provider === 'google' ? billing.provider : null,
-        dedupeKey: `support-payment:${user.id}:${new Date().toISOString().slice(0, 10)}`,
-        metadata: { source: 'support_chat', message_preview: message.slice(0, 500), plan: billing.plan, state: billing.state },
-      });
       return apiSuccess({
         answer: paymentSupportAnswer(billing, locale),
         sources: [{ key: 'billing', title: locale === 'en-US' ? 'Billing and payment' : 'Cobrança e pagamento' }],
@@ -64,7 +56,13 @@ export async function POST(req: NextRequest) {
         intent: 'payment_support',
         next_actions: [],
         cancellation_form_available: false,
-        support_ticket: { type: 'payment_problem', status: 'open' },
+        request_form_available: true,
+        suggested_request_category: 'payment',
+        request_prefill: {
+          subject: locale === 'en-US' ? 'Payment issue with my subscription' : 'Problema de pagamento na minha assinatura',
+          details: message,
+          expected_outcome: locale === 'en-US' ? 'Review the charge and unlock access if payment was approved.' : 'Revisar a cobrança e liberar o acesso se o pagamento foi aprovado.',
+        },
       });
     }
     if (questionKey) {
@@ -121,13 +119,22 @@ export async function POST(req: NextRequest) {
       });
     }
     const sections = findSupportKnowledge(message);
+    const category = inferSupportRequestCategory(message);
+    const canEscalate = sections.length === 0 || /pagamento|cobrança|payment|billing|cancel|erro|bug|falha|problem|issue|support/i.test(message);
     return apiSuccess({
       answer: answerSupportQuestion(message, billing, locale),
       sources: sections.map(section => localizedSupportSource(section, locale)),
-      can_escalate: sections.length === 0 || /pagamento|cobrança|payment|billing|cancel/i.test(message),
+      can_escalate: canEscalate,
       intent: null,
       next_actions: [],
       cancellation_form_available: false,
+      request_form_available: canEscalate,
+      suggested_request_category: category,
+      request_prefill: canEscalate ? {
+        subject: message.length > 90 ? `${message.slice(0, 87)}...` : message,
+        details: message,
+        expected_outcome: locale === 'en-US' ? 'I want support to review this case and tell me the next step.' : 'Quero que o suporte revise este caso e me diga o próximo passo.',
+      } : null,
     });
   } catch (error: unknown) {
     if (error instanceof Error && error.message === ErrorCode.UNAUTHORIZED) return apiError(ErrorCode.UNAUTHORIZED, 'Unauthorized', 401);

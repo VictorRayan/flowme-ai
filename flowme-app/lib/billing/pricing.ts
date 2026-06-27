@@ -1,4 +1,5 @@
 import type { FeatureKey } from './entitlements';
+import type { UiLang } from '../i18n';
 
 export type BillingInterval = 'monthly' | 'annual';
 
@@ -15,18 +16,33 @@ export const PRO_PRICES = {
   },
 } as const;
 
-const FEATURE_NAMES: Partial<Record<FeatureKey, string>> = {
-  calendar: 'Calendário',
-  today: 'Today',
-  goals: 'Metas e planos',
-  finance: 'Finanças',
-  reviews: 'Revisões',
-  connectors: 'Conectores',
-  whatsapp: 'WhatsApp',
-  briefings: 'Briefings',
-  reminders: 'Lembretes',
-  meetings: 'Reuniões',
-  images: 'Geração de imagens',
+const FEATURE_NAMES: Record<UiLang, Partial<Record<FeatureKey, string>>> = {
+  en: {
+    calendar: 'Calendar',
+    today: 'Today',
+    goals: 'Goals and plans',
+    finance: 'Finance',
+    reviews: 'Reviews',
+    connectors: 'Connectors',
+    whatsapp: 'WhatsApp',
+    briefings: 'Briefings',
+    reminders: 'Reminders',
+    meetings: 'Meetings',
+    images: 'Image generation',
+  },
+  pt: {
+    calendar: 'Calendário',
+    today: 'Tarefas de Hoje',
+    goals: 'Metas e planos',
+    finance: 'Finanças',
+    reviews: 'Revisões',
+    connectors: 'Conectores',
+    whatsapp: 'WhatsApp',
+    briefings: 'Briefings',
+    reminders: 'Lembretes',
+    meetings: 'Reuniões',
+    images: 'Geração de imagens',
+  },
 };
 
 export function formatBrl(amountCents: number): string {
@@ -45,6 +61,6 @@ export function annualSavingsPercent(): number {
   return Math.round((annualSavingsCents() / monthlyYear) * 100);
 }
 
-export function featureName(feature: FeatureKey | null): string | null {
-  return feature ? FEATURE_NAMES[feature] || null : null;
+export function featureName(feature: FeatureKey | null, lang: UiLang = 'pt'): string | null {
+  return feature ? FEATURE_NAMES[lang][feature] || null : null;
 }

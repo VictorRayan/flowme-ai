@@ -25,6 +25,9 @@ describe('billing pricing', () => {
 
   it('uses human-facing feature names without exposing internal keys', () => {
     expect(featureName('connectors')).toBe('Conectores');
+    expect(featureName('connectors', 'en')).toBe('Connectors');
+    expect(featureName('today', 'pt')).toBe('Tarefas de Hoje');
+    expect(featureName('today', 'en')).toBe('Today');
     expect(featureName('balys_limited')).toBeNull();
     expect(featureName(null)).toBeNull();
   });

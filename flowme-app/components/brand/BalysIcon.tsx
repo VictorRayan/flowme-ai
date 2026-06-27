@@ -1,10 +1,9 @@
 'use client';
 
 import SvgIcon, { SvgIconProps } from '@mui/material/SvgIcon';
-import { useId } from 'react';
 
 export default function BalysIcon(props: SvgIconProps) {
-  const gradientId = `balys-icon-${useId().replace(/:/g, '')}`;
+  const gradientId = 'balys-icon-gradient';
 
   return (
     <SvgIcon viewBox="0 0 24 24" {...props}>

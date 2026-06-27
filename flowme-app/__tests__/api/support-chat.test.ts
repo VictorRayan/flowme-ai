@@ -16,7 +16,6 @@ jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockResolvedValue({ user: { id: 'user-1' }, supabase: {} }),
 }));
 jest.mock('@/lib/api/admin', () => ({ getSupabaseAdmin: jest.fn(() => ({ from: mockFrom })) }));
-jest.mock('@/lib/billing/admin-alerts', () => ({ recordBillingAdminAlert: jest.fn().mockResolvedValue(undefined) }));
 
 describe('POST /api/support/chat', () => {
   beforeEach(() => {
@@ -82,8 +81,10 @@ describe('POST /api/support/chat', () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.intent).toBe('payment_support');
-    expect(body.answer).toContain('billing support review');
+    expect(body.answer).toContain('register this correctly');
     expect(body.can_escalate).toBe(true);
+    expect(body.request_form_available).toBe(true);
+    expect(body.suggested_request_category).toBe('payment');
   });
 
   it('lets a previous subscription quick action recover an advanced cancellation session', async () => {

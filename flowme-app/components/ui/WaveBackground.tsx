@@ -122,6 +122,83 @@ export default function WaveBackground() {
       context.stroke();
     };
 
+    const drawSingularity = (radius: number) => {
+      const x = pointer.x;
+      const y = pointer.y;
+      const pulse = 1 + Math.sin(tick * 4.4) * 0.035;
+      const coreRadius = Math.max(18, Math.min(26, radius * 0.12)) * pulse;
+      const diskRadius = Math.max(62, Math.min(92, radius * 0.42)) * pulse;
+      const tilt = 0.34;
+
+      const halo = context.createRadialGradient(x, y, coreRadius * 0.2, x, y, diskRadius * 2.15);
+      halo.addColorStop(0, 'rgba(2, 6, 23, 0.92)');
+      halo.addColorStop(0.18, 'rgba(14, 21, 46, 0.68)');
+      halo.addColorStop(0.34, 'rgba(94, 234, 212, 0.14)');
+      halo.addColorStop(0.58, 'rgba(129, 140, 248, 0.10)');
+      halo.addColorStop(1, 'rgba(3, 5, 12, 0)');
+      context.save();
+      context.globalCompositeOperation = 'lighter';
+      context.fillStyle = halo;
+      context.fillRect(x - diskRadius * 2.15, y - diskRadius * 2.15, diskRadius * 4.3, diskRadius * 4.3);
+
+      context.translate(x, y);
+      context.rotate(Math.sin(tick * 0.9) * 0.08);
+
+      for (let ring = 0; ring < 4; ring += 1) {
+        const ringRadius = diskRadius * (0.72 + ring * 0.13);
+        const ringAlpha = 0.34 - ring * 0.055;
+        const start = tick * (0.9 + ring * 0.21) + ring * 1.15;
+        const end = start + Math.PI * (1.25 + ring * 0.12);
+        const gradient = context.createLinearGradient(-ringRadius, 0, ringRadius, 0);
+        gradient.addColorStop(0, `rgba(94, 234, 212, ${ringAlpha * 0.45})`);
+        gradient.addColorStop(0.46, `rgba(129, 140, 248, ${ringAlpha})`);
+        gradient.addColorStop(1, `rgba(244, 114, 182, ${ringAlpha * 0.62})`);
+        context.save();
+        context.rotate(ring % 2 === 0 ? -0.3 : 0.22);
+        context.scale(1, tilt + ring * 0.026);
+        context.beginPath();
+        context.strokeStyle = gradient;
+        context.lineWidth = 1.4 - ring * 0.12;
+        context.arc(0, 0, ringRadius, start, end);
+        context.stroke();
+        context.restore();
+      }
+
+      context.save();
+      context.rotate(-0.2);
+      context.scale(1.18, 0.32);
+      const diskGradient = context.createLinearGradient(-diskRadius, 0, diskRadius, 0);
+      diskGradient.addColorStop(0, 'rgba(94, 234, 212, 0)');
+      diskGradient.addColorStop(0.22, 'rgba(94, 234, 212, 0.42)');
+      diskGradient.addColorStop(0.52, 'rgba(255, 255, 255, 0.58)');
+      diskGradient.addColorStop(0.76, 'rgba(168, 85, 247, 0.46)');
+      diskGradient.addColorStop(1, 'rgba(244, 114, 182, 0)');
+      context.beginPath();
+      context.strokeStyle = diskGradient;
+      context.lineWidth = 3.2;
+      context.arc(0, 0, diskRadius * 0.74, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+
+      context.globalCompositeOperation = 'source-over';
+      const core = context.createRadialGradient(0, 0, 0, 0, 0, coreRadius * 1.65);
+      core.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      core.addColorStop(0.5, 'rgba(1, 5, 16, 0.98)');
+      core.addColorStop(0.72, 'rgba(15, 23, 42, 0.72)');
+      core.addColorStop(1, 'rgba(94, 234, 212, 0)');
+      context.beginPath();
+      context.fillStyle = core;
+      context.arc(0, 0, coreRadius * 1.65, 0, Math.PI * 2);
+      context.fill();
+
+      context.beginPath();
+      context.strokeStyle = 'rgba(226, 232, 240, 0.58)';
+      context.lineWidth = 0.8;
+      context.arc(0, 0, coreRadius * 1.04, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    };
+
     const render = () => {
       tick += reducedMotion ? 0.002 : 0.008;
       context.clearRect(0, 0, width, height);
@@ -151,12 +228,16 @@ export default function WaveBackground() {
           const force = (1 - distance / fieldRadius) ** 2;
           const angle = Math.atan2(dy, dx);
           const orbit = angle + Math.PI * 0.5;
-          targetX += Math.cos(angle) * force * 42 + Math.cos(orbit) * force * 26;
-          targetY += Math.sin(angle) * force * 42 + Math.sin(orbit) * force * 26;
+          const eventHorizon = Math.max(34, fieldRadius * 0.16);
+          const inward = distance < eventHorizon ? -distance * 0.34 : -fieldRadius * 0.46;
+          const orbital = 68 + Math.sin(tick * 1.6 + particle.row * 0.22 + particle.col * 0.14) * 10;
+          const shear = Math.max(0, 1 - Math.abs(distance - eventHorizon * 1.45) / (fieldRadius * 0.62));
+          targetX += Math.cos(angle) * force * inward + Math.cos(orbit) * force * orbital + Math.cos(angle) * shear * 10;
+          targetY += Math.sin(angle) * force * inward + Math.sin(orbit) * force * orbital + Math.sin(angle) * shear * 10;
         }
 
-        particle.vx += (targetX - particle.x) * 0.035;
-        particle.vy += (targetY - particle.y) * 0.035;
+        particle.vx += (targetX - particle.x) * 0.045;
+        particle.vy += (targetY - particle.y) * 0.045;
         particle.vx *= reducedMotion ? 0.68 : 0.86;
         particle.vy *= reducedMotion ? 0.68 : 0.86;
         particle.x += particle.vx;
@@ -182,6 +263,7 @@ export default function WaveBackground() {
       pointerGlow.addColorStop(1, 'rgba(3, 5, 12, 0)');
       context.fillStyle = pointerGlow;
       context.fillRect(pointer.x - fieldRadius * 1.1, pointer.y - fieldRadius * 1.1, fieldRadius * 2.2, fieldRadius * 2.2);
+      drawSingularity(fieldRadius);
       context.restore();
 
       const veil = context.createLinearGradient(0, 0, 0, height);

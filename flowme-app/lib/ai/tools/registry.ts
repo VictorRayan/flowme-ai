@@ -15,6 +15,7 @@ import { imagesGenerateTool } from './image-tools';
 import { MEETINGS_TOOLS } from './meeting-tools';
 import { REVIEWS_TOOLS } from './reviews-tools';
 import { FINANCE_TOOLS } from './finance-tools';
+import { CHECKLIST_TOOLS } from './checklists-tools';
 
 export const ALL_TOOLS: Tool[] = [
   calendarListEventsTool,
@@ -64,6 +65,7 @@ export const ALL_TOOLS: Tool[] = [
   ...MEETINGS_TOOLS,
   ...REVIEWS_TOOLS,
   ...FINANCE_TOOLS,
+  ...CHECKLIST_TOOLS,
 ];
 
 const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
@@ -84,9 +86,10 @@ const TOOL_DOMAIN_PREFIXES: Record<string, string> = {
   meetings: 'meetings.',
   reviews: 'reviews.',
   finance: 'finance.',
+  checklists: 'checklists.',
 };
 
-export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'images' | 'slack' | 'meetings' | 'reviews' | 'finance' | 'all' | 'none'): Tool[] {
+export function getToolsByDomain(domain: 'calendar' | 'gmail' | 'connectors' | 'notes' | 'council' | 'people' | 'goals' | 'reminders' | 'weather' | 'web' | 'trends' | 'images' | 'slack' | 'meetings' | 'reviews' | 'finance' | 'checklists' | 'all' | 'none'): Tool[] {
   if (domain === 'none') return [];
   if (domain === 'all') return ALL_TOOLS;
   const prefix = TOOL_DOMAIN_PREFIXES[domain];

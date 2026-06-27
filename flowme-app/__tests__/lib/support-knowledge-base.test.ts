@@ -33,9 +33,9 @@ describe('support knowledge base', () => {
     expect(answer).toContain('Your account is on FREE');
   });
 
-  it('detects payment support and returns a ticket-style answer', () => {
+  it('detects payment support and returns a structured escalation answer', () => {
     expect(detectsPaymentSupportIntent('I have a payment problem')).toBe(true);
-    expect(paymentSupportAnswer({ plan: 'pro', provider: 'stripe', state: 'active' }, 'en-US')).toContain('billing support review');
-    expect(paymentSupportAnswer({ plan: 'pro', provider: 'asaas', state: 'active' }, 'pt-BR')).toContain('suporte financeiro');
+    expect(paymentSupportAnswer({ plan: 'pro', provider: 'stripe', state: 'active' }, 'en-US')).toContain('register this correctly');
+    expect(paymentSupportAnswer({ plan: 'pro', provider: 'asaas', state: 'active' }, 'pt-BR')).toContain('registrar isso direito');
   });
 });

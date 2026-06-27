@@ -187,7 +187,7 @@ async function handleGemini(auth: { supabase: any; user: any }, audioFile: File,
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return apiError(ErrorCode.INTERNAL_ERROR, 'Gemini API key not configured');
 
-  const modelId = modelOverride || 'gemini-2.0-flash';
+  const modelId = modelOverride || 'gemini-2.5-flash';
 
   const arrayBuffer = await audioFile.arrayBuffer();
   const base64Audio = Buffer.from(arrayBuffer).toString('base64');

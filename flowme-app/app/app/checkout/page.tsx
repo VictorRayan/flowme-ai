@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import {
   Alert, Box, Button, Chip, CircularProgress, Container, Paper, Stack, TextField,
@@ -67,6 +66,10 @@ const cardNumberElementOptions = {
 
 function money(cents: number, locale: string) {
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'BRL' }).format(cents / 100);
+}
+
+function localizeFeatureHighlight(feature: string, locale: CheckoutLocale) {
+  return locale === 'pt-BR' ? feature.replace(/\bToday\b/g, 'Tarefas de Hoje') : feature;
 }
 
 function CardField({ label, children }: { label: string; children: React.ReactNode }) {
@@ -141,7 +144,7 @@ function CardPaymentForm({
       <Typography variant="caption" color="text.secondary">{copy.cardReady}</Typography>
       {pending && <Alert severity="info">{copy.awaitingConfirmation}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
-      <Button variant="contained" size="large" disabled={disabled || submitting || pending || !stripe || !cardholderName.trim()} onClick={() => void submit()} sx={{ minHeight: 54, fontWeight: 900 }}>
+      <Button variant="contained" color="success" size="large" disabled={disabled || submitting || pending || !stripe || !cardholderName.trim()} onClick={() => void submit()} sx={{ minHeight: 54, fontWeight: 900 }}>
         {submitting ? <><CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />{copy.processingCard}</> : copy.subscribe}
       </Button>
     </Stack>
@@ -269,16 +272,18 @@ function CheckoutPageContent() {
   return (
     <Box data-testid="checkout-scroll" sx={{ height: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', background: 'radial-gradient(circle at 15% 10%, rgba(99,102,241,.18), transparent 30%), radial-gradient(circle at 85% 85%, rgba(34,197,94,.10), transparent 28%)' }}>
       <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3, lg: 6 }, pb: { xs: 'calc(40px + env(safe-area-inset-bottom))', lg: 6 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: { xs: 2, lg: 3 } }}>
-          <Image src="/brand/flowme-logo-transparent.png" alt="Flow Me" width={174} height={58} style={{ objectFit: 'contain' }} priority />
-        </Box>
+        {!paid && <Box data-testid="checkout-offer-countdown" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2, minHeight: 68, px: { xs: 2, sm: 3 }, py: 1.5, mb: 3, borderRadius: 3, color: '#fff', background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)', border: '1px solid rgba(255,255,255,.16)', boxShadow: '0 10px 28px rgba(234,88,12,.24)' }}>
+          <AccessTimeRoundedIcon aria-hidden="true" sx={{ fontSize: 24, opacity: 0.9 }} />
+          <Typography component="span" role="timer" aria-label={`${copy.limitedOffer}: ${formatCheckoutCountdown(offerRemainingSeconds)}`} fontWeight={950} sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem' }, lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '.02em' }}>{formatCheckoutCountdown(offerRemainingSeconds)}</Typography>
+          <Typography component="span" fontWeight={800} sx={{ fontSize: { xs: '.88rem', sm: '1rem' }, lineHeight: 1.2 }}>{offerRemainingSeconds > 0 ? copy.limitedOffer : copy.offerExpired}</Typography>
+        </Box>}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr)', lg: 'minmax(0,1.05fr) minmax(380px,.95fr)' }, gap: 3, alignItems: 'start' }}>
           <Paper sx={{ p: { xs: 2.5, sm: 4 }, minWidth: 0, borderRadius: 4, border: '1px solid rgba(99,102,241,.35)', background: 'linear-gradient(145deg, rgba(30,31,48,.98), rgba(18,19,31,.98))', boxShadow: '0 24px 80px rgba(0,0,0,.28)' }}>
             <Chip icon={<AutoAwesomeIcon />} label={plan.checkout_badge || 'Flow Me Pro'} color="primary" sx={{ mb: 2 }} />
             <Typography variant="h3" fontWeight={900} sx={{ overflowWrap: 'anywhere', fontSize: { xs: '2.1rem', sm: '2.7rem', lg: '3rem' }, lineHeight: 1.05 }}>{plan.short_description}</Typography>
             <Typography color="text.secondary" sx={{ mt: 2, fontSize: { xs: '1rem', sm: '1.05rem' } }}>{plan.description}</Typography>
             <Stack spacing={1.4} sx={{ my: 3.5 }}>
-              {plan.feature_highlights.map(feature => <Box key={feature} sx={{ display: 'flex', gap: 1.2, alignItems: 'flex-start' }}><CheckCircleRoundedIcon color="success" sx={{ mt: 0.2, flexShrink: 0 }} /><Typography>{feature}</Typography></Box>)}
+              {plan.feature_highlights.map(feature => <Box key={feature} sx={{ display: 'flex', gap: 1.2, alignItems: 'flex-start' }}><CheckCircleRoundedIcon color="success" sx={{ mt: 0.2, flexShrink: 0 }} /><Typography>{localizeFeatureHighlight(feature, locale)}</Typography></Box>)}
             </Stack>
             <ToggleButtonGroup value={interval} exclusive fullWidth disabled={hasPending} onChange={(_, value: Interval | null) => value && setInterval(value)} sx={{ mb: 3 }}>
               <ToggleButton value="monthly" sx={{ minHeight: 54 }}>{copy.monthly}</ToggleButton>
@@ -293,11 +298,6 @@ function CheckoutPageContent() {
           <Paper sx={{ p: { xs: 2.5, sm: 3.5 }, minWidth: 0, borderRadius: 4, boxShadow: '0 24px 80px rgba(0,0,0,.3)', position: { lg: 'sticky' }, top: { lg: 24 } }}>
             <Stack spacing={2.5}>
               <Box><Typography variant="h5" fontWeight={900}>{copy.headline}</Typography><Typography color="text.secondary">{copy.paymentPrompt}</Typography></Box>
-              {!paid && <Box data-testid="checkout-offer-countdown" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2, minHeight: 56, px: 2, py: 1.2, borderRadius: 2.5, color: '#fff', background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)', border: '1px solid rgba(255,255,255,.16)', boxShadow: '0 10px 28px rgba(234,88,12,.24)' }}>
-                <AccessTimeRoundedIcon aria-hidden="true" sx={{ fontSize: 22, opacity: 0.9 }} />
-                <Typography component="span" role="timer" aria-label={`${copy.limitedOffer}: ${formatCheckoutCountdown(offerRemainingSeconds)}`} fontWeight={950} sx={{ fontSize: '1.35rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '.02em' }}>{formatCheckoutCountdown(offerRemainingSeconds)}</Typography>
-                <Typography component="span" fontWeight={750} sx={{ fontSize: { xs: '.78rem', sm: '.86rem' }, lineHeight: 1.2 }}>{offerRemainingSeconds > 0 ? copy.limitedOffer : copy.offerExpired}</Typography>
-              </Box>}
               <ToggleButtonGroup aria-label={copy.headline} value={method} exclusive fullWidth disabled={loadingPix} onChange={(_, value: Method | null) => value && setMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
                 {pixAvailable && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
                 <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.cardTitle}</Typography><Typography variant="caption">{copy.cardDetail}</Typography></Box></Stack></ToggleButton>
@@ -313,7 +313,7 @@ function CheckoutPageContent() {
 
               {!paid && method === 'pix' && pixAvailable && (pixCheckout
                 ? <Stack spacing={2.5} alignItems="center"><Typography variant="h5" fontWeight={900}>{copy.pixHeading}</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>{copy.copyPix}</Button><Alert severity="info">{copy.pixConfirmation}</Alert></Stack>
-                : <Stack spacing={2}><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} />{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" size="large" disabled={loadingPix || !selectedPrice || !name.trim() || !taxId.trim()} onClick={() => void startPix()} sx={{ minHeight: 54, fontWeight: 900 }}>{loadingPix ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button></Stack>)}
+                : <Stack spacing={2}><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} />{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" size="large" disabled={loadingPix || !selectedPrice || !name.trim() || !taxId.trim()} onClick={() => void startPix()} sx={{ minHeight: 54, fontWeight: 900 }}>{loadingPix ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button></Stack>)}
 
               <Stack direction="row" spacing={1} justifyContent="center" alignItems="center"><LockRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary">{copy.protectedPayment}</Typography></Stack>
             </Stack>

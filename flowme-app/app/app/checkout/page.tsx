@@ -72,6 +72,43 @@ function localizeFeatureHighlight(feature: string, locale: CheckoutLocale) {
   return locale === 'pt-BR' ? feature.replace(/\bToday\b/g, 'Tarefas de Hoje') : feature;
 }
 
+function localeFromQuery(value: string | null): CheckoutLocale | null {
+  if (value === 'pt-BR' || value === 'en-US') return value;
+  return null;
+}
+
+function trackingId(storage: Storage, key: string) {
+  const existing = storage.getItem(key);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  storage.setItem(key, id);
+  return id;
+}
+
+async function recordCheckoutVisit(locale: CheckoutLocale, source: string | null) {
+  const csrfResponse = await fetch('/api/marketing/csrf', { cache: 'no-store' });
+  const csrfPayload = await csrfResponse.json();
+  if (!csrfResponse.ok || !csrfPayload.ok) return;
+  await fetch('/api/marketing/visits', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-FlowMe-CSRF': csrfPayload.token },
+    body: JSON.stringify({
+      surface: 'checkout',
+      locale,
+      path: window.location.pathname,
+      source: source || 'checkout_direct',
+      visitor_id: trackingId(localStorage, 'flowme_lp_visitor_id'),
+      session_id: trackingId(sessionStorage, 'flowme_lp_session_id'),
+      referrer: document.referrer || '',
+      utm_source: new URLSearchParams(window.location.search).get('utm_source') || '',
+      utm_medium: new URLSearchParams(window.location.search).get('utm_medium') || '',
+      utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') || '',
+      utm_content: new URLSearchParams(window.location.search).get('utm_content') || '',
+      metadata: { route: 'checkout' },
+    }),
+  });
+}
+
 function CardField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Box>
@@ -182,11 +219,24 @@ function CheckoutPageContent() {
 
   React.useEffect(() => {
     const updateLocale = () => setLocale(checkoutLocaleFromUiLanguage(localStorage.getItem('ui_language')));
+    const queryLocale = localeFromQuery(params.get('locale'));
+    if (queryLocale) {
+      setLocale(queryLocale);
+      return;
+    }
     updateLocale();
     const onStorage = (event: StorageEvent) => { if (event.key === 'ui_language') updateLocale(); };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [params]);
+
+  React.useEffect(() => {
+    if (!locale) return;
+    const key = `flowme_checkout_visit_${locale}_${params.get('source') || 'direct'}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    recordCheckoutVisit(locale, params.get('source')).catch(() => {});
+  }, [locale, params]);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -240,6 +290,7 @@ function CheckoutPageContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         plan_code: 'pro', interval, locale, payment_method: selectedMethod,
+        source: params.get('source') || undefined,
         ...(paymentMethodId ? { payment_method_id: paymentMethodId } : {}),
         ...(selectedMethod === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
       }),

@@ -20,6 +20,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
+import QueryStatsRoundedIcon from '@mui/icons-material/QueryStatsRounded';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -118,6 +119,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     { text: nav.connectors, icon: <ElectricalServicesIcon sx={{ fontSize: 20 }} />, path: '/app/connectors', feature: 'connectors', color: '#22d3ee' },
     { text: nav.tutorials,  icon: <SchoolIcon             sx={{ fontSize: 20 }} />, path: '/app/tutorials', color: '#818cf8' },
     { text: nav.support,    icon: <SupportAgentIcon       sx={{ fontSize: 20 }} />, path: '/app/support', color: '#2dd4bf' },
+    ...(currentUser?.email?.toLowerCase() === 'victorrayansouzaramos@gmail.com'
+      ? [{ text: 'Admin', icon: <QueryStatsRoundedIcon sx={{ fontSize: 20 }} />, path: '/app/admin/marketing', color: '#35dc9b' }]
+      : []),
     { text: nav.settings,   icon: <SettingsIcon           sx={{ fontSize: 20 }} />, path: '/app/settings', color: '#cbd5e1' },
   ];
 

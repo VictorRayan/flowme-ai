@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
     if (!method) return apiError(ErrorCode.VALIDATION_ERROR, 'payment_method is invalid', 400);
     const providerPaymentMethodId = typeof body.payment_method_id === 'string' ? body.payment_method_id.trim() : '';
+    const checkoutSource = typeof body.source === 'string' ? body.source.trim().slice(0, 120) : '';
     if (method !== 'pix' && !/^pm_[A-Za-z0-9_]+$/.test(providerPaymentMethodId)) {
       return apiError(ErrorCode.VALIDATION_ERROR, locale === 'en-US' ? 'Card token is invalid' : 'Token do cartão inválido', 400);
     }
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
       currency: price.currency,
       amount_cents: price.amount_cents,
       status: 'created',
+      metadata: checkoutSource ? { source: checkoutSource } : {},
     }).select('id').single();
     if (attemptError || !attempt) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to initialize checkout', 500);
 
@@ -136,7 +138,17 @@ export async function POST(req: NextRequest) {
       if (updateError) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to save checkout state', 500);
       return apiSuccess({ attempt_id: attempt.id, checkout: result });
     } catch (gatewayError) {
-      await admin.from('billing_checkout_attempts').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', attempt.id);
+      const providerErrorMessage = gatewayError instanceof Error ? gatewayError.message : 'unknown checkout error';
+      const providerErrorCode = gatewayError instanceof GatewayCheckoutError ? gatewayError.code : null;
+      await admin.from('billing_checkout_attempts').update({
+        status: 'failed',
+        metadata: {
+          ...(checkoutSource ? { source: checkoutSource } : {}),
+          provider_error_message: providerErrorMessage,
+          provider_error_code: providerErrorCode,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', attempt.id);
       if (gatewayError instanceof GatewayCheckoutError) {
         return apiError(ErrorCode.PAYMENT_PROVIDER_ERROR, checkoutCardErrorMessage(gatewayError.code, locale), 402);
       }

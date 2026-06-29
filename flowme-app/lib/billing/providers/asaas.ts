@@ -87,7 +87,7 @@ export class AsaasGateway implements BillingGateway {
         name: input.customerName,
         cpfCnpj: taxId,
         email: input.userEmail,
-        externalReference: input.userId,
+        externalReference: input.userId || input.publicCheckoutSessionId || input.attemptId,
         notificationDisabled: true,
       } });
       customerId = requiredString(customer, 'id');

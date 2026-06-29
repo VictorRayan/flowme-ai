@@ -28,11 +28,15 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setError(null);
     setLoading(true);
+    const callbackUrl = new URL(getAuthCallbackUrl(process.env.NEXT_PUBLIC_APP_URL, window.location.origin));
+    const params = new URLSearchParams(window.location.search);
+    const claimToken = params.get('claim_token');
+    if (claimToken) callbackUrl.searchParams.set('claim_token', claimToken);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: getAuthCallbackUrl(process.env.NEXT_PUBLIC_APP_URL, window.location.origin),
+        redirectTo: callbackUrl.toString(),
         scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
         queryParams: {
           access_type: 'offline',

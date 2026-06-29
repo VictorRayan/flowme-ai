@@ -226,6 +226,17 @@ type ProposalData = {
   default_task_duration_minutes?: number;
 };
 
+const ONBOARDING_STEP_KEYS = [
+  'language',
+  'prelude',
+  'goal_count',
+  'ai_consultation',
+  'notifications',
+  'whatsapp',
+  'rituals',
+  'platform_tour',
+] as const;
+
 export default function OnboardingWizard() {
   const [step, setStep] = React.useState(0);
   const [lang, setLang] = React.useState<'en' | 'pt'>('pt');
@@ -284,9 +295,33 @@ export default function OnboardingWizard() {
 
   const router = useRouter();
   const t = dict[lang];
+  const onboardingSessionIdRef = React.useRef<string>('');
+  if (!onboardingSessionIdRef.current && typeof crypto !== 'undefined') {
+    onboardingSessionIdRef.current = crypto.randomUUID();
+  }
+
+  const recordOnboardingEvent = React.useCallback((eventType: 'started' | 'step_viewed' | 'step_completed' | 'completed', stepIndex = step) => {
+    const stepKey = ONBOARDING_STEP_KEYS[Math.max(0, Math.min(stepIndex, ONBOARDING_STEP_KEYS.length - 1))];
+    fetch('/api/onboarding/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: eventType,
+        step_key: stepKey,
+        step_index: stepIndex,
+        session_id: onboardingSessionIdRef.current,
+        locale: lang === 'pt' ? 'pt-BR' : 'en-US',
+      }),
+    }).catch(() => {});
+  }, [lang, step]);
+
+  React.useEffect(() => {
+    recordOnboardingEvent(step === 0 ? 'started' : 'step_viewed', step);
+  }, [recordOnboardingEvent, step]);
 
   // Logic Flows
   const nextStep = () => {
+    recordOnboardingEvent('step_completed', step);
     if (step === 2) {
       setStep(3); // Move to the AI consultation loop
     } else if (step === 3) {
@@ -441,6 +476,7 @@ export default function OnboardingWizard() {
       console.error('Failed to save briefing preferences', e);
     }
 
+    recordOnboardingEvent('completed', 7);
     router.push('/app/today');
   };
 

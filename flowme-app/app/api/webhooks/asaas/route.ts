@@ -15,6 +15,13 @@ type CheckoutAttempt = {
   last_provider_event_at: string | null;
 };
 
+type PublicCheckoutSession = {
+  id: string;
+  provider_customer_id: string | null;
+  provider_subscription_id: string | null;
+  last_provider_event_at: string | null;
+};
+
 function eventIsOlder(occurredAt: string, lastEventAt: string | null): boolean {
   return Boolean(lastEventAt && Date.parse(occurredAt) <= Date.parse(lastEventAt));
 }
@@ -82,6 +89,51 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
       attempt = data as CheckoutAttempt | null;
+    }
+
+    let publicSession: PublicCheckoutSession | null = null;
+    if (!attempt && event.externalReference) {
+      const { data } = await admin.from('public_checkout_sessions')
+        .select('id,provider_customer_id,provider_subscription_id,last_provider_event_at')
+        .eq('id', event.externalReference)
+        .eq('provider', 'asaas')
+        .maybeSingle();
+      publicSession = data as PublicCheckoutSession | null;
+    }
+    if (!attempt && !publicSession && event.subscriptionId) {
+      const { data } = await admin.from('public_checkout_sessions')
+        .select('id,provider_customer_id,provider_subscription_id,last_provider_event_at')
+        .eq('provider', 'asaas')
+        .eq('provider_subscription_id', event.subscriptionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      publicSession = data as PublicCheckoutSession | null;
+    }
+
+    if (!attempt && publicSession && !eventIsOlder(event.occurredAt, publicSession.last_provider_event_at)) {
+      if (event.attemptStatus) {
+        await admin.from('public_checkout_sessions').update({
+          status: event.attemptStatus,
+          provider_payment_id: event.paymentId,
+          provider_customer_id: event.customerId || publicSession.provider_customer_id,
+          provider_subscription_id: event.subscriptionId || publicSession.provider_subscription_id,
+          paid_at: event.attemptStatus === 'paid' ? event.occurredAt : undefined,
+          last_provider_event_at: event.occurredAt,
+          updated_at: new Date().toISOString(),
+        }).eq('id', publicSession.id);
+      }
+      if (event.amountCents !== null && ['PAYMENT_RECEIVED', 'PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'].includes(event.type)) {
+        await admin.from('billing_revenue_events').upsert({
+          user_id: null,
+          provider: 'asaas',
+          provider_event_id: event.id,
+          kind: event.type === 'PAYMENT_RECEIVED' ? 'payment_received' : 'refund',
+          currency: event.currency,
+          amount_cents: event.type === 'PAYMENT_RECEIVED' ? event.amountCents : -event.amountCents,
+          occurred_at: event.occurredAt,
+        }, { onConflict: 'provider,provider_event_id,kind' });
+      }
     }
 
     if (attempt && !eventIsOlder(event.occurredAt, attempt.last_provider_event_at)) {

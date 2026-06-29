@@ -7,8 +7,10 @@ import {
   requestOrigin,
   verifyMarketingCsrfToken,
 } from '@/lib/marketing/security';
+import { createSignedMarketingToken } from '@/lib/marketing/signed-token';
 
 const LOCALES = ['pt-BR', 'en-US'] as const;
+const BILLING_INTERVALS = ['monthly', 'annual'] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function text(value: unknown, limit: number) {
@@ -36,13 +38,17 @@ export async function POST(req: NextRequest) {
   const name = text(body.name, 160);
   const email = text(body.email, 240).toLowerCase();
   const phone = text(body.phone, 40);
+  const billingInterval = BILLING_INTERVALS.includes(body.interval as typeof BILLING_INTERVALS[number])
+    ? body.interval as typeof BILLING_INTERVALS[number]
+    : 'annual';
   const digits = normalizePhone(phone);
   const path = text(body.path, 300);
   if (!locale || name.length < 2 || !EMAIL_RE.test(email) || digits.length < 10 || !path) {
     return NextResponse.json({ ok: false, error: { code: 'VALIDATION_ERROR', message: 'Name, email, phone and path are required' } }, { status: 400, headers });
   }
 
-  const metadata = typeof body.metadata === 'object' && body.metadata !== null && !Array.isArray(body.metadata) ? body.metadata : {};
+  const bodyMetadata = typeof body.metadata === 'object' && body.metadata !== null && !Array.isArray(body.metadata) ? body.metadata : {};
+  const metadata = { ...bodyMetadata, billing_interval: billingInterval };
   const phoneE164 = locale === 'pt-BR'
     ? `+55${digits.length > 11 ? digits.slice(-11) : digits}`
     : `+1${digits.length > 10 ? digits.slice(-10) : digits}`;
@@ -69,5 +75,9 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ ok: false, error: { code: 'SUPABASE_ERROR', message: 'Unable to record lead' } }, { status: 500, headers });
   }
-  return NextResponse.json({ ok: true, lead_id: data.id }, { headers });
+  return NextResponse.json({
+    ok: true,
+    lead_id: data.id,
+    lead_token: createSignedMarketingToken({ kind: 'lead', id: data.id, email }),
+  }, { headers });
 }

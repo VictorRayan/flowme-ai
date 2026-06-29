@@ -99,7 +99,7 @@ Capture product proof for:
 - [x] Registered users with free/paid split.
 - [x] Active users by hour and day.
 - [x] Admin page at `/app/admin/marketing`.
-- [ ] Apply migration `063_marketing_funnel.sql` in Supabase before production use.
+- [x] Apply migration `063_marketing_funnel.sql` in Supabase before production use.
 
 ## Checkout
 

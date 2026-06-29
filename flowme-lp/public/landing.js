@@ -18,20 +18,38 @@ const copy = {
     pricingTitle: "One plan to centralize your life.",
     pricingText:
       "Balys AI, calendar, tasks, checklists, notes, reviews, connectors and reminders in one subscription.",
+    plans: {
+      monthlyTitle: "Monthly",
+      monthlyDescription: "Full Flow Me Pro without annual commitment. Ideal for testing with your real routine.",
+      monthlyCurrency: "US$",
+      monthlyPrice: "11.90",
+      monthlyPeriod: "/mo",
+      monthlyBadge: "Flexible",
+      annualTitle: "Annual",
+      annualDescription: "Best price to centralize calendar, tasks, WhatsApp, finance, notes and Balys AI.",
+      annualCurrency: "US$",
+      annualPrice: "7.90",
+      annualPeriod: "/mo",
+      annualBadge: "33% OFF",
+      popular: "★ Best seller",
+    },
     lockedTitle: "Unlock the special price",
-    lockedText: "Fill in your details to see the offer and go to checkout.",
+    lockedText: "Fill in your details to reveal the offer on this page.",
+    modalTitle: "Unlock your Flow Me offer",
+    modalText: "Tell us where to send your access. The price appears here after confirmation.",
     name: "Name",
     namePlaceholder: "Your name",
     email: "Email",
     emailPlaceholder: "you@email.com",
     phone: "Phone",
     phonePlaceholder: "+1 (555) 000-0000",
-    unlock: "See price",
+    unlock: "See prices now",
+    guarantee: "Claim offer",
     sending: "Sending...",
     invalidName: "Enter your name.",
     invalidEmail: "Enter a valid email.",
     invalidPhone: "Enter a valid WhatsApp number.",
-    submitError: "We could not unlock the price. Try again.",
+    submitError: "We could not unlock the checkout link. Refresh and try again.",
     submitSuccess: "Price unlocked.",
     price: "US$ 7.90",
     priceNote: "/month billed yearly",
@@ -60,20 +78,38 @@ const copy = {
     pricingTitle: "Um plano para centralizar sua vida.",
     pricingText:
       "Balys AI, agenda, tarefas, checklists, notas, revisoes, conectores e lembretes em uma assinatura.",
+    plans: {
+      monthlyTitle: "Mensal",
+      monthlyDescription: "Flow Me Pro completo, sem compromisso anual. Ideal para testar com rotina real.",
+      monthlyCurrency: "R$",
+      monthlyPrice: "59,90",
+      monthlyPeriod: "/mes",
+      monthlyBadge: "Flexivel",
+      annualTitle: "Anual",
+      annualDescription: "Melhor preco para centralizar agenda, tarefas, WhatsApp, finanças, notas e Balys AI.",
+      annualCurrency: "R$",
+      annualPrice: "39,90",
+      annualPeriod: "/mes",
+      annualBadge: "33% OFF",
+      popular: "★ Mais vendido",
+    },
     lockedTitle: "Desbloqueie o preco especial",
-    lockedText: "Preencha seus dados para ver a oferta e ir para o checkout.",
+    lockedText: "Preencha seus dados para revelar a oferta nesta pagina.",
+    modalTitle: "Desbloqueie sua oferta Flow Me",
+    modalText: "Informe para qual contato enviaremos seu acesso. O preco aparece aqui depois da confirmacao.",
     name: "Nome",
     namePlaceholder: "Seu nome",
     email: "Email",
     emailPlaceholder: "voce@email.com",
     phone: "Telefone",
     phonePlaceholder: "(11) 99999-9999",
-    unlock: "Ver preco",
+    unlock: "Ver precos agora",
+    guarantee: "Garantir oferta",
     sending: "Enviando...",
     invalidName: "Informe seu nome.",
     invalidEmail: "Informe um email valido.",
     invalidPhone: "Informe um WhatsApp valido.",
-    submitError: "Nao conseguimos desbloquear o preco. Tente novamente.",
+    submitError: "Nao conseguimos liberar o link de checkout. Atualize a pagina e tente novamente.",
     submitSuccess: "Preco desbloqueado.",
     price: "R$ 39,90",
     priceNote: "/mes no anual",
@@ -97,11 +133,23 @@ function apiLocale(locale) {
   return locale === "en-us" ? "en-US" : "pt-BR";
 }
 
-function checkoutUrl(locale) {
-  const url = new URL(`${marketingApiBase}/app/checkout`);
+function checkoutUrl(locale, lead) {
+  const url = new URL(`${marketingApiBase}/checkout`);
   url.searchParams.set("locale", apiLocale(locale));
   url.searchParams.set("source", locale === "en-us" ? "lp_en-us" : "lp_pt-br");
+  if (lead?.lead_token) url.searchParams.set("lead_token", lead.lead_token);
+  if (lead?.email) url.searchParams.set("email", lead.email);
+  if (lead?.interval) url.searchParams.set("interval", lead.interval);
   return url.toString();
+}
+
+function readStoredLead(locale) {
+  try {
+    const storedLead = window.localStorage.getItem(`flowme_lp_lead_${locale}`);
+    return storedLead ? JSON.parse(storedLead) : null;
+  } catch {
+    return null;
+  }
 }
 
 function visitorId() {
@@ -181,17 +229,24 @@ function validateLead(form, locale) {
   const email = form.elements.email;
   const phone = form.elements.phone;
   const digits = phone.value.replace(/\D/g, "");
-  const errors = [];
+  const errors = {};
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
   const phoneOk = locale === "pt-br" ? digits.length >= 10 : digits.length === 10;
 
   name.setAttribute("aria-invalid", String(name.value.trim().length < 2));
   email.setAttribute("aria-invalid", String(!emailOk));
   phone.setAttribute("aria-invalid", String(!phoneOk));
-  if (name.value.trim().length < 2) errors.push(t.invalidName);
-  if (!emailOk) errors.push(t.invalidEmail);
-  if (!phoneOk) errors.push(t.invalidPhone);
+  if (name.value.trim().length < 2) errors.name = t.invalidName;
+  if (!emailOk) errors.email = t.invalidEmail;
+  if (!phoneOk) errors.phone = t.invalidPhone;
   return errors;
+}
+
+function showFieldErrors(errors = {}) {
+  document.querySelectorAll("[data-field-error]").forEach((node) => {
+    const field = node.getAttribute("data-field-error");
+    node.textContent = errors[field] || "";
+  });
 }
 
 function formFeedback(message, kind = "") {
@@ -212,6 +267,20 @@ function setTexts(selector, values) {
   });
 }
 
+function fillPlanCard(interval, plan) {
+  const card = document.querySelector(`[data-plan-card][data-interval="${interval}"]`);
+  if (!card) return;
+  card.querySelector("h3").textContent = plan.title;
+  card.querySelector("p").textContent = plan.description;
+  const priceParts = card.querySelectorAll(".locked-price span");
+  if (priceParts[0]) priceParts[0].textContent = plan.currency;
+  if (priceParts[1]) priceParts[1].textContent = plan.period;
+  const price = card.querySelector(".locked-price strong");
+  if (price) price.textContent = plan.price;
+  const badge = card.querySelector(".discount-pill");
+  if (badge) badge.textContent = plan.badge;
+}
+
 function applyLocale(locale) {
   const t = copy[locale];
   document.documentElement.lang = locale === "en-us" ? "en-US" : "pt-BR";
@@ -230,49 +299,164 @@ function applyLocale(locale) {
   setText(".pricing .eyebrow", t.pricingEyebrow);
   setText(".pricing h2", t.pricingTitle);
   setText(".pricing > div:first-child p:last-child", t.pricingText);
-  setText(".price-locked h3", t.lockedTitle);
-  setText(".price-locked > p", t.lockedText);
-  setText('.lead-form label:nth-child(1) span', t.name);
-  setText('.lead-form label:nth-child(2) span', t.email);
-  setText('.lead-form label:nth-child(3) span', t.phone);
+  fillPlanCard("monthly", {
+    title: t.plans.monthlyTitle,
+    description: t.plans.monthlyDescription,
+    currency: t.plans.monthlyCurrency,
+    price: t.plans.monthlyPrice,
+    period: t.plans.monthlyPeriod,
+    badge: t.plans.monthlyBadge,
+  });
+  fillPlanCard("annual", {
+    title: t.plans.annualTitle,
+    description: t.plans.annualDescription,
+    currency: t.plans.annualCurrency,
+    price: t.plans.annualPrice,
+    period: t.plans.annualPeriod,
+    badge: t.plans.annualBadge,
+  });
+  setText(".plan-ribbon", t.plans.popular);
+  setText("#price-modal-title", t.modalTitle);
+  setText("[data-price-modal-copy]", t.modalText);
+  setText('.lead-form label:nth-of-type(1) span', t.name);
+  setText('.lead-form label:nth-of-type(2) span', t.email);
+  setText('.lead-form label:nth-of-type(3) span', t.phone);
   document.querySelector('input[name="name"]')?.setAttribute("placeholder", t.namePlaceholder);
   document.querySelector('input[name="email"]')?.setAttribute("placeholder", t.emailPlaceholder);
   document.querySelector('input[name="phone"]')?.setAttribute("placeholder", t.phonePlaceholder);
   setText(".lead-form button", t.unlock);
-  setText("[data-price-value]", t.price);
-  setText("[data-price-note]", t.priceNote);
-  setText(".price-unlocked .primary-cta", t.buy);
-  document.querySelector(".price-unlocked .primary-cta")?.setAttribute("href", checkoutUrl(locale));
-  setText(".price-unlocked p", t.secure);
+  document.querySelectorAll("[data-plan-button]").forEach((button) => {
+    button.textContent = `🔒 ${t.unlock}`;
+  });
   setText("#testimonials h2", t.testimonialsTitle);
   setTexts(".testimonial-grid article p", [t.testimonial1, t.testimonial2]);
 }
 
 function setupLeadGate(locale) {
   const form = document.querySelector("[data-lead-form]");
-  const locked = document.querySelector("[data-price-locked]");
-  const unlocked = document.querySelector("[data-price-unlocked]");
+  const priceCard = document.querySelector("[data-price-card]");
+  const modal = document.querySelector("[data-price-modal]");
+  const modalPanel = document.querySelector(".price-modal-panel");
+  const modalCloseButtons = document.querySelectorAll("[data-price-modal-close]");
   const storageKey = `flowme_lp_price_unlocked_${locale}`;
   const phone = form?.querySelector('input[name="phone"]');
+  const intervalInput = form?.querySelector('input[name="interval"]');
+  const planButtons = document.querySelectorAll("[data-plan-button]");
+  let activeLead = readStoredLead(locale);
 
-  function unlock() {
-    if (!locked || !unlocked) return;
-    locked.hidden = true;
-    unlocked.hidden = false;
+  function selectInterval(interval) {
+    if (!intervalInput) return;
+    intervalInput.value = interval || "annual";
+    document.querySelectorAll("[data-plan-card]").forEach((card) => {
+      card.classList.toggle("is-selected", card.getAttribute("data-interval") === intervalInput.value);
+    });
   }
 
-  if (window.localStorage.getItem(storageKey) === "true") unlock();
+  function selectedLead() {
+    return { ...(activeLead || {}), interval: intervalInput?.value || activeLead?.interval || "annual" };
+  }
+
+  function refreshActiveLead() {
+    if (activeLead?.lead_token) return activeLead;
+    const storedLead = readStoredLead(locale);
+    if (storedLead?.lead_token) activeLead = storedLead;
+    return activeLead;
+  }
+
+  function goToCheckout() {
+    const lead = refreshActiveLead();
+    if (!lead?.lead_token) return false;
+    window.location.assign(checkoutUrl(locale, selectedLead()));
+    return true;
+  }
+
+  function openModal(interval) {
+    selectInterval(interval);
+    showFieldErrors({});
+    formFeedback("", "");
+    if (!modal) return;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => {
+      modalPanel?.focus();
+      form?.querySelector('input[name="name"]')?.focus({ preventScroll: true });
+    });
+  }
+
+  function closeModal() {
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  function revealPrices(lead) {
+    if (!lead?.lead_token) {
+      formFeedback(copy[locale].submitError, "error");
+      return false;
+    }
+    activeLead = lead;
+    priceCard?.classList.add("is-unlocked");
+    document.querySelectorAll("[data-plan-card]").forEach((card) => card.classList.add("is-unlocked"));
+    planButtons.forEach((button) => {
+      button.textContent = copy[locale].guarantee;
+      button.classList.add("is-guarantee");
+    });
+    closeModal();
+    return true;
+  }
+
+  selectInterval(activeLead?.interval || intervalInput?.value || "annual");
+  if (window.localStorage.getItem(storageKey) === "true" && activeLead?.lead_token) {
+    revealPrices(activeLead);
+  } else if (window.localStorage.getItem(storageKey) === "true" && !activeLead?.lead_token) {
+    window.localStorage.removeItem(storageKey);
+  }
+
+  planButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const interval = button.getAttribute("data-interval") || "annual";
+      selectInterval(interval);
+      if (button.classList.contains("is-guarantee") || priceCard?.classList.contains("is-unlocked")) {
+        if (goToCheckout()) return;
+        window.localStorage.removeItem(storageKey);
+        priceCard?.classList.remove("is-unlocked");
+        document.querySelectorAll("[data-plan-card]").forEach((card) => card.classList.remove("is-unlocked"));
+        planButtons.forEach((planButton) => {
+          planButton.classList.remove("is-guarantee");
+          planButton.textContent = `🔒 ${copy[locale].unlock}`;
+        });
+        openModal(interval);
+        return;
+      }
+      openModal(interval);
+    });
+  });
+
+  modalCloseButtons.forEach((button) => button.addEventListener("click", closeModal));
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal && !modal.hidden) closeModal();
+  });
 
   phone?.addEventListener("input", () => {
     phone.value = formatPhone(phone.value, locale);
+  });
+
+  form?.querySelectorAll("input").forEach((input) => {
+    input.addEventListener("input", () => {
+      input.setAttribute("aria-invalid", "false");
+      const error = document.querySelector(`[data-field-error="${input.name}"]`);
+      if (error) error.textContent = "";
+      formFeedback("", "");
+    });
   });
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const t = copy[locale];
     const errors = validateLead(form, locale);
-    if (errors.length > 0) {
-      formFeedback(errors[0], "error");
+    showFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      formFeedback("", "error");
       return;
     }
     const payload = Object.fromEntries(new FormData(form).entries());
@@ -284,19 +468,22 @@ function setupLeadGate(locale) {
     }
     formFeedback("", "");
     try {
-      await marketingPost("/api/marketing/leads", {
+      const result = await marketingPost("/api/marketing/leads", {
         ...baseMarketingPayload(locale),
         ...payload,
         metadata: { price_gate: true },
       });
-      window.localStorage.setItem(storageKey, "true");
-      window.localStorage.setItem(`flowme_lp_lead_${locale}`, JSON.stringify({
+      if (!result.lead_token) throw new Error("missing_lead_token");
+      const lead = {
         ...payload,
+        lead_id: result.lead_id,
+        lead_token: result.lead_token,
         locale,
         capturedAt: new Date().toISOString(),
-      }));
-      formFeedback(t.submitSuccess, "success");
-      unlock();
+      };
+      window.localStorage.setItem(storageKey, "true");
+      window.localStorage.setItem(`flowme_lp_lead_${locale}`, JSON.stringify(lead));
+      if (revealPrices(lead)) formFeedback(t.submitSuccess, "success");
     } catch {
       formFeedback(t.submitError, "error");
     } finally {

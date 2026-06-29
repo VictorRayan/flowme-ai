@@ -67,7 +67,9 @@ export class StripeGateway implements BillingGateway {
       const customer = await this.stripe.customers.create({
         email: input.userEmail,
         name: input.customerName,
-        metadata: { user_id: input.userId },
+        metadata: input.userId
+          ? { user_id: input.userId }
+          : { public_checkout_session_id: input.publicCheckoutSessionId || input.attemptId },
       });
       customerId = customer.id;
     }
@@ -84,7 +86,7 @@ export class StripeGateway implements BillingGateway {
         description: input.localizedDescription,
         metadata: {
           checkout_attempt_id: input.attemptId,
-          user_id: input.userId,
+          ...(input.userId ? { user_id: input.userId } : { public_checkout_session_id: input.publicCheckoutSessionId || input.attemptId }),
           plan_code: input.planCode,
           billing_interval: input.interval,
         },

@@ -38,13 +38,17 @@ describe('marketing public endpoints', () => {
       email: 'victor@example.com',
       phone: '(11) 99999-9999',
       path: '/pt-br',
+      interval: 'monthly',
     }, token));
+    const body = await response.json();
     expect(response.status).toBe(200);
+    expect(body.lead_token).toEqual(expect.any(String));
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({
       locale: 'pt-BR',
       email: 'victor@example.com',
       interest: 'price_unlocked',
       phone_e164: '+5511999999999',
+      metadata: expect.objectContaining({ billing_interval: 'monthly' }),
     }));
   });
 

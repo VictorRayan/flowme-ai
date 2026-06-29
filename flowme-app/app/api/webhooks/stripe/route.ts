@@ -108,10 +108,15 @@ async function resolveInvoiceContext(admin: any, invoice: StripeInvoiceObject) {
     const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
     const userId = await resolveUserId(admin, subscription);
     if (userId) await persistSubscription(admin, stripeSubscriptionToRow(subscription, userId));
-    return { userId, subscriptionId, attemptId: subscription.metadata?.checkout_attempt_id || null };
+    return {
+      userId,
+      subscriptionId,
+      attemptId: subscription.metadata?.checkout_attempt_id || null,
+      publicSessionId: subscription.metadata?.public_checkout_session_id || null,
+    };
   }
   const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id || null;
-  if (!customerId) return { userId: invoice.metadata?.user_id || null, subscriptionId: null, attemptId: null };
+  if (!customerId) return { userId: invoice.metadata?.user_id || null, subscriptionId: null, attemptId: null, publicSessionId: null };
   const { data, error } = await admin.from('user_subscriptions')
     .select('user_id,provider_subscription_id')
     .eq('billing_provider', 'stripe')
@@ -120,7 +125,7 @@ async function resolveInvoiceContext(admin: any, invoice: StripeInvoiceObject) {
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return { userId: data?.user_id || invoice.metadata?.user_id || null, subscriptionId: data?.provider_subscription_id || null, attemptId: null };
+  return { userId: data?.user_id || invoice.metadata?.user_id || null, subscriptionId: data?.provider_subscription_id || null, attemptId: null, publicSessionId: null };
 }
 
 async function updateStripeAttempt(admin: any, attemptId: string | null | undefined, values: Record<string, unknown>) {
@@ -132,12 +137,25 @@ async function updateStripeAttempt(admin: any, attemptId: string | null | undefi
   if (error) throw new Error(error.message);
 }
 
+async function updatePublicStripeSession(admin: any, sessionId: string | null | undefined, values: Record<string, unknown>) {
+  if (!sessionId) return;
+  const { error } = await admin.from('public_checkout_sessions').update({
+    ...values,
+    updated_at: new Date().toISOString(),
+  }).eq('id', sessionId).eq('provider', 'stripe');
+  if (error) throw new Error(error.message);
+}
+
 async function notifyInvoiceFailure(
   admin: any,
   invoice: StripeInvoiceObject,
   kind: BillingNotificationKind,
 ) {
   const context = await resolveInvoiceContext(admin, invoice);
+  if (context.publicSessionId) {
+    await updatePublicStripeSession(admin, context.publicSessionId, { status: 'failed' });
+    return;
+  }
   if (!context.userId) throw new Error('Unable to resolve user for Stripe invoice');
   await createBillingNotification(admin, {
     userId: context.userId,
@@ -188,13 +206,24 @@ export async function POST(req: NextRequest) {
 
     if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription;
-      await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
+      if (subscription.metadata?.public_checkout_session_id) {
+        await updatePublicStripeSession(admin, subscription.metadata.public_checkout_session_id, { status: 'canceled', provider_subscription_id: subscription.id });
+      } else {
+        await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
+      }
     }
 
     if (event.type === 'customer.subscription.updated') {
       const subscription = event.data.object as Stripe.Subscription;
       if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-        await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
+        if (subscription.metadata?.public_checkout_session_id) {
+          await updatePublicStripeSession(admin, subscription.metadata.public_checkout_session_id, {
+            status: subscription.status === 'past_due' ? 'past_due' : subscription.status === 'canceled' ? 'canceled' : 'failed',
+            provider_subscription_id: subscription.id,
+          });
+        } else {
+          await persistSubscription(admin, stripeSubscriptionToRow(subscription, await resolveUserId(admin, subscription)));
+        }
       }
     }
 
@@ -213,7 +242,19 @@ export async function POST(req: NextRequest) {
     if (event.type === 'invoice.paid') {
       const invoice = event.data.object as unknown as StripeInvoiceObject;
       const context = await resolveInvoiceContext(admin, invoice);
-      if (context.userId) {
+      if (context.publicSessionId) {
+        await updatePublicStripeSession(admin, context.publicSessionId, {
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          provider_subscription_id: context.subscriptionId,
+        });
+        if (typeof invoice.amount_paid === 'number' && invoice.currency) {
+          await admin.from('billing_revenue_events').upsert({
+            user_id: null, provider: 'stripe', provider_event_id: event.id, kind: 'payment_received',
+            currency: invoice.currency.toUpperCase(), amount_cents: invoice.amount_paid, occurred_at: new Date(event.created * 1000).toISOString(),
+          }, { onConflict: 'provider,provider_event_id,kind' });
+        }
+      } else if (context.userId) {
         await updateStripeAttempt(admin, context.attemptId, { status: 'paid', paid_at: new Date().toISOString() });
         await clearBillingFailureNotifications(admin, context.userId);
         await resolvePaymentFailureAdminAlerts(admin, context.userId);

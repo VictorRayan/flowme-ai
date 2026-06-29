@@ -59,8 +59,14 @@ export async function middleware(request: NextRequest) {
     authError?.message?.includes('fetch') ||
     authError?.message?.includes('network');
 
-  // Protect authenticated app and standalone checkout routes.
-  if ((pathname.startsWith('/app') || pathname === '/checkout') && !user && !isNetworkError) {
+  if ((pathname === '/app/checkout' || pathname === '/app/checkout/return') && !user && !isNetworkError) {
+    const checkoutUrl = new URL(pathname.endsWith('/return') ? '/checkout/return' : '/checkout', request.url);
+    request.nextUrl.searchParams.forEach((value, key) => checkoutUrl.searchParams.set(key, value));
+    return NextResponse.redirect(checkoutUrl);
+  }
+
+  // Protect authenticated app routes.
+  if (pathname.startsWith('/app') && !user && !isNetworkError) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }

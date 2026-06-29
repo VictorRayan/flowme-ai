@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Chip, CircularProgress, Divider, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
 
 type Locale = 'pt-BR' | 'en-US';
 type FunnelBucket = {
   landing_visits: number;
   mql: number;
+  mql_monthly: number;
+  mql_annual: number;
+  mql_unknown_interval: number;
   checkout_visits: number;
   sales: number;
   pix_issued: number;
@@ -17,11 +20,19 @@ type FunnelBucket = {
 };
 type FunnelData = {
   since: string;
+  until: string;
+  start_date: string;
+  end_date: string;
   funnel: Record<Locale, FunnelBucket>;
   card_attempts: Array<{ id: string; locale: Locale; status: string; provider: string; amount_cents: number; error_message: string | null; created_at: string }>;
   revenue: { gross_cents: number; refunds_cents: number; chargebacks_cents: number; net_cents: number };
   registered_users: { total: number; free: number; paid: number };
   active_users: { by_hour: Array<{ period: string; users: number }>; by_day: Array<{ period: string; users: number }> };
+  onboarding: {
+    started: number;
+    completed: number;
+    logs: Array<{ email: string | null; user_id: string | null; session_id: string | null; started_at: string | null; completed_at: string | null; last_event_at: string; last_step_key: string; last_step_index: number; status: string }>;
+  };
 };
 
 const LOCALES: Locale[] = ['pt-BR', 'en-US'];
@@ -46,18 +57,23 @@ function Metric({ label, value, hint }: { label: string; value: string | number;
 }
 
 export default function MarketingFunnelAdminPage() {
+  const today = new Date().toISOString().slice(0, 10);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(thirtyDaysAgo);
+  const [endDate, setEndDate] = useState(today);
   const [data, setData] = useState<FunnelData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/marketing-funnel', { cache: 'no-store' })
+    const query = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    fetch(`/api/admin/marketing-funnel?${query.toString()}`, { cache: 'no-store' })
       .then(async response => {
         const body = await response.json();
         if (!response.ok || !body.ok) throw new Error(body?.error?.message || 'Falha ao carregar funil.');
         setData(body);
       })
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Falha ao carregar funil.'));
-  }, []);
+  }, [endDate, startDate]);
 
   const latestActiveDays = useMemo(() => data?.active_users.by_day.slice(-14) || [], [data]);
   const latestActiveHours = useMemo(() => data?.active_users.by_hour.slice(-24) || [], [data]);
@@ -68,12 +84,20 @@ export default function MarketingFunnelAdminPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1240, mx: 'auto', width: '100%', minHeight: 0, overflowY: 'auto' }}>
       <Typography variant="h4" fontWeight={900}>Dashboard gerencial</Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>Funil por idioma, leads, checkout, pagamentos e atividade dos últimos 30 dias.</Typography>
+      <Typography color="text.secondary" sx={{ mb: 3 }}>Funil por idioma, leads, checkout, pagamentos, onboarding e atividade por período.</Typography>
+
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 1, mb: 3 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
+          <TextField label="Start date" type="date" value={startDate} onChange={event => setStartDate(event.target.value)} InputLabelProps={{ shrink: true }} size="small" />
+          <TextField label="End date" type="date" value={endDate} onChange={event => setEndDate(event.target.value)} InputLabelProps={{ shrink: true }} size="small" />
+          <Button variant="outlined" onClick={() => { setStartDate(thirtyDaysAgo); setEndDate(today); }}>Últimos 30 dias</Button>
+        </Stack>
+      </Paper>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 3 }}>
         <Metric label="Usuários cadastrados" value={data.registered_users.total} hint={`${data.registered_users.free} free · ${data.registered_users.paid} pagos`} />
         <Metric label="Receita líquida" value={money(data.revenue.net_cents, 'pt-BR')} hint={`bruta ${money(data.revenue.gross_cents, 'pt-BR')}`} />
-        <Metric label="Janela analisada" value="30 dias" hint={`desde ${new Date(data.since).toLocaleDateString('pt-BR')}`} />
+        <Metric label="Janela analisada" value={`${data.start_date} -> ${data.end_date}`} hint={`até ${new Date(data.until).toLocaleDateString('pt-BR')}`} />
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2, mb: 3 }}>
@@ -88,6 +112,9 @@ export default function MarketingFunnelAdminPage() {
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.2 }}>
                 <Metric label="Visitas LP" value={item.landing_visits} />
                 <Metric label="MQL" value={item.mql} hint={`${percent(item.mql, item.landing_visits)} da LP`} />
+                <Metric label="MQL mensal" value={item.mql_monthly} hint={`${percent(item.mql_monthly, item.mql)} dos MQLs`} />
+                <Metric label="MQL anual" value={item.mql_annual} hint={`${percent(item.mql_annual, item.mql)} dos MQLs`} />
+                {item.mql_unknown_interval > 0 && <Metric label="MQL sem modalidade" value={item.mql_unknown_interval} />}
                 <Metric label="Visitas checkout" value={item.checkout_visits} hint={`${percent(item.checkout_visits, item.mql)} dos MQLs`} />
                 <Metric label="Vendas" value={item.sales} hint={money(item.revenue_cents, locale)} />
                 <Metric label="Pix emitidos" value={item.pix_issued} />
@@ -116,6 +143,31 @@ export default function MarketingFunnelAdminPage() {
           </Stack>
         </Paper>
       </Box>
+
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 1, minWidth: 0, mb: 3 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}>
+          <Box>
+            <Typography variant="h6" fontWeight={900}>Onboarding</Typography>
+            <Typography variant="body2" color="text.secondary">Inícios, conclusões e último step visto por usuário/sessão.</Typography>
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Chip label={`${data.onboarding.started} iniciados`} />
+            <Chip color="success" label={`${data.onboarding.completed} concluídos`} />
+            <Chip label={`${percent(data.onboarding.completed, data.onboarding.started)} conclusão`} />
+          </Stack>
+        </Stack>
+        <Stack spacing={1.2}>
+          {data.onboarding.logs.length === 0 && <Typography color="text.secondary">Nenhum evento de onboarding no período.</Typography>}
+          {data.onboarding.logs.slice(0, 80).map((item, index) => (
+            <Box key={`${item.user_id || item.session_id || item.email || index}-${item.last_event_at}`} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(180px, 1fr) 110px 160px 1fr' }, gap: 1, alignItems: 'center', py: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{item.email || item.user_id || item.session_id || 'Usuário sem email'}</Typography>
+              <Chip size="small" label={item.status} color={item.status === 'completed' ? 'success' : 'default'} />
+              <Typography variant="body2">Step {item.last_step_index}: {item.last_step_key}</Typography>
+              <Typography variant="body2" color="text.secondary">{new Date(item.last_event_at).toLocaleString('pt-BR')}</Typography>
+            </Box>
+          ))}
+        </Stack>
+      </Paper>
 
       <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 1, minWidth: 0 }}>
         <Typography variant="h6" fontWeight={900}>Tentativas de cartão</Typography>

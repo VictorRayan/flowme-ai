@@ -21,7 +21,8 @@ export class GatewayCheckoutError extends Error {
 
 export type GatewayCheckoutInput = {
   attemptId: string;
-  userId: string;
+  userId: string | null;
+  publicCheckoutSessionId?: string | null;
   userEmail: string;
   customerName: string;
   customerTaxId: string | null;

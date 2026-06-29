@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getSupabaseAdmin } from '@/lib/api/admin';
+import { claimPublicCheckoutForUser } from '@/lib/billing/public-checkout';
+import { verifySignedMarketingToken } from '@/lib/marketing/signed-token';
 
 /**
  * GET /auth/callback?code=xxx
@@ -19,6 +22,7 @@ import { cookies } from 'next/headers';
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
+  const claimToken = url.searchParams.get('claim_token') || '';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   if (!code) {
@@ -117,6 +121,23 @@ export async function GET(request: NextRequest) {
     } catch (err) {
       // Non-critical — user can manually link later
       console.warn('Auto-link failed (non-critical):', err);
+    }
+  }
+
+  if (claimToken && user) {
+    const payload = verifySignedMarketingToken(claimToken, 'public_checkout');
+    if (!payload) return NextResponse.redirect(`${appUrl}/checkout/return?claim_error=invalid_token`);
+    try {
+      const result = await claimPublicCheckoutForUser(getSupabaseAdmin(), {
+        tokenSessionId: payload.id,
+        userId: user.id,
+        userEmail: user.email || '',
+      });
+      if (result.ok) return NextResponse.redirect(`${appUrl}/app/calendar?billing=success`);
+      return NextResponse.redirect(`${appUrl}/checkout/return?token=${encodeURIComponent(claimToken)}&claim_error=${result.reason}`);
+    } catch (error) {
+      console.error('Public checkout claim failed:', error);
+      return NextResponse.redirect(`${appUrl}/checkout/return?token=${encodeURIComponent(claimToken)}&claim_error=internal`);
     }
   }
 

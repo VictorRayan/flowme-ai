@@ -323,7 +323,7 @@ function ProofMarquee() {
         sx={{
           width: 'max-content',
           animation: 'proofScroll 28s linear infinite',
-          py: 1.5,
+          py: { xs: 1.1, md: 1.2 },
           '&:hover': { animationPlayState: 'paused' },
         }}
       >
@@ -450,7 +450,7 @@ function WhatsAppIphone() {
       id="whatsapp"
       sx={{
         mx: 'auto',
-        width: 'min(100%, 318px)',
+        width: 'min(100%, 282px)',
         aspectRatio: '9 / 18.5',
         position: 'relative',
         borderRadius: '42px',
@@ -1337,10 +1337,10 @@ export default function Home() {
       </AppBar>
 
       <Box component="main">
-        <Container maxWidth="lg" sx={{ pt: { xs: 2.5, md: 3 }, pb: { xs: 3.5, md: 4.5 } }}>
-          <Grid container spacing={{ xs: 5, md: 8 }} alignItems="flex-start">
+        <Container maxWidth="lg" sx={{ pt: { xs: 2, md: 2.2 }, pb: { xs: 2.2, md: 1.4 } }}>
+          <Grid container spacing={{ xs: 3.5, md: 5.5 }} alignItems="center">
             <Grid item xs={12} md={6.4}>
-              <Stack spacing={2.6} alignItems="flex-start" sx={{ pt: { md: 3 } }}>
+              <Stack spacing={1.75} alignItems="flex-start" sx={{ pt: { md: 0.5 } }}>
                 <Chip
                   icon={<Box component="span" sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#22c55e', boxShadow: '0 0 0 5px rgba(34,197,94,0.14)' }} />}
                   label="IA no WhatsApp para rotina, trabalho e vida real"
@@ -1357,18 +1357,18 @@ export default function Home() {
                   sx={{
                     fontFamily: 'var(--font-plus-jakarta)',
                     fontWeight: 950,
-                    fontSize: { xs: 43, sm: 58, md: 76 },
-                    lineHeight: { xs: 1.02, md: 0.98 },
+                    fontSize: { xs: 41, sm: 55, md: 62 },
+                    lineHeight: { xs: 1.03, md: 1.02 },
                     letterSpacing: 0,
                     color: '#f8fafc',
                   }}
                 >
-                  Flow Me.
+                  Entre em flow com seu
                   <Box component="span" sx={{ display: 'block', color: '#f97316', textShadow: '0 22px 52px rgba(249,115,22,0.26)' }}>
-                    Assistente no seu WhatsApp.
+                    assistente pessoal no seu WhatsApp.
                   </Box>
                 </Typography>
-                <Typography sx={{ maxWidth: 610, color: '#cbd5e1', fontSize: { xs: 18, md: 21 }, lineHeight: 1.55 }}>
+                <Typography sx={{ maxWidth: 610, color: '#cbd5e1', fontSize: { xs: 17, md: 18.5 }, lineHeight: 1.46 }}>
                   Conselho de especialistas com inteligência artificial, agenda, lembretes, checklists, finanças
                   e integrações organizados por conversa. Você fala do seu jeito; o Assistente entende, registra e
                   devolve o próximo passo.
@@ -1379,7 +1379,7 @@ export default function Home() {
                     size="large"
                     variant="contained"
                     sx={{
-                      minHeight: 52,
+                      minHeight: 48,
                       borderRadius: 999,
                       px: 3,
                       bgcolor: '#4f46e5',
@@ -1391,7 +1391,7 @@ export default function Home() {
                     Começar agora
                   </Button>
                 </Stack>
-                <Grid container spacing={1.5} sx={{ pt: 1 }}>
+                <Grid container spacing={1.25} sx={{ pt: 0.25 }}>
                   {['Registre por áudio', 'Consulte em segundos', 'Organize tudo no painel'].map((label) => (
                     <Grid item xs={12} sm={4} key={label}>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -1405,7 +1405,7 @@ export default function Home() {
                             flexShrink: 0,
                           }}
                         />
-                        <Typography sx={{ color: '#e2e8f0', fontWeight: 850 }}>{label}</Typography>
+                        <Typography sx={{ color: '#e2e8f0', fontWeight: 850, fontSize: { xs: 15, md: 16 } }}>{label}</Typography>
                       </Stack>
                     </Grid>
                   ))}

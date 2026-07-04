@@ -15,9 +15,93 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/brand/flowme-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <svg class="svg-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-users" viewBox="0 0 24 24">
+        <path d="M8.6 11.2a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Zm6.8-.4a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4ZM2.8 19.4c.5-3.5 2.6-5.4 5.8-5.4s5.3 1.9 5.8 5.4H2.8Zm10.2-1.2c.8-2.2 2.3-3.6 4.7-3.6 2.2 0 3.8 1.4 4.3 4.8h-7.2c-.3-.5-.8-.9-1.8-1.2Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-precision" viewBox="0 0 24 24">
+        <path d="M4 18.5h16v2H4v-2Zm1.4-3.1 4.2-4.2 3.2 3.1 5.5-7h-3.1v-2h6.6v6.6h-2V8.7l-6.7 8.5-3.4-3.3-2.9 2.9-1.4-1.4Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-spark" viewBox="0 0 24 24">
+        <path d="M12 2.8 14.5 9l6.7 3-6.7 3L12 21.2 9.5 15l-6.7-3 6.7-3L12 2.8Zm6.6-1 1.1 2.8 2.8 1.1-2.8 1.1-1.1 2.8-1.1-2.8-2.8-1.1 2.8-1.1 1.1-2.8Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24">
+        <path d="M7 2h2v3h6V2h2v3h3v16H4V5h3V2Zm11 9H6v8h12v-8ZM6 7v2h12V7H6Zm2 6h3v3H8v-3Zm5 0h3v3h-3v-3Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24">
+        <path d="M12 2 20 5.4v6.1c0 5.1-3.3 8.8-8 10.5-4.7-1.7-8-5.4-8-10.5V5.4L12 2Zm0 2.3L6 6.8v4.7c0 3.9 2.3 6.7 6 8.2 3.7-1.5 6-4.3 6-8.2V6.8l-6-2.5Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-whatsapp" viewBox="0 0 32 32">
+        <path d="M16.04 3.2A12.74 12.74 0 0 0 5.2 22.65L3.6 28.8l6.29-1.56A12.73 12.73 0 1 0 16.04 3.2Zm0 2.32a10.4 10.4 0 0 1 8.81 15.94 10.37 10.37 0 0 1-13.98 3.55l-.45-.24-3.73.92.95-3.64-.29-.47a10.39 10.39 0 0 1 8.69-16.06Zm-5.08 5.48c-.24 0-.63.09-.96.45-.33.36-1.26 1.23-1.26 3.01s1.29 3.49 1.47 3.73c.18.24 2.49 3.99 6.15 5.43 3.04 1.2 3.66.96 4.32.9.66-.06 2.13-.87 2.43-1.71.3-.84.3-1.56.21-1.71-.09-.15-.33-.24-.69-.42-.36-.18-2.13-1.05-2.46-1.17-.33-.12-.57-.18-.81.18-.24.36-.93 1.17-1.14 1.41-.21.24-.42.27-.78.09-.36-.18-1.52-.56-2.9-1.79-1.07-.95-1.79-2.13-2-2.49-.21-.36-.02-.55.16-.73.16-.16.36-.42.54-.63.18-.21.24-.36.36-.6.12-.24.06-.45-.03-.63-.09-.18-.81-1.95-1.11-2.67-.29-.7-.58-.64-.81-.65h-.69Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="M4 5h10v2H4V5Zm0 6h10v2H4v-2Zm0 6h10v2H4v-2Zm13.4-12.6 1.4 1.4-3.9 3.9-2.3-2.3L14 6l.9.9 2.5-2.5Zm0 6 1.4 1.4-3.9 3.9-2.3-2.3L14 12l.9.9 2.5-2.5Zm0 6 1.4 1.4-3.9 3.9-2.3-2.3L14 18l.9.9 2.5-2.5Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-doc" viewBox="0 0 24 24">
+        <path d="M6 2h8l4 4v16H6V2Zm7 1.8V7h3.2L13 3.8ZM8 10h8v2H8v-2Zm0 4h8v2H8v-2Zm0 4h5v2H8v-2Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-file" viewBox="0 0 24 24">
+        <path d="M5 2h10l4 4v16H5V2Zm9 2v4h4L14 4ZM7 11h10v2H7v-2Zm0 4h10v2H7v-2Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-wallet" viewBox="0 0 24 24">
+        <path d="M4 5h14a2 2 0 0 1 2 2v2h-7a4 4 0 0 0 0 8h7v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm9 6h9v4h-9a2 2 0 0 1 0-4Zm0 1.5a.5.5 0 1 0 0 1h1.2v-1H13Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-flag" viewBox="0 0 24 24">
+        <path d="M5 3h2v18H5V3Zm4 1h10v9H9V4Zm2 2v5h6V6h-6Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-slack" viewBox="70 70 130 130">
+        <path d="M99.4 151.2c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h12.9v12.9zM105.9 151.2c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9v-32.3z" fill="currentColor"/>
+        <path d="M118.8 99.4c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v12.9h-12.9zM118.8 105.9c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9H86.5c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h32.3z" fill="currentColor"/>
+        <path d="M170.6 118.8c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9h-12.9v-12.9zM164.1 118.8c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9V86.5c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v32.3z" fill="currentColor"/>
+        <path d="M151.2 170.6c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9v-12.9h12.9zM151.2 164.1c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9h-32.3z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-drive" viewBox="0 0 87.3 78">
+        <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="currentColor"/>
+        <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="currentColor"/>
+        <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="currentColor"/>
+        <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="currentColor"/>
+        <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="currentColor"/>
+        <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="currentColor"/>
+      </symbol>
+      <symbol id="icon-sheets" viewBox="0 0 47 65">
+        <path d="M29.375 0H3.125C1.425 0 .017 1.408.017 3.135L0 61.865C0 63.593 1.394 65 3.123 65h40.6c1.728 0 3.142-1.407 3.142-3.135V15.643z" fill="currentColor"/>
+        <path d="M46.864 15.643l-13.139.014c-1.731 0-3.139-1.408-3.139-3.139L30.6 0z" fill="currentColor" opacity=".7"/>
+        <path d="M12.35 28.6v18.85h22.3V28.6zm9.75 16.575h-7.475V40.3h7.475zm0-7.15h-7.475v-4.875h7.475zm10.275 7.15h-8V40.3h8zm0-7.15h-8v-4.875h8z" fill="#050609" opacity=".72"/>
+      </symbol>
+      <symbol id="icon-slack-color" viewBox="70 70 130 130">
+        <path d="M99.4 151.2c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h12.9v12.9zM105.9 151.2c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9v-32.3z" fill="#E01E5A"/>
+        <path d="M118.8 99.4c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v12.9h-12.9zM118.8 105.9c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9H86.5c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h32.3z" fill="#36C5F0"/>
+        <path d="M170.6 118.8c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9h-12.9v-12.9zM164.1 118.8c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9V86.5c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v32.3z" fill="#2EB67D"/>
+        <path d="M151.2 170.6c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9v-12.9h12.9zM151.2 164.1c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9h-32.3z" fill="#ECB22E"/>
+      </symbol>
+      <symbol id="icon-drive-color" viewBox="0 0 87.3 78">
+        <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+        <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00AC47"/>
+        <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#EA4335"/>
+        <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832D"/>
+        <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684FC"/>
+        <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#FFBA00"/>
+      </symbol>
+      <symbol id="icon-sheets-color" viewBox="0 0 47 65">
+        <path d="M29.375 0H3.125C1.425 0 .017 1.408.017 3.135L0 61.865C0 63.593 1.394 65 3.123 65h40.6c1.728 0 3.142-1.407 3.142-3.135V15.643z" fill="#0F9D58"/>
+        <path d="M46.864 15.643l-13.139.014c-1.731 0-3.139-1.408-3.139-3.139L30.6 0z" fill="#87CEAC"/>
+        <path d="M12.35 28.6v18.85h22.3V28.6zm9.75 16.575h-7.475V40.3h7.475zm0-7.15h-7.475v-4.875h7.475zm10.275 7.15h-8V40.3h8zm0-7.15h-8v-4.875h8z" fill="#F1F1F1"/>
+      </symbol>
+      <symbol id="icon-doc-color" viewBox="0 0 47 65">
+        <path d="M29.375 0H3.125C1.425 0 .017 1.408.017 3.135L0 61.865C0 63.593 1.394 65 3.123 65h40.6c1.728 0 3.142-1.407 3.142-3.135V15.643z" fill="#4285F4"/>
+        <path d="M46.864 15.643l-13.139.014c-1.731 0-3.139-1.408-3.139-3.139L30.6 0z" fill="#A1C2FA"/>
+        <path d="M10.4 31.2v3.825h26V31.2zm0 7.65v3.825h20.475V38.85zm0 7.65v3.825h26V46.5z" fill="#F1F1F1"/>
+      </symbol>
+    </svg>
     <header class="site-header">
       <a class="brand" href="#top" aria-label="Flow Me">
         <img class="brand-logo" src="/brand/flowme-icon.png" alt="" />
@@ -28,7 +112,7 @@
         <a href="#whatsapp">WhatsApp</a>
         <a href="#features">Lembretes</a>
         <a href="#features">Checklists</a>
-        <a href="#features">Financas</a>
+        <a href="#financas">Financas</a>
         <a href="#integracoes">Integracoes</a>
         <a href="#planos">Planos</a>
       </nav>
@@ -43,7 +127,7 @@
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow"><span></span>IA no WhatsApp para rotina, trabalho e vida real</p>
-          <h1>Entre em flow com seu <em>assistente pessoal no seu WhatsApp.</em></h1>
+          <h1>Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em></h1>
           <p class="hero-text">
             Conselho de especialistas com inteligencia artificial, agenda, lembretes, checklists,
             financas e integracoes organizados por conversa. Voce fala do seu jeito; o Assistente
@@ -59,12 +143,14 @@
           </div>
           <div class="ticker ticker-inline" aria-label="Provas e sinais do produto">
             <div class="ticker-track">
-              <span><i class="proof-icon users"></i>10 mil usuarios ativos</span>
-              <span><i class="proof-icon lgpd"></i>LGPD</span>
-              <span><i class="proof-icon precision"></i>99,9% de precisao na IA</span>
-              <span><i class="proof-icon spark"></i>Conselho de especialistas</span>
-              <span><i class="proof-icon calendar"></i>Integracao com Agenda</span>
-              <span><i class="proof-icon group"></i>Grupo Rayan Barbieri Tecnologia</span>
+              <span><svg class="proof-svg"><use href="#icon-users"></use></svg>10 mil usuarios ativos</span>
+              <span><svg class="proof-svg"><use href="#icon-shield"></use></svg>LGPD</span>
+              <span><svg class="proof-svg"><use href="#icon-precision"></use></svg>99,9% de precisao na IA</span>
+              <span><svg class="proof-svg"><use href="#icon-spark"></use></svg>Conselho de especialistas</span>
+              <span><svg class="proof-svg"><use href="#icon-calendar"></use></svg>Integracao com Agenda</span>
+              <span><svg class="proof-svg"><use href="#icon-slack"></use></svg>Integracao com Slack</span>
+              <span><svg class="proof-svg"><use href="#icon-drive"></use></svg>Integracao com Drive</span>
+              <span><svg class="proof-svg"><use href="#icon-sheets"></use></svg>Integracao com Sheets</span>
             </div>
           </div>
         </div>
@@ -90,15 +176,14 @@
               <div class="hero-chat-window">
                 <div class="hero-chat-scroll">
                   <div class="hero-wa-bubble user">Assistente, quais reunioes e tarefas eu deveria focar hoje?<time>09:41</time></div>
-                  <div class="hero-wa-typing"><i></i><i></i><i></i></div>
-                  <div class="hero-wa-bubble bot">Hoje voce tem call de proposta as 15h. Revise preco, risco e proximo passo antes das 14h30.<time>09:42</time></div>
-                  <div class="hero-wa-bubble user">Registra R$100 de mercado e cria checklist da viagem.<time>09:41</time></div>
-                  <div class="hero-wa-typing second"><i></i><i></i><i></i></div>
+                  <div class="hero-wa-bubble bot">Hoje voce tem call de proposta as 15h. Revise preco, risco e proximo passo antes das 14h30.<time>09:41</time></div>
+                  <div class="hero-wa-bubble user">Registra R$100 de mercado e cria checklist da viagem.<time>09:42</time></div>
                   <div class="hero-wa-bubble bot">Feito. Registrei R$100 em supermercado e criei um checklist com documentos, mala, transporte e reservas.<time>09:42</time></div>
-                  <div class="hero-wa-bubble user short">E meu treino?<time>09:41</time></div>
-                  <div class="hero-wa-bubble bot">Esta marcado para terca as 8h. Ativei um lembrete no WhatsApp 45 minutos antes.<time>09:42</time></div>
-                  <div class="hero-wa-bubble user">Me lembra hoje as 18h de tomar creatina e separar a roupa do treino.<time>09:41</time></div>
-                  <div class="hero-wa-bubble bot">Combinado. Criei um lembrete para hoje as 18h e vou te avisar aqui no WhatsApp.<time>09:42</time></div>
+                  <div class="hero-wa-bubble user short">E meu treino?<time>09:43</time></div>
+                  <div class="hero-wa-bubble bot">Esta marcado para terca as 8h. Ativei um lembrete no WhatsApp 45 minutos antes.<time>09:43</time></div>
+                  <div class="hero-wa-bubble user">Me lembra hoje as 18h de tomar creatina e separar a roupa do treino.<time>09:44</time></div>
+                  <div class="hero-wa-bubble bot">Combinado. Criei um lembrete para hoje as 18h e vou te avisar aqui no WhatsApp.<time>09:44</time></div>
+                  <div class="hero-wa-typing"><i></i><i></i><i></i></div>
                 </div>
               </div>
               <div class="iphone-compose"><span>+</span><div>☺</div><b>▣</b><b>♬</b></div>
@@ -109,38 +194,58 @@
 
       <section class="ticker main-ticker" aria-label="Provas e sinais do produto">
         <div class="ticker-track">
-          <span><i class="proof-icon users"></i>10 mil usuarios ativos</span>
-          <span><i class="proof-icon precision"></i>99,9% de precisao na IA</span>
-          <span><i class="proof-icon group"></i>Grupo Rayan Barbieri Tecnologia</span>
-          <span><i class="proof-icon spark"></i>Conselho de especialistas</span>
-          <span><i class="proof-icon calendar"></i>Integracao com Agenda</span>
-          <span>
-            <svg class="proof-svg" viewBox="0 0 122.8 122.8" aria-hidden="true">
-              <path fill="#fff" d="M30.3 77.6c0 8.4-6.8 15.2-15.2 15.2S0 86 0 77.6s6.8-15.2 15.2-15.2h15.2v15.2zm7.6 0c0-8.4 6.8-15.2 15.2-15.2s15.2 6.8 15.2 15.2v38c0 8.4-6.8 15.2-15.2 15.2S37.9 124 37.9 115.6v-38zM53.1 30.3c-8.4 0-15.2-6.8-15.2-15.2S44.7 0 53.1 0s15.2 6.8 15.2 15.2v15.2H53.1zm0 7.6c8.4 0 15.2 6.8 15.2 15.2s-6.8 15.2-15.2 15.2h-38C6.8 68.3 0 61.5 0 53.1s6.8-15.2 15.2-15.2h37.9zm39.4 15.2c0-8.4 6.8-15.2 15.2-15.2s15.2 6.8 15.2 15.2-6.8 15.2-15.2 15.2H92.5V53.1zm-7.6 0c0 8.4-6.8 15.2-15.2 15.2S54.5 61.5 54.5 53.1v-38C54.5 6.8 61.3 0 69.7 0s15.2 6.8 15.2 15.2v37.9zM69.7 92.5c8.4 0 15.2 6.8 15.2 15.2s-6.8 15.2-15.2 15.2-15.2-6.8-15.2-15.2V92.5h15.2zm0-7.6c-8.4 0-15.2-6.8-15.2-15.2s6.8-15.2 15.2-15.2h38c8.4 0 15.2 6.8 15.2 15.2s-6.8 15.2-15.2 15.2h-38z"/>
-            </svg>
-            Integracao com Slack
-          </span>
-          <span>
-            <svg class="proof-svg" viewBox="0 0 87.3 78" aria-hidden="true">
-              <path fill="#fff" d="M6.6 67.1 39.4 10.3h15.2L21.8 67.1H6.6z"/>
-              <path fill="#fff" d="M65.5 67.1 32.8 10.3h15.1l32.8 56.8H65.5z" opacity=".86"/>
-              <path fill="#fff" d="M21.8 67.1 29.4 54h50.1l7.6 13.1H21.8z" opacity=".72"/>
-            </svg>
-            Integracao com Drive
-          </span>
-          <span>
-            <svg class="proof-svg" viewBox="0 0 47 65" aria-hidden="true">
-              <path fill="#fff" d="M29.4 0H3.1C1.4 0 0 1.4 0 3.1v58.8C0 63.6 1.4 65 3.1 65h40.6c1.7 0 3.1-1.4 3.1-3.1V15.6L29.4 0z"/>
-              <path fill="#fff" d="M46.9 15.6H33.7c-1.7 0-3.1-1.4-3.1-3.1L30.6 0l16.3 15.6z" opacity=".68"/>
-              <path fill="#050609" d="M12.4 28.6v18.9h22.3V28.6H12.4zm9.7 16.6h-7.5v-4.9h7.5v4.9zm0-7.2h-7.5v-4.9h7.5V38zm10.3 7.2h-8v-4.9h8v4.9zm0-7.2h-8v-4.9h8V38z" opacity=".78"/>
-            </svg>
-            Integracao com Sheets
-          </span>
-          <span><i class="proof-icon lgpd"></i>LGPD</span>
-          <span><i class="proof-icon users"></i>10 mil usuarios ativos</span>
-          <span><i class="proof-icon precision"></i>99,9% de precisao na IA</span>
-          <span><svg class="proof-svg" viewBox="0 0 122.8 122.8" aria-hidden="true"><path fill="#fff" d="M30.3 77.6c0 8.4-6.8 15.2-15.2 15.2S0 86 0 77.6s6.8-15.2 15.2-15.2h15.2v15.2zm7.6 0c0-8.4 6.8-15.2 15.2-15.2s15.2 6.8 15.2 15.2v38c0 8.4-6.8 15.2-15.2 15.2S37.9 124 37.9 115.6v-38zM53.1 30.3c-8.4 0-15.2-6.8-15.2-15.2S44.7 0 53.1 0s15.2 6.8 15.2 15.2v15.2H53.1zm0 7.6c8.4 0 15.2 6.8 15.2 15.2s-6.8 15.2-15.2 15.2h-38C6.8 68.3 0 61.5 0 53.1s6.8-15.2 15.2-15.2h37.9zm39.4 15.2c0-8.4 6.8-15.2 15.2-15.2s15.2 6.8 15.2 15.2-6.8 15.2-15.2 15.2H92.5V53.1zm-7.6 0c0 8.4-6.8 15.2-15.2 15.2S54.5 61.5 54.5 53.1v-38C54.5 6.8 61.3 0 69.7 0s15.2 6.8 15.2 15.2v37.9zM69.7 92.5c8.4 0 15.2 6.8 15.2 15.2s-6.8 15.2-15.2 15.2-15.2-6.8-15.2-15.2V92.5h15.2zm0-7.6c-8.4 0-15.2-6.8-15.2-15.2s6.8-15.2 15.2-15.2h38c8.4 0 15.2 6.8 15.2 15.2s-6.8 15.2-15.2 15.2h-38z"/></svg>Integracao com Slack</span>
-          <span><svg class="proof-svg" viewBox="0 0 87.3 78" aria-hidden="true"><path fill="#fff" d="M6.6 67.1 39.4 10.3h15.2L21.8 67.1H6.6z"/><path fill="#fff" d="M65.5 67.1 32.8 10.3h15.1l32.8 56.8H65.5z" opacity=".86"/><path fill="#fff" d="M21.8 67.1 29.4 54h50.1l7.6 13.1H21.8z" opacity=".72"/></svg>Integracao com Drive</span>
+          <span><svg class="proof-svg"><use href="#icon-users"></use></svg>10 mil usuarios ativos</span>
+          <span><svg class="proof-svg"><use href="#icon-precision"></use></svg>99,9% de precisao na IA</span>
+          <span><svg class="proof-svg"><use href="#icon-spark"></use></svg>Grupo Rayan Barbieri Tecnologia</span>
+          <span><svg class="proof-svg"><use href="#icon-spark"></use></svg>Conselho de especialistas</span>
+          <span><svg class="proof-svg"><use href="#icon-calendar"></use></svg>Integracao com Agenda</span>
+          <span><svg class="proof-svg"><use href="#icon-slack"></use></svg>Integracao com Slack</span>
+          <span><svg class="proof-svg"><use href="#icon-drive"></use></svg>Integracao com Drive</span>
+          <span><svg class="proof-svg"><use href="#icon-sheets"></use></svg>Integracao com Sheets</span>
+          <span><svg class="proof-svg"><use href="#icon-shield"></use></svg>LGPD</span>
+          <span><svg class="proof-svg"><use href="#icon-users"></use></svg>10 mil usuarios ativos</span>
+          <span><svg class="proof-svg"><use href="#icon-precision"></use></svg>99,9% de precisao na IA</span>
+          <span><svg class="proof-svg"><use href="#icon-slack"></use></svg>Integracao com Slack</span>
+          <span><svg class="proof-svg"><use href="#icon-drive"></use></svg>Integracao com Drive</span>
+          <span><svg class="proof-svg"><use href="#icon-sheets"></use></svg>Integracao com Sheets</span>
+        </div>
+      </section>
+
+      <section class="singularity-section" id="singularidade">
+        <div class="singularity-copy">
+          <p class="singularity-chip">Do seu jeito</p>
+          <h2>Nao tem um jeito certo de usar. Tem o seu jeito.</h2>
+          <p>
+            Seja no app ou no WhatsApp, no computador ou no celular, o Flow Me puxa agenda,
+            arquivos, reunioes, financas, checklists, metas e integracoes para um centro so.
+          </p>
+        </div>
+        <div class="singularity-stage" aria-label="Singularidade Flow Me">
+          <div class="singularity-lens"></div>
+          <div class="singularity-core-shell"></div>
+          <div class="singularity-disc"></div>
+          <div class="orbit-ring ring-one"></div>
+          <div class="orbit-ring ring-two"></div>
+          <div class="orbit-ring ring-three"></div>
+
+          <div class="singularity-node node-whatsapp"><span><svg><use href="#icon-whatsapp"></use></svg></span><b>WhatsApp</b></div>
+          <div class="singularity-node node-slack"><span><svg><use href="#icon-slack-color"></use></svg></span><b>Slack</b></div>
+          <div class="singularity-node node-drive"><span><svg><use href="#icon-drive-color"></use></svg></span><b>Drive</b></div>
+          <div class="singularity-node node-sheets"><span><svg><use href="#icon-sheets-color"></use></svg></span><b>Sheets</b></div>
+          <div class="singularity-node node-calendar"><span><svg><use href="#icon-calendar"></use></svg></span><b>Calendar</b></div>
+          <div class="singularity-node node-checklist"><span><svg><use href="#icon-check"></use></svg></span><b>Checklist</b></div>
+          <div class="singularity-node node-docs"><span><svg><use href="#icon-doc-color"></use></svg></span><b>Docs</b></div>
+          <div class="singularity-node node-files"><span><svg><use href="#icon-file"></use></svg></span><b>Files</b></div>
+          <div class="singularity-node node-documents"><span><svg><use href="#icon-file"></use></svg></span><b>Documentos</b></div>
+          <div class="singularity-node node-bank"><span><svg><use href="#icon-wallet"></use></svg></span><b>Banco</b></div>
+          <div class="singularity-node node-meetings"><span><svg><use href="#icon-users"></use></svg></span><b>Reunioes</b></div>
+          <div class="singularity-node node-goals"><span><svg><use href="#icon-flag"></use></svg></span><b>Metas</b></div>
+          <div class="singularity-node node-notes"><span><svg><use href="#icon-doc"></use></svg></span><b>Notas</b></div>
+
+          <div class="singularity-core">
+            <img src="/brand/flowme-icon.png" alt="" />
+            <svg><use href="#icon-whatsapp"></use></svg>
+          </div>
         </div>
       </section>
 
@@ -310,6 +415,82 @@
         </div>
       </section>
 
+      <section class="split finance-section" id="financas">
+        <div class="section-copy">
+          <p class="eyebrow">Controle financeiro</p>
+          <h2>Anote seus gastos por áudio ou texto.</h2>
+          <p>
+            Registre cada despesa ou receita em segundos. O Assistente ouve seus áudios,
+            entende sua fala natural e categoriza tudo automaticamente.
+          </p>
+          <ul>
+            <li>Consulte qualquer gasto pelo WhatsApp.</li>
+            <li>Seus gastos já chegam categorizados.</li>
+            <li>Resumo do dia direto pra você.</li>
+            <li>Acompanhe o histórico dos gastos em um painel.</li>
+          </ul>
+        </div>
+        <div class="hero-stage finance-stage" aria-label="Conversa animada de registro de gastos no WhatsApp">
+          <div class="iphone">
+            <div class="iphone-notch"></div>
+            <div class="iphone-screen">
+              <div class="iphone-status">
+                <strong>16:55</strong>
+                <span class="status-icons">▮▮▮ ◔ ▰</span>
+              </div>
+              <div class="wa-app-header">
+                <span class="wa-back">‹</span>
+                <img src="/brand/flowme-icon.png" alt="" />
+                <div>
+                  <strong>Flow Me - Assistente</strong>
+                  <small>online agora</small>
+                </div>
+                <span class="wa-blue-icon">▭</span>
+                <span class="wa-blue-icon">⌕</span>
+              </div>
+              <div class="hero-chat-window">
+                <div class="hero-chat-scroll">
+                  <div class="hero-wa-bubble user">Gastei R$ 45,00 no Uber agora.<time>16:55</time></div>
+                  <div class="hero-wa-typing"><i></i><i></i><i></i></div>
+                  <div class="hero-wa-bubble bot">Missão cumprida! 🎉 Registrei sua despesa de R$ 45,00 no Uber em transporte. 🚗<time>16:55</time></div>
+                  <div class="hero-wa-bubble user">Gastei 82 reais no iFood.<time>16:56</time></div>
+                  <div class="hero-wa-typing second"><i></i><i></i><i></i></div>
+                  <div class="hero-wa-bubble bot">Prontinho! 🚀 Acabei de registrar sua despesa de R$ 82,00 no iFood em alimentação.<time>16:56</time></div>
+                  <div class="hero-wa-bubble user short">Quanto gastei esse mês?<time>16:57</time></div>
+                  <div class="hero-wa-bubble bot">Até agora foram R$ 8.211,25. Mercado lidera com R$ 1.934,25. Quer ver por categoria?<time>16:57</time></div>
+                  <div class="hero-wa-bubble user">Me manda o resumo do dia sempre às 21h.<time>16:58</time></div>
+                  <div class="hero-wa-bubble bot">Combinado. Todo dia às 21h o resumo dos seus gastos chega aqui no WhatsApp.<time>16:58</time></div>
+                </div>
+              </div>
+              <div class="iphone-compose"><span>+</span><div>☺</div><b>▣</b><b>♬</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="finance-gallery" data-finance-slider aria-label="Prints do painel de financas do Flow Me">
+          <div class="finance-viewport">
+            <div class="finance-track" data-finance-track>
+              <figure class="finance-slide">
+                <div class="finance-shot-frame">
+                  <img src="/assets/financas-painel-1.png" alt="Painel de finanças do Flow Me com gastos, receitas, investimentos e saldo do mês" loading="lazy" />
+                  <span class="finance-slide-fallback">Salve o print em <b>/assets/financas-painel-1.png</b></span>
+                </div>
+                <figcaption>Dashboard mensal com gastos, receitas, investimentos e saldo.</figcaption>
+              </figure>
+              <figure class="finance-slide">
+                <div class="finance-shot-frame">
+                  <img src="/assets/financas-painel-2.png" alt="Histórico de transações e gastos por categoria no painel do Flow Me" loading="lazy" />
+                  <span class="finance-slide-fallback">Salve o print em <b>/assets/financas-painel-2.png</b></span>
+                </div>
+                <figcaption>Histórico de transações e gastos por categoria.</figcaption>
+              </figure>
+            </div>
+            <button class="finance-nav prev" type="button" data-finance-prev aria-label="Print anterior">‹</button>
+            <button class="finance-nav next" type="button" data-finance-next aria-label="Próximo print">›</button>
+          </div>
+          <div class="finance-dots" data-finance-dots aria-label="Selecionar print"></div>
+        </div>
+      </section>
+
       <section class="soon">
         <div class="section-heading">
           <p class="eyebrow">Em breve</p>
@@ -369,13 +550,13 @@
         </div>
         <div class="price-card" data-price-card>
           <div class="price-locked" data-price-locked>
+            <div class="mobile-plan-tabs" role="tablist" aria-label="Selecionar plano">
+              <button type="button" data-plan-tab data-interval="monthly" role="tab">Mensal <small>Flexivel</small></button>
+              <button type="button" data-plan-tab data-interval="annual" role="tab" aria-selected="true">Anual <small>Mais vendido</small></button>
+            </div>
             <div class="pricing-plans">
               <article class="locked-plan-card" data-plan-card data-interval="monthly">
-                <div class="plan-icons" aria-hidden="true">
-                  <span>✦</span>
-                  <b>+</b>
-                  <span>☑</span>
-                </div>
+                <em class="plan-badge discount-pill">Flexivel</em>
                 <h3>Mensal</h3>
                 <p>Flow Me Pro completo, sem compromisso anual. Ideal para testar com rotina real.</p>
                 <div class="locked-price">
@@ -383,17 +564,24 @@
                   <strong>59,90</strong>
                   <span>/mes</span>
                 </div>
-                <em class="discount-pill">Flexivel</em>
+                <ul class="plan-features">
+                  <li>Assistente ilimitado</li>
+                  <li>IA no WhatsApp</li>
+                  <li>Lembretes e checklists</li>
+                  <li>Financas por conversa</li>
+                  <li>Integracoes com Agenda, Slack, Drive e Sheets</li>
+                  <li>Conselho de especialistas por inteligencia artificial</li>
+                  <li>Painel completo no computador e celular</li>
+                  <li class="excluded">Prioridade em recursos novos</li>
+                  <li class="excluded locked-saving">Economia de R$240 no ano</li>
+                  <li class="excluded">Melhor preco para operar a rotina inteira</li>
+                </ul>
                 <button class="price-lock-button" type="button" data-plan-button data-interval="monthly">🔒 Ver precos agora</button>
               </article>
 
-              <article class="locked-plan-card featured" data-plan-card data-interval="annual">
-                <div class="plan-ribbon">★ Mais vendido</div>
-                <div class="plan-icons" aria-hidden="true">
-                  <span>✦</span>
-                  <b>+</b>
-                  <span>⚡</span>
-                </div>
+              <article class="locked-plan-card featured is-selected" data-plan-card data-interval="annual">
+                <div class="plan-ribbon">Mais vendido</div>
+                <em class="plan-badge discount-pill">33% OFF</em>
                 <h3>Anual</h3>
                 <p>Melhor preco para centralizar agenda, tarefas, WhatsApp, finanças, notas e Assistente pessoal.</p>
                 <div class="locked-price">
@@ -401,7 +589,18 @@
                   <strong>39,90</strong>
                   <span>/mes</span>
                 </div>
-                <em class="discount-pill">33% OFF</em>
+                <ul class="plan-features">
+                  <li>Assistente ilimitado</li>
+                  <li>IA no WhatsApp</li>
+                  <li>Lembretes e checklists</li>
+                  <li>Financas por conversa</li>
+                  <li>Integracoes com Agenda, Slack, Drive e Sheets</li>
+                  <li>Conselho de especialistas por inteligencia artificial</li>
+                  <li>Painel completo no computador e celular</li>
+                  <li>Prioridade em recursos novos</li>
+                  <li class="locked-saving">Economia de R$240 no ano</li>
+                  <li>Melhor preco para operar a rotina inteira</li>
+                </ul>
                 <button class="price-lock-button" type="button" data-plan-button data-interval="annual">🔒 Ver precos agora</button>
               </article>
             </div>
@@ -428,7 +627,16 @@
               </label>
               <label>
                 <span>Telefone</span>
-                <input name="phone" inputmode="tel" autocomplete="tel" placeholder="(11) 99999-9999" aria-describedby="lead-phone-error" />
+                <div class="phone-field">
+                  <select name="country" aria-label="Pais do telefone">
+                    <option value="BR" data-dial="+55" selected>🇧🇷 +55</option>
+                    <option value="US" data-dial="+1">🇺🇸 +1</option>
+                    <option value="PT" data-dial="+351">🇵🇹 +351</option>
+                    <option value="GB" data-dial="+44">🇬🇧 +44</option>
+                    <option value="ES" data-dial="+34">🇪🇸 +34</option>
+                  </select>
+                  <input name="phone" inputmode="tel" autocomplete="tel" placeholder="Digite seu celular" aria-describedby="lead-phone-error" />
+                </div>
                 <small class="field-error" id="lead-phone-error" data-field-error="phone"></small>
               </label>
               <button class="primary-cta" type="submit">Ver precos agora</button>
@@ -456,6 +664,48 @@
           <p>Nao. O app web ja funciona. O app mobile Android e iOS sera liberado depois sem custo adicional para compradores atuais.</p>
         </details>
       </section>
+
+      <footer class="site-footer">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <div class="footer-logo">
+              <img src="/brand/flowme-icon.png" alt="" />
+              <strong>Flow Me</strong>
+            </div>
+            <p>
+              Seu sistema pessoal com IA para organizar WhatsApp, agenda, tarefas, financas,
+              documentos e decisoes em um so lugar.
+            </p>
+            <div class="footer-proof">
+              <span>IA no WhatsApp</span>
+              <span>LGPD</span>
+              <span>Grupo Rayan Barbieri Tecnologia</span>
+            </div>
+          </div>
+          <nav class="footer-links" aria-label="Produto">
+            <strong>Produto</strong>
+            <a href="#assistente">Conselho</a>
+            <a href="#whatsapp">WhatsApp</a>
+            <a href="#features">Lembretes</a>
+            <a href="#features">Checklists</a>
+            <a href="#financas">Financas</a>
+            <a href="#integracoes">Integracoes</a>
+            <a href="#planos">Planos</a>
+          </nav>
+          <nav class="footer-links" aria-label="Conta">
+            <strong>Conta</strong>
+            <a href="https://app.flow-me.online/login">Login</a>
+            <a href="#planos">Assinar plano</a>
+            <a href="/privacidade">Politica de privacidade</a>
+            <a href="/termos">Termos de uso</a>
+            <p>Precisa de ajuda para escolher um plano ou acessar sua conta? Nosso time responde pelo suporte do Flow Me.</p>
+          </nav>
+        </div>
+        <div class="footer-bottom">
+          <span>© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Consultoria em Tecnologia. Todos os direitos reservados.</span>
+          <span>Seguranca, LGPD e IA aplicada a rotina real.</span>
+        </div>
+      </footer>
     </main>
     <script src="/landing.js"></script>
   </body>

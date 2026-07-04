@@ -263,7 +263,7 @@ Execution checklist:
 - [ ] Add dedicated premium specialist council fold.
 - [ ] Add dedicated agenda/reminder fold.
 - [ ] Add dedicated checklists/goals fold.
-- [ ] Add dedicated finance fold.
+- [x] Add dedicated finance fold.
 - [ ] Add FAQ.
 
 Test checklist:
@@ -273,3 +273,62 @@ Test checklist:
 - [ ] Links and CTAs from every fold.
 - [ ] No console errors.
 - [x] No horizontal overflow.
+
+### 7. Design System Refresh: Meu Assessor Structure With Flow Me Colors
+
+Goal: recover the pre-migration fine adjustments from the old React landing and align typography, borders and buttons with meuassessor.com while keeping the Flow Me palette.
+
+Surface: `public/index.html` (head fonts), `public/styles.css`, `public/landing.js`.
+
+Implementation checklist:
+
+- [x] Load Poppins 300-700 via Google Fonts and make it the base font.
+- [x] Headline pattern: h1 weight 400 with bold 700 orange `em` highlight (Meu Assessor headline rhythm, Flow Me orange).
+- [x] Subheadline/paragraphs weight 300; heading weights mapped to 600/700 (no 800+ weights left).
+- [x] CTAs: 20px radius, subtle 1px light border, purple/indigo gradient (pre-migration #4f46e5 base), double side glow and hover lift, Meu Assessor style with Flow Me colors.
+- [x] Recovered pre-migration dot colors: green hero chip dot (#22c55e, 6px halo), purple gradient hero pills dots (#d946ef -> #8b5cf6), magenta footer proof dots (#d946ef).
+- [x] Fixed locale copy wiping the green eyebrow dot (`setText` -> `setHtml` preserving `<span>`).
+- [x] Section eyebrows restored to orange (pre-migration feature eyebrow color) and no longer overridden by paragraph rules.
+- [x] Section bullets use green check circles (pre-migration CheckCircle style) instead of plain dots.
+- [x] Plan buttons: green glow (44px halo) recovered, hover lift; locked price keeps orange glow behind blur.
+- [x] Cards standardized on 14px radius (plan cards stay 20px); ticker text #e2e8f0 weight 500, slightly smaller, with pause on hover.
+- [x] WhatsApp phone mock uses system font stack for realism.
+- [x] Mobile h1 restored to ~41px (pre-migration scale).
+- [x] Purple dot restored in hero body copy, separate from the headline.
+- [x] Singularity uses colored Slack, Drive, Sheets and Docs icons while the proof slider keeps white official-looking logos.
+- [x] Lower-left singularity orbit filled with Documentos so the ring has no empty quadrant.
+- [x] Locked price blur strengthened and annual savings blurred before lead unlock.
+- [x] WhatsApp hero chat starts populated earlier, scrolls faster and stays clipped below the WhatsApp header.
+
+Test checklist:
+
+- [x] 390x844, 768x1024, 1024x768, 1440x900: no horizontal overflow, no console errors.
+- [x] Poppins active, h1 400/em 700 orange, green dot present, CTA radius 20px verified in computed styles.
+- [x] Plans keep strong blur + green unlock buttons; annual savings stays blurred; LGPD present in ticker; footer, iPhone and singularity render.
+
+Rollback note: revert the Google Fonts link and the styles.css typography/button block if conversion drops; dot colors and glows are standalone rules that can be reverted individually.
+
+### 8. Finance By Conversation Fold
+
+Goal: dedicated `#financas` fold modeled on Meu Assessor's second fold, showing expense capture by WhatsApp and the dashboard history.
+
+Surface: `public/index.html` (new section after `#whatsapp`, nav/footer anchors), `public/styles.css` (finance gallery/slider block), `public/landing.js` (`setupFinanceSlider`, `finance` locale copy).
+
+Implementation checklist:
+
+- [x] Section copy: orange eyebrow "Controle financeiro", H2 "Anote seus gastos por áudio ou texto.", support text and 4 green-check bullets (WhatsApp query, auto categorization, daily summary, dashboard history).
+- [x] Reuse the hero iPhone WhatsApp animation (same classes/keyframes, 35s cycle) with finance conversation: Uber R$45, iFood R$82, monthly total query and 21h daily summary.
+- [x] Dashboard print slider below the split: 2 slides, arrows, dots, 6s auto-advance, pause on hover, stable 1.83:1 aspect ratio, per-slide captions.
+- [x] Missing-image fallback shows the expected asset path until prints are saved.
+- [x] Locale copy (pt-br/en-us) for eyebrow, title, text, bullets and captions.
+- [x] Nav and footer "Financas" anchors point to `#financas`.
+- [ ] Save real dashboard prints at `public/assets/financas-painel-1.png` (monthly dashboard) and `public/assets/financas-painel-2.png` (transactions/categories).
+
+Test checklist:
+
+- [x] Playwright render at 390x844, 768x1024, 1024x768, 1440x900: no horizontal overflow, no console errors (only expected 404s for the two pending prints).
+- [x] Chat animation runs `chatScrollCycle`, typing bubbles fire, 8 bubbles render inside the phone bounds.
+- [x] Slider dots/arrows navigate and fallback renders while prints are missing.
+- [ ] Re-check slider crop on both viewports after the real prints are added.
+
+Rollback note: remove the `#financas` section, the finance CSS block and `setupFinanceSlider()`/`finance` copy entries; nav/footer anchors revert to `#features`.

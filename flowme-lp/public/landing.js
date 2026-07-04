@@ -8,7 +8,7 @@ const copy = {
     nav: ["Council", "WhatsApp", "Reminders", "Checklists", "Finance", "Integrations", "Plans"],
     headerCta: "Start now",
     eyebrow: "AI on WhatsApp for routine, work and real life",
-    h1: 'Get into flow with your <em>personal assistant on WhatsApp.</em>',
+    h1: 'Get into flow with <em>your personal assistant on WhatsApp.</em>',
     hero:
       "Expert council powered by artificial intelligence, calendar, reminders, checklists, finance and integrations organized by conversation. You speak your way; the Assistant understands, records and returns the next step.",
     primary: "Start now",
@@ -60,6 +60,21 @@ const copy = {
       '"I work in Revenue Operations and Flow Me helps me execute what matters. It connects Slack, Gmail, tasks and personal life. I get the right signals and stop living in firefighting mode."',
     testimonial2:
       '"I can organize pets, groceries, errands, study, English class, therapy and personal commitments in the same day without losing my mind. I really want the mobile app."',
+    finance: {
+      eyebrow: "Financial control",
+      title: "Log your expenses by voice or text.",
+      text: "Record every expense or income in seconds. The Assistant listens to your voice notes, understands natural speech and categorizes everything automatically.",
+      bullets: [
+        "Ask about any expense on WhatsApp.",
+        "Your expenses arrive categorized.",
+        "Daily summary sent straight to you.",
+        "Track your spending history in a dashboard.",
+      ],
+      captions: [
+        "Monthly dashboard with expenses, income, investments and balance.",
+        "Transaction history and spending by category.",
+      ],
+    },
   },
   "pt-br": {
     title: "Flow Me | Assistente pessoal no WhatsApp",
@@ -68,7 +83,7 @@ const copy = {
     nav: ["Conselho", "WhatsApp", "Lembretes", "Checklists", "Financas", "Integracoes", "Planos"],
     headerCta: "Comecar agora",
     eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
-    h1: 'Entre em flow com seu <em>assistente pessoal no seu WhatsApp.</em>',
+    h1: 'Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em>',
     hero:
       "Conselho de especialistas com inteligencia artificial, agenda, lembretes, checklists, financas e integracoes organizados por conversa. Voce fala do seu jeito; o Assistente entende, registra e devolve o proximo passo.",
     primary: "Comecar agora",
@@ -120,6 +135,21 @@ const copy = {
       '"Trabalho com Revenue Operations e o Flow Me me ajuda a executar o que importa. Ele cruza Slack, Gmail, tarefas e vida pessoal. Recebo os sinais certos e paro de viver apagando incendio."',
     testimonial2:
       '"Consigo organizar cachorros, compras, rua, estudo, ingles, ballet, terapia e compromissos pessoais. Tudo no mesmo dia, sem ficar maluca. Quero muito a versao mobile."',
+    finance: {
+      eyebrow: "Controle financeiro",
+      title: "Anote seus gastos por áudio ou texto.",
+      text: "Registre cada despesa ou receita em segundos. O Assistente ouve seus áudios, entende sua fala natural e categoriza tudo automaticamente.",
+      bullets: [
+        "Consulte qualquer gasto pelo WhatsApp.",
+        "Seus gastos já chegam categorizados.",
+        "Resumo do dia direto pra você.",
+        "Acompanhe o histórico dos gastos em um painel.",
+      ],
+      captions: [
+        "Dashboard mensal com gastos, receitas, investimentos e saldo.",
+        "Histórico de transações e gastos por categoria.",
+      ],
+    },
   },
 };
 
@@ -228,10 +258,11 @@ function validateLead(form, locale) {
   const name = form.elements.name;
   const email = form.elements.email;
   const phone = form.elements.phone;
+  const country = form.elements.country;
   const digits = phone.value.replace(/\D/g, "");
   const errors = {};
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
-  const phoneOk = locale === "pt-br" ? digits.length >= 10 : digits.length === 10;
+  const phoneOk = country?.value === "BR" ? digits.length >= 10 : digits.length >= 7;
 
   name.setAttribute("aria-invalid", String(name.value.trim().length < 2));
   email.setAttribute("aria-invalid", String(!emailOk));
@@ -294,7 +325,7 @@ function applyLocale(locale) {
 
   setTexts(".nav a", t.nav);
   setText(".header-cta", t.headerCta);
-  setText(".hero .eyebrow", t.eyebrow);
+  setHtml(".hero .eyebrow", `<span></span>${t.eyebrow}`);
   setHtml(".hero h1", t.h1);
   setText(".hero-text", t.hero);
   setText(".hero-actions .primary-cta", t.primary);
@@ -335,6 +366,74 @@ function applyLocale(locale) {
   });
   setText("#testimonials h2", t.testimonialsTitle);
   setTexts(".testimonial-grid article p", [t.testimonial1, t.testimonial2]);
+
+  if (t.finance) {
+    setText("#financas .eyebrow", t.finance.eyebrow);
+    setText("#financas h2", t.finance.title);
+    setText("#financas .section-copy p:nth-of-type(2)", t.finance.text);
+    setTexts("#financas .section-copy li", t.finance.bullets);
+    setTexts("#financas .finance-slide figcaption", t.finance.captions);
+  }
+}
+
+function setupFinanceSlider() {
+  const slider = document.querySelector("[data-finance-slider]");
+  if (!slider) return;
+  const track = slider.querySelector("[data-finance-track]");
+  const slides = Array.from(slider.querySelectorAll(".finance-slide"));
+  const dotsWrap = slider.querySelector("[data-finance-dots]");
+  const prevButton = slider.querySelector("[data-finance-prev]");
+  const nextButton = slider.querySelector("[data-finance-next]");
+  if (!track || slides.length === 0) return;
+  let index = 0;
+  let timer = null;
+
+  slides.forEach((slide) => {
+    slide.querySelector("img")?.addEventListener("error", () => slide.classList.add("is-missing"));
+  });
+
+  const dots = slides.map((_, slideIndex) => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "finance-dot";
+    dot.setAttribute("aria-label", `Print ${slideIndex + 1}`);
+    dot.addEventListener("click", () => {
+      goTo(slideIndex);
+      restart();
+    });
+    dotsWrap?.appendChild(dot);
+    return dot;
+  });
+
+  function goTo(nextIndex) {
+    index = (nextIndex + slides.length) % slides.length;
+    track.style.transform = `translateX(-${index * 100}%)`;
+    dots.forEach((dot, dotIndex) => dot.setAttribute("aria-current", String(dotIndex === index)));
+  }
+
+  function stop() {
+    if (timer) window.clearInterval(timer);
+    timer = null;
+  }
+
+  function restart() {
+    stop();
+    timer = window.setInterval(() => goTo(index + 1), 6000);
+  }
+
+  prevButton?.addEventListener("click", () => {
+    goTo(index - 1);
+    restart();
+  });
+  nextButton?.addEventListener("click", () => {
+    goTo(index + 1);
+    restart();
+  });
+  slider.addEventListener("mouseenter", stop);
+  slider.addEventListener("mouseleave", restart);
+
+  goTo(0);
+  restart();
 }
 
 function setupLeadGate(locale) {
@@ -347,6 +446,7 @@ function setupLeadGate(locale) {
   const phone = form?.querySelector('input[name="phone"]');
   const intervalInput = form?.querySelector('input[name="interval"]');
   const planButtons = document.querySelectorAll("[data-plan-button]");
+  const planTabs = document.querySelectorAll("[data-plan-tab]");
   let activeLead = readStoredLead(locale);
 
   function selectInterval(interval) {
@@ -354,6 +454,9 @@ function setupLeadGate(locale) {
     intervalInput.value = interval || "annual";
     document.querySelectorAll("[data-plan-card]").forEach((card) => {
       card.classList.toggle("is-selected", card.getAttribute("data-interval") === intervalInput.value);
+    });
+    planTabs.forEach((tab) => {
+      tab.setAttribute("aria-selected", String(tab.getAttribute("data-interval") === intervalInput.value));
     });
   }
 
@@ -437,13 +540,20 @@ function setupLeadGate(locale) {
     });
   });
 
+  planTabs.forEach((tab) => {
+    tab.addEventListener("click", () => selectInterval(tab.getAttribute("data-interval") || "annual"));
+  });
+
   modalCloseButtons.forEach((button) => button.addEventListener("click", closeModal));
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && modal && !modal.hidden) closeModal();
   });
 
   phone?.addEventListener("input", () => {
-    phone.value = formatPhone(phone.value, locale);
+    phone.value = formatPhone(phone.value, form?.elements.country?.value === "BR" ? "pt-br" : "en-us");
+  });
+  form?.elements.country?.addEventListener("change", () => {
+    phone.value = formatPhone(phone.value, form.elements.country.value === "BR" ? "pt-br" : "en-us");
   });
 
   form?.querySelectorAll("input").forEach((input) => {
@@ -465,6 +575,9 @@ function setupLeadGate(locale) {
       return;
     }
     const payload = Object.fromEntries(new FormData(form).entries());
+    const selectedCountry = form.elements.country?.selectedOptions?.[0];
+    const dial = selectedCountry?.dataset?.dial || "+55";
+    payload.phone = `${dial}${String(payload.phone || "").replace(/\D/g, "")}`;
     const button = form.querySelector("button");
     const previousLabel = button?.textContent || t.unlock;
     if (button) {
@@ -500,6 +613,68 @@ function setupLeadGate(locale) {
   });
 }
 
+function setupHeroChat() {
+  const scroll = document.querySelector(".hero-chat-scroll");
+  const typing = scroll?.querySelector(".hero-wa-typing");
+  const bubbles = scroll ? [...scroll.querySelectorAll(".hero-wa-bubble")] : [];
+  if (!scroll || !typing || !bubbles.length) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  scroll.classList.add("js-seq");
+
+  const scrollToLatest = () => {
+    requestAnimationFrame(() => {
+      scroll.scrollTop = scroll.scrollHeight;
+    });
+  };
+
+  const steps = [];
+  let at = 80;
+  bubbles.forEach((bubble) => {
+    if (bubble.classList.contains("bot")) {
+      steps.push({
+        at,
+        run: () => {
+          typing.classList.add("is-shown");
+          scrollToLatest();
+        },
+      });
+      at += 520;
+      steps.push({
+        at,
+        run: () => {
+          typing.classList.remove("is-shown");
+          bubble.classList.add("is-shown");
+          scrollToLatest();
+        },
+      });
+      at += 760;
+    } else {
+      steps.push({
+        at,
+        run: () => {
+          bubble.classList.add("is-shown");
+          scrollToLatest();
+        },
+      });
+      at += 440;
+    }
+  });
+
+  let timers = [];
+  function runCycle() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    typing.classList.remove("is-shown");
+    bubbles.forEach((bubble) => bubble.classList.remove("is-shown"));
+    scroll.scrollTop = 0;
+    steps.forEach((step) => timers.push(setTimeout(step.run, step.at)));
+  }
+
+  runCycle();
+  setInterval(runCycle, 35000);
+}
+
 function recordLandingVisit(locale) {
   marketingPost("/api/marketing/visits", {
     ...baseMarketingPayload(locale),
@@ -511,4 +686,6 @@ function recordLandingVisit(locale) {
 const locale = getLocale();
 applyLocale(locale);
 setupLeadGate(locale);
+setupFinanceSlider();
+setupHeroChat();
 recordLandingVisit(locale);

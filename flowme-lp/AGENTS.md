@@ -4,9 +4,16 @@ This project is the static landing page for Flow Me. It is separate from the aut
 
 Before changing landing copy, layout, animations, lead capture, pricing reveal, privacy links, or deployment files, read `IMPLEMENTATION_PLAN.md` and update the relevant checklist when the work changes scope.
 
+## Source Of Truth
+
+- `flowme-lp/` owns the public landing page served at `https://flow-me.online`.
+- `flowme-app/` owns the authenticated app served at `https://app.flow-me.online`, including login, onboarding, checkout, APIs and internal product UI.
+- Do not implement public landing sections in `../flowme-app/app/page.tsx`. The app root should remain app behavior, not the public marketing site.
+- If a request mentions "landing", "LP", first fold, hero, plans, footer, lead form, privacy/terms, proof slider or marketing copy, edit `flowme-lp/public/**` unless the user explicitly asks for the authenticated app.
+
 ## Product Role
 
-The landing page sells Flow Me to non-technical users. It must make the product feel usable from the first viewport, with real product signals: WhatsApp, dashboard, reminders, checklists, finance, integrations, documents, calendar and Balys AI.
+The landing page sells Flow Me to non-technical users. It must make the product feel usable from the first viewport, with real product signals: WhatsApp, dashboard, reminders, checklists, finance, integrations, documents, calendar and the personal assistant.
 
 ## Implementation Method
 
@@ -16,6 +23,8 @@ The landing page sells Flow Me to non-technical users. It must make the product 
 - Prefer existing static patterns in `public/index.html`, `public/styles.css` and `public/landing.js`.
 - Do not add frameworks or build tooling unless the implementation plan explicitly calls for it.
 - Keep deployment files stable unless the request is deployment-specific.
+- For every meaningful section, maintain an implementation plan and checklist with: goal, surface, copy, layout, animation, responsive behavior, links, analytics, tests and rollback note.
+- Prefer static, inspectable HTML/CSS/JS. If interaction is needed, keep it in `public/landing.js` and make it deterministic enough to test with DOM fixtures.
 
 ## Frontend Standards
 
@@ -28,6 +37,10 @@ The landing page sells Flow Me to non-technical users. It must make the product 
 - Use Flow Me colors, with dark premium sections, orange brand energy, green action states and restrained purple accents.
 - Cards may frame repeated items, pricing and modals. Do not nest cards inside cards.
 - Hero and product sections must show the actual product behavior, image, animation or interface state.
+- Build the real first screen, not a generic landing hero. The first viewport must immediately communicate Flow Me, WhatsApp, personal assistant behavior and a path to plans.
+- Keep the Flow Me design system consistent: black/dark premium background, Flow Me orange as the main headline accent, green for unlock/purchase states, purple for secondary controls and proof points.
+- Known-tool references are product-critical. Slack, WhatsApp, Drive, Sheets, Calendar, Docs, Gmail and similar brands must use the original logo or an official/original-looking monochrome variation. A generic hash, triangle, file or chat icon is not acceptable for a named brand.
+- Stable dimensions are mandatory for phones, tickers, pricing cards, modals and tool rows so animation, hover and locale copy do not shift the layout.
 
 ## Action Plan Template
 
@@ -50,6 +63,7 @@ Use browser checks for every visual change:
 - Check header, CTA, pricing, footer and legal links.
 - Verify animated elements are not blank and do not hide critical copy.
 - Verify logos render correctly and remain readable on dark/light backgrounds.
+- Verify `https://flow-me.online` maps to the static LP service (`flowme-lp`) and `https://app.flow-me.online` maps to the app service (`flowme-app`) through Traefik labels before changing deployment shape.
 
 ## Mock And Render Testing
 
@@ -60,6 +74,9 @@ The LP is static, so mocks are DOM/data fixtures rather than API test doubles.
 - Locale: test `/`, `/pt-br` and `/en-us`.
 - Render: test screenshots and computed layout, including viewport width and overflow.
 - Network: mock or intercept marketing endpoints when validating the lead flow locally.
+- Pricing reveal: ensure locked prices are blurred before form completion, annual is selected by default on mobile when required, and no CTA bypasses the unlock form straight to checkout.
+- WhatsApp animation: observe a full cycle and confirm typing stops after responses, scroll stays below the WhatsApp header, and the cycle resets cleanly.
+- Proof slider: confirm icons/logos are visible on dark background, do not clip at 390px, and include LGPD plus the required proof points.
 
 ## Copy Rules
 
@@ -68,4 +85,3 @@ The LP is static, so mocks are DOM/data fixtures rather than API test doubles.
 - Never ask users to understand IDs, OAuth, connector IDs, file IDs or technical implementation details.
 - Speak like a smart operator, not a database or developer log.
 - Claims must be credible and supported by visible product behavior.
-

@@ -2,22 +2,22 @@ const marketingApiBase = window.FlowMeMarketingApiBase || "https://app.flow-me.o
 
 const copy = {
   "en-us": {
-    title: "Flow Me | Your personal Jarvis",
+    title: "Flow Me | Personal assistant on WhatsApp",
     description:
-      "Flow Me and Balys AI centralize calendar, tasks, WhatsApp, Gmail, Slack, notes, checklists and priorities in a personal Jarvis.",
-    nav: ["Balys AI", "Features", "WhatsApp", "Plans"],
+      "Get into flow with your personal assistant on WhatsApp. Calendar, reminders, checklists, finance, Slack, Drive and Sheets organized by conversation.",
+    nav: ["Council", "WhatsApp", "Reminders", "Checklists", "Finance", "Integrations", "Plans"],
     headerCta: "Start now",
-    eyebrow: "Personal AI for work, routine and real life",
-    h1: "A personal Jarvis. Inside your day.",
+    eyebrow: "AI on WhatsApp for routine, work and real life",
+    h1: 'Get into flow with your <em>personal assistant on WhatsApp.</em>',
     hero:
-      "Balys AI understands your messages, calendar, tasks, Slack, Gmail, notes and reminders. You speak. It organizes. You execute what matters.",
-    primary: "Unlock Flow Me Pro",
+      "Expert council powered by artificial intelligence, calendar, reminders, checklists, finance and integrations organized by conversation. You speak your way; the Assistant understands, records and returns the next step.",
+    primary: "Start now",
     secondary: "See features",
-    pills: ["Capture by voice", "Chat on WhatsApp", "Plan in your dashboard"],
+    pills: ["Capture by voice", "Ask in seconds", "Organize in the dashboard"],
     pricingEyebrow: "Special offer",
     pricingTitle: "One plan to centralize your life.",
     pricingText:
-      "Balys AI, calendar, tasks, checklists, notes, reviews, connectors and reminders in one subscription.",
+      "Personal assistant, calendar, tasks, checklists, notes, reviews, connectors and reminders in one subscription.",
     plans: {
       monthlyTitle: "Monthly",
       monthlyDescription: "Full Flow Me Pro without annual commitment. Ideal for testing with your real routine.",
@@ -26,7 +26,7 @@ const copy = {
       monthlyPeriod: "/mo",
       monthlyBadge: "Flexible",
       annualTitle: "Annual",
-      annualDescription: "Best price to centralize calendar, tasks, WhatsApp, finance, notes and Balys AI.",
+      annualDescription: "Best price to centralize calendar, tasks, WhatsApp, finance, notes and your personal assistant.",
       annualCurrency: "US$",
       annualPrice: "7.90",
       annualPeriod: "/mo",
@@ -62,22 +62,22 @@ const copy = {
       '"I can organize pets, groceries, errands, study, English class, therapy and personal commitments in the same day without losing my mind. I really want the mobile app."',
   },
   "pt-br": {
-    title: "Flow Me | Seu Jarvis pessoal",
+    title: "Flow Me | Assistente pessoal no WhatsApp",
     description:
-      "Flow Me e Balys AI centralizam calendario, tarefas, WhatsApp, Gmail, Slack, notas, checklists e prioridades em um Jarvis pessoal.",
-    nav: ["Balys AI", "Features", "WhatsApp", "Planos"],
+      "Entre em flow com seu assistente pessoal no WhatsApp. Agenda, lembretes, checklists, financas, Slack, Drive e Sheets organizados por conversa.",
+    nav: ["Conselho", "WhatsApp", "Lembretes", "Checklists", "Financas", "Integracoes", "Planos"],
     headerCta: "Comecar agora",
-    eyebrow: "IA pessoal para trabalho, rotina e vida real",
-    h1: "Um Jarvis pessoal. Direto no seu dia.",
+    eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
+    h1: 'Entre em flow com seu <em>assistente pessoal no seu WhatsApp.</em>',
     hero:
-      "Balys AI entende suas mensagens, agenda, tarefas, Slack, Gmail, notas e lembretes. Voce fala. Ele organiza. Voce executa o que importa.",
-    primary: "Desbloquear Flow Me Pro",
+      "Conselho de especialistas com inteligencia artificial, agenda, lembretes, checklists, financas e integracoes organizados por conversa. Voce fala do seu jeito; o Assistente entende, registra e devolve o proximo passo.",
+    primary: "Comecar agora",
     secondary: "Ver funcionalidades",
-    pills: ["Registre por audio", "Converse no WhatsApp", "Planeje no painel"],
+    pills: ["Registre por audio", "Consulte em segundos", "Organize tudo no painel"],
     pricingEyebrow: "Oferta especial",
     pricingTitle: "Um plano para centralizar sua vida.",
     pricingText:
-      "Balys AI, agenda, tarefas, checklists, notas, revisoes, conectores e lembretes em uma assinatura.",
+      "Assistente pessoal, agenda, tarefas, checklists, notas, revisoes, conectores e lembretes em uma assinatura.",
     plans: {
       monthlyTitle: "Mensal",
       monthlyDescription: "Flow Me Pro completo, sem compromisso anual. Ideal para testar com rotina real.",
@@ -86,7 +86,7 @@ const copy = {
       monthlyPeriod: "/mes",
       monthlyBadge: "Flexivel",
       annualTitle: "Anual",
-      annualDescription: "Melhor preco para centralizar agenda, tarefas, WhatsApp, finanças, notas e Balys AI.",
+      annualDescription: "Melhor preco para centralizar agenda, tarefas, WhatsApp, financas, notas e seu Assistente pessoal.",
       annualCurrency: "R$",
       annualPrice: "39,90",
       annualPeriod: "/mes",
@@ -261,6 +261,11 @@ function setText(selector, value) {
   if (node && value) node.textContent = value;
 }
 
+function setHtml(selector, value) {
+  const node = document.querySelector(selector);
+  if (node && value) node.innerHTML = value;
+}
+
 function setTexts(selector, values) {
   document.querySelectorAll(selector).forEach((node, index) => {
     if (values[index]) node.textContent = values[index];
@@ -290,7 +295,7 @@ function applyLocale(locale) {
   setTexts(".nav a", t.nav);
   setText(".header-cta", t.headerCta);
   setText(".hero .eyebrow", t.eyebrow);
-  setText(".hero h1", t.h1);
+  setHtml(".hero h1", t.h1);
   setText(".hero-text", t.hero);
   setText(".hero-actions .primary-cta", t.primary);
   setText(".hero-actions .secondary-cta", t.secondary);

@@ -1,6 +1,6 @@
 # Flow Me LP Implementation Plan
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 ## Goal
 
@@ -16,6 +16,8 @@ The web app remains on `app.flow-me.online`. The LP captures qualified leads, un
 - [x] Traefik routes:
   - `flow-me.online` -> `flowme-lp`
   - `app.flow-me.online` -> `flowme-app`
+- [x] Public LP source of truth is `flowme-lp/public/**`.
+- [x] `flowme-app/app/page.tsx` is app behavior only and redirects to `/login`.
 
 ## Copy Strategy
 
@@ -26,14 +28,14 @@ Flesch-Kincaid direction:
 - Short sentences.
 - Clear sections.
 - One idea per paragraph.
-- Avoid jargon unless it is a known promise: "Jarvis pessoal".
+- Avoid jargon unless it is a known promise: personal assistant.
 - Use product outcomes before feature names.
 
 ## LP Structure
 
-- [x] Hero: promise around personal Jarvis and execution.
+- [x] Hero: promise around personal assistant and execution.
 - [x] Animated product structure inspired by SaaS landing motion.
-- [x] Feature section covering Today, Goals, Calendar, Finance, Checklists, Notes, Review, BalysAI and Connectors.
+- [x] Feature section covering Today, Goals, Calendar, Finance, Checklists, Notes, Review, personal assistant and Connectors.
 - [x] WhatsApp/reminder section.
 - [x] Coming soon section for mobile, WhatsApp filter, Telegram and Teams.
 - [x] Testimonials for Victor and Leticia.
@@ -75,7 +77,7 @@ It adds invented product studio income and expenses, launch notes, a goal and a 
 Capture product proof for:
 
 - [ ] `Hoje`: priorities, revenue block and market task.
-- [ ] `BalysAI`: schedule-by-chat and finance council messages.
+- [ ] Assistant: schedule-by-chat and finance council messages.
 - [ ] `WhatsApp`: reminder confirmation and reminder delivery.
 - [ ] `Checklists`: market checklist with checked and pending items.
 - [ ] `Financas`: transactions, cuts and protected investments.
@@ -133,9 +135,28 @@ This LP inherits the implementation method from `../flowme-app/AGENTS.md`, adapt
 
 ## Current Execution Plan: Flow Me Landing Refresh
 
+### 0. Public LP Migration Boundary
+
+Goal: guarantee the public landing served at `https://flow-me.online` comes from `flowme-lp`, not from the authenticated Next.js app.
+
+Implementation checklist:
+
+- [x] Keep Traefik root-domain routing on `flowme-lp`.
+- [x] Move current hero/headline/first-fold proof to `flowme-lp/public/index.html`, `styles.css` and `landing.js`.
+- [x] Make `flowme-app/app/page.tsx` redirect to `/login`.
+- [x] Keep checkout and marketing APIs on `app.flow-me.online`.
+- [x] Reinforce `AGENTS.md`, `GEMINI.md` and `CLAUDE.md` with LP ownership and mobile-first design-system rules.
+
+Test checklist:
+
+- [x] Static LP render check at 390x844, 768x1024, 1024x768 and 1440x900.
+- [x] Next app build confirms `/` redirect compiles.
+- [ ] Docker image builds for `flowme-lp` (not validated locally; Docker unavailable on this machine).
+- [x] Verify Traefik compose still maps `flow-me.online` to `flowme-lp` and `app.flow-me.online` to `flowme-app`.
+
 ### 1. WhatsApp Animation
 
-Goal: show Balys answering a real routine question, then scrolling to a training answer and reminder case.
+Goal: show the Assistant answering a real routine question, then scrolling to a training answer and reminder case.
 
 Implementation checklist:
 
@@ -221,20 +242,20 @@ Goal: adapt Meu Assessor's conversion rhythm to Flow Me without copying its prod
 
 Implementation plan:
 
-- Fold 1: "Flow Me. Balys no seu WhatsApp." with animated iPhone chat. Visual: current WhatsApp animation with typing, scroll, training and reminder.
+- Fold 1: "Entre em flow com seu assistente pessoal no seu WhatsApp." with animated iPhone chat. Visual: current WhatsApp animation with typing, scroll, training and reminder.
 - Fold 2: proof strip and singularity. Visual: integration singularity pulling WhatsApp, Slack, Drive, Docs, Sheets, bank, files, meetings, Calendar, checklist and goals into Flow Me.
 - Fold 3: routine capture. Visual: voice/audio command becoming tasks, reminders and checklist.
 - Fold 4: specialist council. Visual: premium panel showing risk, priority, next step and AI specialists.
 - Fold 5: agenda and reminders. Visual: calendar timeline plus WhatsApp reminder confirmation.
 - Fold 6: checklists and goals. Visual: checklist progress and goal milestones moving into the day.
 - Fold 7: finance by conversation. Visual: transaction captured by WhatsApp and categorized in the dashboard.
-- Fold 8: integrations. Visual: Slack/Drive/Sheets/Calendar logos connected to Balys with natural language search.
+- Fold 8: integrations. Visual: Slack/Drive/Sheets/Calendar logos connected to the Assistant with natural language search.
 - Fold 9: plans. Visual: locked price cards, annual differential and green unlock CTA.
 - Fold 10: FAQ/legal/footer. Visual: compact dark footer with product/account/support/legal.
 
 Execution checklist:
 
-- [x] Fold 1 implemented in `flowme-app/app/page.tsx`.
+- [x] Fold 1 implemented in `flowme-lp/public/index.html`.
 - [x] Fold 2 implemented as singularity section.
 - [x] Fold 9 implemented as locked plans.
 - [x] Fold 10 footer/legal implemented.

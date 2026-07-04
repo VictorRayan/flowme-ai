@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api/auth';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
 import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
+import { resolveGoogleConnectorHealth } from '@/lib/connectors/reconnect';
 
 const VALID_TYPES = ['gmail', 'google_docs', 'google_sheets', 'google_drive', 'slack'];
 
@@ -18,13 +19,22 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('connectors')
-      .select('id, name, type, is_active, config, created_at')
+      .select('id, user_id, name, type, is_active, config, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
 
-    return apiSuccess({ connectors: data || [] });
+    const connectors = await Promise.all((data || []).map(async (connector: any) => {
+      const connectionStatus = await resolveGoogleConnectorHealth(supabase, connector, user);
+      return {
+        ...connector,
+        is_connected: connectionStatus === 'connected',
+        connection_status: connectionStatus,
+      };
+    }));
+
+    return apiSuccess({ connectors });
   } catch (err: any) {
     if (err instanceof FeatureLockedError) {
       return apiError(ErrorCode.FEATURE_LOCKED, 'Connectors require Flow Me Pro', 402, {

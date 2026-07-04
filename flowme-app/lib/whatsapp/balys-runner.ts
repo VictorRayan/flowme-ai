@@ -15,6 +15,7 @@ import { jidToPhone, sendText } from './evolution-client';
 import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 import { acquireAiUsageGuard, releaseAiUsageGuard, resolveAiGuardWorkload } from '@/lib/billing/ai-guardrails';
 import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
+import { connectorReconnectMessage } from '@/lib/connectors/reconnect';
 
 const SUPABASE_URL         = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -136,6 +137,13 @@ function preferredConnectorTypeForWhatsApp(text: string, messages: any[], requir
   if (/\bdrive|arquivos?\b/i.test(text)) return 'google_drive';
   if (requiredFirstTool?.startsWith('connectors.')) return inferRecentConnectorType(messages);
   return undefined;
+}
+
+function hasConnectorReconnectFailure(thinking: any[]): boolean {
+  return thinking.some((step) => {
+    const text = `${step?.error || ''} ${step?.receipt?.error || ''}`;
+    return /needs reconnect|needs refresh|Reconnect account|precisa ser renovada|precisa reconectar|permission needed|token does not include/i.test(text);
+  });
 }
 
 export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): Promise<void> {
@@ -326,6 +334,9 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
       },
     });
     replyText = (result.content || '').trim() || 'Done! Let me know if you need anything else.';
+    if (hasConnectorReconnectFailure(thinkingForPersistence)) {
+      replyText = connectorReconnectMessage('Google');
+    }
   } catch (e: any) {
     console.error('[whatsapp-balys] agent loop failed:', e);
     replyText = 'Sorry, I ran into a problem. Please try again.';

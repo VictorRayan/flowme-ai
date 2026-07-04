@@ -83,6 +83,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${appUrl}/app/settings?google_error=no_access_token`);
     }
 
+    const { data: existingToken } = await supabase
+      .from('user_google_tokens')
+      .select('refresh_token')
+      .eq('linked_account_id', state.linked_account_id)
+      .maybeSingle();
+
     // Upsert tokens into user_google_tokens
     // Use the service role key for this write so RLS doesn't block it
     // (The RLS policy checks linked_accounts ownership which requires a join)
@@ -91,7 +97,7 @@ export async function GET(req: NextRequest) {
       .upsert({
         linked_account_id: state.linked_account_id,
         access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token || null,
+        refresh_token: tokens.refresh_token || existingToken?.refresh_token || null,
         expiry: tokens.expiry_date
           ? new Date(tokens.expiry_date).toISOString()
           : new Date(Date.now() + 3600 * 1000).toISOString(),

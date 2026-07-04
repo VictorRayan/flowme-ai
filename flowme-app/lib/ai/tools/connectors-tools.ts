@@ -5,6 +5,10 @@ import { google } from 'googleapis';
 import { getValidGoogleToken } from '@/lib/google/google-auth';
 import { runSheetsAgent } from '@/lib/ai/agents/sheets-agent';
 import { runDocsAgent } from '@/lib/ai/agents/docs-agent';
+import {
+  isGoogleReconnectError,
+  markConnectorNeedsReconnect,
+} from '@/lib/connectors/reconnect';
 
 type ConnectorType = 'gmail' | 'google_docs' | 'google_sheets' | 'google_drive';
 
@@ -13,6 +17,7 @@ type ConnectorConfig = {
   spreadsheet_id?: string;
   document_id?: string;
   folder_id?: string;
+  connection_status?: ConnectorConnectionStatus;
 };
 
 type ConnectorRow = {
@@ -327,11 +332,16 @@ async function getGoogleAccountId(context: ToolContext): Promise<string | null> 
   return data.id;
 }
 
-async function getConnectedClient(linkedAccountId: string, context: ToolContext) {
+async function getConnectedClient(linkedAccountId: string, context: ToolContext, connector?: ConnectorRow | null) {
   try {
     return await getValidGoogleToken(linkedAccountId, { supabase: context.supabase, user: context.user });
   } catch (error) {
     console.error('[connectors] Google credential refresh failed:', error);
+    await markConnectorNeedsReconnect(
+      context.supabase,
+      connector as any,
+      error instanceof Error ? error.message : 'Google credential refresh failed',
+    );
     return null;
   }
 }
@@ -340,10 +350,29 @@ async function resolveConnectorConnectionStatus(
   connector: ConnectorRow,
   context: ToolContext,
 ): Promise<ConnectorConnectionStatus> {
-  const linkedAccountId = configOf(connector).linked_account_id;
-  if (!connector.is_active || !linkedAccountId) return 'needs_connection';
-  const client = await getConnectedClient(linkedAccountId, context);
-  return client ? 'connected' : 'needs_reconnect';
+  const config = configOf(connector);
+  if (config.connection_status === 'needs_reconnect') return 'needs_reconnect';
+  if (!connector.is_active || !config.linked_account_id) return 'needs_connection';
+  try {
+    await getValidGoogleToken(config.linked_account_id, { supabase: context.supabase, user: context.user });
+  } catch (error) {
+    await markConnectorNeedsReconnect(
+      context.supabase,
+      connector as any,
+      error instanceof Error ? error.message : 'Google credential refresh failed',
+    );
+    return 'needs_reconnect';
+  }
+  return 'connected';
+}
+
+async function markReconnectIfGoogleAuthError(context: ToolContext, connector: ConnectorRow | null | undefined, error: any) {
+  if (!isGoogleReconnectError(error)) return;
+  await markConnectorNeedsReconnect(
+    context.supabase,
+    connector as any,
+    error?.response?.data?.error?.message || error?.message || 'Google connection failed',
+  );
 }
 
 async function getConnectorLinkedAccountId(
@@ -545,7 +574,7 @@ RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
     const config = configOf(connector);
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
@@ -579,6 +608,7 @@ RETURNS receipt: { rows, row_count, range, spreadsheet_title }`,
         },
       };
     } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connector, e);
       return { ok: false, error: googleWorkspaceError('Google Sheets', e) };
     }
   },
@@ -618,7 +648,7 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
     const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
@@ -641,6 +671,7 @@ RETURNS receipt: { files[], count }. Each file: { id, name, mimeType, modifiedTi
 
       return { ok: true, receipt: { files, count: files.length, connector_type: connector?.type } };
     } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connector, e);
       return { ok: false, error: googleWorkspaceError('Google Drive', e) };
     }
   },
@@ -669,10 +700,11 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
     max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
   }),
   call: async (args, context) => {
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(context, args.connector_id, 'google_drive');
+    const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
@@ -705,6 +737,7 @@ RETURNS receipt: { title, mimeType, content, character_count, truncated, webView
         },
       };
     } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connector, e);
       return { ok: false, error: googleWorkspaceError('Google Drive', e) };
     }
   },
@@ -736,7 +769,7 @@ RETURNS receipt: { title, content, word_count }`,
     const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(configOf(connector)?.document_id, true);
@@ -762,6 +795,7 @@ RETURNS receipt: { title, content, word_count }`,
         },
       };
     } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connector, e);
       return { ok: false, error: googleWorkspaceError('Google Docs', e) };
     }
   },
@@ -792,10 +826,11 @@ RETURNS receipt: { title, document_id, content, word_count, matched_by, candidat
     max_chars: z.number().optional().default(12000).describe('Maximum characters of text to return. Default 12000.'),
   }),
   call: async (args, context) => {
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(context, args.connector_id, 'google_docs');
+    const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
@@ -849,6 +884,7 @@ RETURNS receipt: { title, document_id, content, word_count, matched_by, candidat
         },
       };
     } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connector, e);
       return { ok: false, error: googleWorkspaceError('Google Docs', e) };
     }
   },
@@ -883,10 +919,11 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
     content: z.string().min(1).max(30000).describe('Initial plain-text document content in the user requested language.'),
   }),
   call: async (args, context) => {
-    const linkedAccountId = await getConnectorLinkedAccountId(context, args.connector_id);
+    const connector = await getConnectorRowWithFallback(context, args.connector_id, 'google_docs');
+    const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
 
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     try {
@@ -922,6 +959,7 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
         },
       };
     } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connector, e);
       return { ok: false, error: googleWorkspaceError('Google Docs', e) };
     }
   },
@@ -966,42 +1004,50 @@ RETURNS receipt: { summary, changes[], insights[] }`,
   call: async (args, context) => {
     const { connector: connectorRow, linkedAccountId } = await getConnectorLinkedAccountIdForTool(context, args.connector_id, 'google_sheets');
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connectorRow);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
-    const config = configOf(connectorRow);
-    let spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.task) || extractGoogleFileId(config.spreadsheet_id, true);
-    if (!spreadsheetId) {
-      const naturalName = args.spreadsheet_name
-        || naturalNameFrom(args.file_id)
-        || (!isGenericSpreadsheetConnectorName(connectorRow?.name) ? connectorRow?.name : undefined);
-      const found = await findDriveFileByNaturalName(auth, connectorRow?.type, naturalName);
-      spreadsheetId = found?.id;
-    }
-    if (!spreadsheetId) {
-      return { ok: false, error: 'I could not identify which spreadsheet to use. Search spreadsheets by name first, then use the matching result.' };
-    }
+    try {
+      const config = configOf(connectorRow);
+      let spreadsheetId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.task) || extractGoogleFileId(config.spreadsheet_id, true);
+      if (!spreadsheetId) {
+        const naturalName = args.spreadsheet_name
+          || naturalNameFrom(args.file_id)
+          || (!isGenericSpreadsheetConnectorName(connectorRow?.name) ? connectorRow?.name : undefined);
+        const found = await findDriveFileByNaturalName(auth, connectorRow?.type, naturalName);
+        spreadsheetId = found?.id;
+      }
+      if (!spreadsheetId) {
+        return { ok: false, error: 'I could not identify which spreadsheet to use. Search spreadsheets by name first, then use the matching result.' };
+      }
 
-    const result = await runSheetsAgent({
-      spreadsheetId,
-      linkedAccountId,
-      supabase: context.supabase,
-      task: args.task,
-      mode: args.mode,
-      onProgress: context.onProgress,
-    });
+      const result = await runSheetsAgent({
+        spreadsheetId,
+        linkedAccountId,
+        supabase: context.supabase,
+        task: args.task,
+        mode: args.mode,
+        onProgress: context.onProgress,
+      });
 
-    if (!result.ok) return { ok: false, error: result.error };
-    return {
-      ok: true,
-      receipt: {
-        summary: result.summary,
-        changes: result.changes,
-        changes_count: result.changes.length,
-        insights: result.insights || [],
-        insights_count: result.insights?.length || 0,
-      },
-    };
+      if (!result.ok) {
+        await markReconnectIfGoogleAuthError(context, connectorRow, new Error(result.error));
+        return { ok: false, error: result.error };
+      }
+      return {
+        ok: true,
+        receipt: {
+          summary: result.summary,
+          changes: result.changes,
+          changes_count: result.changes.length,
+          insights: result.insights || [],
+          insights_count: result.insights?.length || 0,
+        },
+      };
+    } catch (e: any) {
+      await markReconnectIfGoogleAuthError(context, connectorRow, e);
+      return { ok: false, error: googleWorkspaceError('Google Sheets', e) };
+    }
   },
 });
 
@@ -1041,7 +1087,7 @@ RETURNS receipt: { summary, changes[] }`,
     const connector = await getConnectorRowWithFallback(context, args.connector_id, 'google_docs');
     const linkedAccountId = connector ? (configOf(connector).linked_account_id || null) : null;
     if (!linkedAccountId) return { ok: false, error: 'Connector needs connection. Ask the user to open Connectors and click Connect account for this source.' };
-    const auth = await getConnectedClient(linkedAccountId, context);
+    const auth = await getConnectedClient(linkedAccountId, context, connector);
     if (!auth) return { ok: false, error: 'Google connection needs refresh. Ask the user to open Connectors and click Reconnect account for this source.' };
 
     const documentId = extractGoogleFileId(args.file_id, true) || extractGoogleFileId(args.document_url) || extractGoogleFileId(args.task) || extractGoogleFileId(configOf(connector)?.document_id, true);
@@ -1057,7 +1103,10 @@ RETURNS receipt: { summary, changes[] }`,
       onProgress: context.onProgress,
     });
 
-    if (!result.ok) return { ok: false, error: result.error };
+    if (!result.ok) {
+      await markReconnectIfGoogleAuthError(context, connector, new Error(result.error));
+      return { ok: false, error: result.error };
+    }
     return {
       ok: true,
       receipt: {

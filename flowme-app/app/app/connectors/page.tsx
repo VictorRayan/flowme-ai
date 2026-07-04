@@ -30,6 +30,8 @@ interface Connector {
   name: string;
   type: ConnectorType;
   is_active: boolean;
+  is_connected?: boolean;
+  connection_status?: 'connected' | 'needs_connection' | 'needs_reconnect';
   config: Record<string, any>;
   created_at: string;
 }
@@ -70,11 +72,17 @@ function getConnectorMeta(type: ConnectorType, uiLang: UiLang) {
 }
 
 function isAuthorized(connector: Connector): boolean {
-  return Boolean(connector.config?.linked_account_id) && connector.is_active;
+  return connector.connection_status === 'connected'
+    || (!connector.connection_status && Boolean(connector.config?.linked_account_id) && connector.is_active);
 }
 
 function isPending(connector: Connector): boolean {
-  return Boolean(connector.config?.linked_account_id) && !connector.is_active;
+  return connector.connection_status === 'needs_connection'
+    || (!connector.connection_status && Boolean(connector.config?.linked_account_id) && !connector.is_active);
+}
+
+function needsReconnect(connector: Connector): boolean {
+  return connector.connection_status === 'needs_reconnect' || connector.config?.connection_status === 'needs_reconnect';
 }
 
 function friendlyConnectError(message: string, uiLang: UiLang): string {
@@ -434,6 +442,7 @@ function ConnectorsContent() {
                   {items.map((connector, idx) => {
                     const authorized = isAuthorized(connector);
                     const pending = isPending(connector);
+                    const reconnectRequired = needsReconnect(connector);
                     const isConnecting = connecting === connector.id;
                     const isDisconnecting = disconnecting === connector.id;
 
@@ -454,10 +463,13 @@ function ConnectorsContent() {
                                     sx={{ height: 20, fontSize: 10 }}
                                   />
                                 )}
-                                {pending && (
+                                {reconnectRequired && (
+                                  <Chip label={t.needsReconnect} size="small" color="error" sx={{ height: 20, fontSize: 10 }} />
+                                )}
+                                {!reconnectRequired && pending && (
                                   <Chip label={t.authPending} size="small" color="warning" sx={{ height: 20, fontSize: 10 }} />
                                 )}
-                                {!authorized && !pending && (
+                                {!authorized && !pending && !reconnectRequired && (
                                   <Chip label={t.notConnected} size="small" color="default" sx={{ height: 20, fontSize: 10 }} />
                                 )}
                               </Stack>
@@ -466,13 +478,14 @@ function ConnectorsContent() {
                               <Typography variant="caption" color="text.disabled">
                                 {t.added} {new Date(connector.created_at).toLocaleDateString(intlLocale(uiLang))}
                                 {authorized && ` · ${t.balysCanRead}`}
+                                {reconnectRequired && ` · ${t.reconnectNeededBody}`}
                               </Typography>
                             }
                           />
 
                           {/* Action buttons */}
                           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1, flexShrink: 0 }}>
-                            {authorized ? (
+                            {authorized && !reconnectRequired ? (
                               <>
                                 <Tooltip title={t.reauthorize}>
                                   <span>
@@ -498,7 +511,7 @@ function ConnectorsContent() {
                                 disabled={isConnecting}
                                 sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5 }}
                               >
-                                {isConnecting ? t.redirecting : t.authorize}
+                                {isConnecting ? t.redirecting : reconnectRequired ? t.reauthorize : t.authorize}
                               </Button>
                             )}
                             <Tooltip title={t.editNameTooltip}>

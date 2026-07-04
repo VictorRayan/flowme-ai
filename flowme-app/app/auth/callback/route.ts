@@ -103,12 +103,18 @@ export async function GET(request: NextRequest) {
 
       // Store the Google tokens
       if (accountId!) {
+        const { data: existingToken } = await supabase
+          .from('user_google_tokens')
+          .select('refresh_token')
+          .eq('linked_account_id', accountId)
+          .maybeSingle();
+
         const { error: tokenError } = await supabase
           .from('user_google_tokens')
           .upsert({
             linked_account_id: accountId,
             access_token: session.provider_token,
-            refresh_token: session.provider_refresh_token || null,
+            refresh_token: session.provider_refresh_token || existingToken?.refresh_token || null,
             expiry: new Date(Date.now() + 3600 * 1000).toISOString(),
           }, {
             onConflict: 'linked_account_id',

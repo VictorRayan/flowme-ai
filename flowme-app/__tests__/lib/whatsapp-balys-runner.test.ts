@@ -187,4 +187,41 @@ describe('handleWhatsAppMessage', () => {
       context: expect.objectContaining({ preferredConnectorType: 'gmail' }),
     }));
   });
+
+  it('sends a reconnect CTA when a connector action fails on WhatsApp', async () => {
+    (runBalysAgentLoop as jest.Mock).mockImplementationOnce(async (args: any) => {
+      args.onProgress?.({
+        type: 'tool_call_start',
+        call_id: 'call-1',
+        tool: 'connectors.search_docs',
+        args: {},
+      });
+      args.onProgress?.({
+        type: 'tool_call_end',
+        call_id: 'call-1',
+        tool: 'connectors.search_docs',
+        ok: false,
+        error: 'Google Drive connection needs reconnect. The Google account token does not include the permission needed for this action',
+      });
+      return { content: 'Abra Connectors.' };
+    });
+
+    await handleWhatsAppMessage({
+      senderJid: '5511999999999@s.whatsapp.net',
+      messageId: 'reconnect-1',
+      messageType: 'conversation',
+      text: 'o que tem no meu drive?',
+      hasMedia: false,
+      pushName: 'Victor',
+    });
+
+    expect(sendText).toHaveBeenCalledWith(
+      '5511999999999@s.whatsapp.net',
+      expect.stringContaining('/app/connectors'),
+    );
+    expect(sendText).toHaveBeenCalledWith(
+      '5511999999999@s.whatsapp.net',
+      expect.stringContaining('Reconectar conta'),
+    );
+  });
 });

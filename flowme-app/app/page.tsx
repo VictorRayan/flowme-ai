@@ -115,7 +115,7 @@ const features = [
     id: 'conselho',
     eyebrow: 'Conselho de especialistas',
     title: 'Decisões com especialistas simulados por inteligência artificial.',
-    body: 'Balys convoca um conselho premium de especialistas de IA para analisar risco, prioridade, impacto e próximo passo sem transformar sua rotina em um relatório gigante.',
+    body: 'O Assistente convoca um conselho premium de especialistas de IA para analisar risco, prioridade, impacto e próximo passo sem transformar sua rotina em um relatório gigante.',
     icon: AutoAwesomeIcon,
     bullets: ['Prioridade clara para hoje', 'Risco e oportunidade lado a lado', 'Recomendação executiva e acionável'],
   },
@@ -139,7 +139,7 @@ const features = [
     id: 'financas',
     eyebrow: 'Finanças',
     title: 'Gastos e receitas registrados do jeito que você fala.',
-    body: 'Diga “gastei R$100 no mercado” e o Balys registra, categoriza e mantém seu painel pronto para consulta.',
+    body: 'Diga “gastei R$100 no mercado” e o Assistente registra, categoriza e mantém seu painel pronto para consulta.',
     icon: CreditCardIcon,
     bullets: ['Lançamentos por WhatsApp', 'Categorias automáticas', 'Resumo financeiro consultável'],
   },
@@ -176,13 +176,13 @@ const plans = [
     description: 'Para desbloquear agora e testar o Flow Me completo sem compromisso anual.',
     interval: 'monthly' as const,
     badge: 'Flexível',
-    highlights: ['Balys AI ilimitado', 'WhatsApp, lembretes e checklists', 'Finanças e integrações'],
+    highlights: ['Assistente ilimitado', 'WhatsApp, lembretes e checklists', 'Finanças e integrações'],
   },
   {
     title: 'Anual',
     price: 'R$39,90',
     cadence: '/mês',
-    description: 'R$478,80 por ano. Melhor preço para usar o Balys como sistema operacional da rotina.',
+    description: 'R$478,80 por ano. Melhor preço para usar o Assistente como sistema operacional da rotina.',
     interval: 'annual' as const,
     badge: 'Melhor preço',
     highlights: ['Economia de R$240 no ano', 'Tudo do plano mensal', 'Prioridade para recursos novos'],
@@ -191,7 +191,7 @@ const plans = [
 type Plan = typeof plans[number];
 
 const planFeatureRows = [
-  { label: 'Balys AI ilimitado', monthly: true, annual: true },
+  { label: 'Assistente ilimitado', monthly: true, annual: true },
   { label: 'IA no WhatsApp', monthly: true, annual: true },
   { label: 'Lembretes e checklists', monthly: true, annual: true },
   { label: 'Finanças por conversa', monthly: true, annual: true },
@@ -600,7 +600,7 @@ function WhatsAppIphone() {
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Stack direction="row" spacing={0.55} alignItems="center" sx={{ minWidth: 0 }}>
               <Typography noWrap sx={{ color: '#111b21', fontWeight: 950, fontSize: 12.1, minWidth: 0 }}>
-                Flow Me - Balys AI
+                Flow Me - Assistente
               </Typography>
               <Box
                 aria-hidden="true"
@@ -649,7 +649,7 @@ function WhatsAppIphone() {
             }}
           >
             <MessageBubble side="right" delay={0.05}>
-              Balys, quais reuniões e tarefas eu deveria focar hoje?
+              Assistente, quais reuniões e tarefas eu deveria focar hoje?
             </MessageBubble>
             <MessageBubble typing delay={0.35} />
             <MessageBubble delay={0.78}>
@@ -1365,12 +1365,12 @@ export default function Home() {
                 >
                   Flow Me.
                   <Box component="span" sx={{ display: 'block', color: '#f97316', textShadow: '0 22px 52px rgba(249,115,22,0.26)' }}>
-                    Balys no seu WhatsApp.
+                    Assistente no seu WhatsApp.
                   </Box>
                 </Typography>
                 <Typography sx={{ maxWidth: 610, color: '#cbd5e1', fontSize: { xs: 18, md: 21 }, lineHeight: 1.55 }}>
                   Conselho de especialistas com inteligência artificial, agenda, lembretes, checklists, finanças
-                  e integrações organizados por conversa. Você fala do seu jeito; o Balys entende, registra e
+                  e integrações organizados por conversa. Você fala do seu jeito; o Assistente entende, registra e
                   devolve o próximo passo.
                 </Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
@@ -1489,7 +1489,7 @@ export default function Home() {
                     sx={{ alignSelf: 'flex-start', bgcolor: 'rgba(99,102,241,0.18)', color: '#c4b5fd', fontWeight: 900 }}
                   />
                   <Typography component="h2" sx={{ fontWeight: 950, fontSize: { xs: 34, md: 48 }, lineHeight: 1.05 }}>
-                    Balys encontra o que você quer sem pedir ID, link ou nome técnico.
+                    O Assistente encontra o que você quer sem pedir ID, link ou nome técnico.
                   </Typography>
                   <Typography sx={{ color: '#cbd5e1', fontSize: 18, lineHeight: 1.6 }}>
                     Agenda, Slack, Drive e Sheets ficam conectados ao seu contexto. Você pede por nomes naturais,
@@ -1529,7 +1529,7 @@ export default function Home() {
                             </Box>
                             <Box>
                               <Typography sx={{ fontWeight: 950 }}>{integration.label}</Typography>
-                              <Typography sx={{ color: '#94a3b8', fontSize: 14 }}>Conectado ao Balys AI</Typography>
+                              <Typography sx={{ color: '#94a3b8', fontSize: 14 }}>Conectado ao Assistente</Typography>
                             </Box>
                           </Stack>
                         </Paper>
@@ -1578,7 +1578,7 @@ export default function Home() {
                 Desbloqueie o preço do Flow Me completo.
               </Typography>
               <Typography sx={{ color: '#475569', fontSize: 18, maxWidth: 680 }}>
-                WhatsApp, Balys AI, conselho de especialistas, lembretes, checklists, finanças e integrações em um plano Pro.
+                WhatsApp, Assistente pessoal, conselho de especialistas, lembretes, checklists, finanças e integrações em um plano Pro.
               </Typography>
             </Stack>
           <Box sx={{ display: { xs: 'block', md: 'none' } }}>

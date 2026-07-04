@@ -6,6 +6,10 @@ import { POST as DISCONNECT } from '@/app/api/connectors/[id]/disconnect/route';
 import { requireAuth } from '@/lib/api/auth';
 import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 
+const mockGetValidGoogleToken = jest.fn();
+const mockDriveFilesList = jest.fn();
+const mockGmailProfile = jest.fn();
+
 const MOCK_CONNECTOR = {
   id: 'conn-1',
   name: 'Work email',
@@ -62,8 +66,22 @@ jest.mock('@/lib/billing/entitlements', () => {
   };
 });
 
+jest.mock('@/lib/google/google-auth', () => ({
+  getValidGoogleToken: (...args: unknown[]) => mockGetValidGoogleToken(...args),
+}));
+
+jest.mock('googleapis', () => ({
+  google: {
+    drive: jest.fn(() => ({ files: { list: mockDriveFilesList } })),
+    gmail: jest.fn(() => ({ users: { getProfile: mockGmailProfile } })),
+  },
+}));
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetValidGoogleToken.mockResolvedValue({ kind: 'oauth-client' });
+  mockDriveFilesList.mockResolvedValue({ data: { files: [] } });
+  mockGmailProfile.mockResolvedValue({ data: { emailAddress: 'victor@example.com' } });
   (requireAuth as jest.Mock).mockResolvedValue({ user: { id: 'user-1' }, supabase: makeChain() });
   (requireFeature as jest.Mock).mockResolvedValue({ features: { connectors: true } });
 });
@@ -76,6 +94,48 @@ describe('GET /api/connectors', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(Array.isArray(body.connectors)).toBe(true);
+  });
+
+  it('marks a Google connector as needs_reconnect when Drive scope validation fails', async () => {
+    const connector = {
+      id: 'conn-drive',
+      user_id: 'user-1',
+      name: 'Google Drive',
+      type: 'google_drive',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+      created_at: '2026-05-01T00:00:00Z',
+    };
+    const listChain: any = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      then(resolve: Function, reject: Function) {
+        return Promise.resolve({ data: [connector], error: null }).then(resolve as any, reject as any);
+      },
+    };
+    const updateChain: any = {
+      update: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const supabase = {
+      from: jest.fn((table: string) => (table === 'connectors' && supabase.from.mock.calls.length > 1 ? updateChain : listChain)),
+    };
+    mockDriveFilesList.mockRejectedValueOnce({ response: { status: 403, data: { error: { message: 'insufficient authentication scopes' } } } });
+    (requireAuth as jest.Mock).mockResolvedValueOnce({ user: { id: 'user-1' }, supabase });
+
+    const res = await GET(new NextRequest('http://localhost/api/connectors'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.connectors[0]).toMatchObject({
+      id: 'conn-drive',
+      is_connected: false,
+      connection_status: 'needs_reconnect',
+    });
+    expect(updateChain.update).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ connection_status: 'needs_reconnect' }),
+    }));
   });
 
   it('returns FEATURE_LOCKED for Free users', async () => {

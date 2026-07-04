@@ -162,7 +162,7 @@ h3 { margin-bottom: 10px; font-size: 22px; }
 .goals-shot { background: linear-gradient(145deg, rgba(139,124,255,.2), rgba(17,24,39,.95)); }
 .calendar-shot { background: linear-gradient(145deg, rgba(68,215,211,.18), rgba(17,24,39,.95)); }
 .finance-shot { background: linear-gradient(145deg, rgba(53,220,155,.16), rgba(17,24,39,.95)); }
-.checklist-shot, .notes-shot, .review-shot, .balys-shot, .connectors-shot { background: linear-gradient(145deg, rgba(139,124,255,.15), rgba(17,24,39,.95)); }
+.checklist-shot, .notes-shot, .review-shot, .assistant-shot, .connectors-shot { background: linear-gradient(145deg, rgba(139,124,255,.15), rgba(17,24,39,.95)); }
 
 .whatsapp-proof {
   display: grid;

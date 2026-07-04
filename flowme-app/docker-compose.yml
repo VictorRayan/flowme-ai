@@ -106,6 +106,7 @@ services:
     command:
       - |
         LAST_DAILY=""
+        LAST_CONNECTORS_SLOT=""
         TICK=0
         while true; do
           # Briefings scheduler — fires on every minute, the endpoint short-circuits if no slot is due.
@@ -144,6 +145,13 @@ services:
           fi
           TODAY=$$(date -u +%Y-%m-%d)
           HOUR=$$(date -u +%H)
+          CONNECTORS_SLOT="$${TODAY}T$${HOUR}"
+          if { [ "$$HOUR" = "00" ] || [ "$$HOUR" = "06" ] || [ "$$HOUR" = "12" ] || [ "$$HOUR" = "18" ]; } && [ "$$LAST_CONNECTORS_SLOT" != "$$CONNECTORS_SLOT" ]; then
+            curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] check-connectors %{http_code}\n" \
+              -H "Authorization: Bearer $$CRON_SECRET" \
+              http://flowme-app:3000/api/cron/check-connectors || true
+            LAST_CONNECTORS_SLOT="$$CONNECTORS_SLOT"
+          fi
           if [ "$$HOUR" = "04" ] && [ "$$LAST_DAILY" != "$$TODAY" ]; then
             curl -sS -o /dev/null -w "[$$(date -u +%FT%TZ)] reconcile-billing %{http_code}\n" \
               -H "Authorization: Bearer $$CRON_SECRET" \

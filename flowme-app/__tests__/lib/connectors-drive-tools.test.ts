@@ -89,6 +89,7 @@ function makeContext(connector: Record<string, unknown>) {
     eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
+    update: jest.fn().mockReturnThis(),
     maybeSingle: jest.fn().mockResolvedValue({ data: connector, error: null }),
   };
   const supabase = { from: jest.fn().mockReturnValue(chain) };
@@ -97,6 +98,7 @@ function makeContext(connector: Record<string, unknown>) {
     user: { id: 'user-1', email: 'victor@example.com' },
     timezone: 'America/Sao_Paulo',
     nowIso: '2026-05-11T12:00:00.000Z',
+    chain,
   } as any;
 }
 
@@ -271,6 +273,26 @@ describe('Drive connector tools', () => {
     await connectorsSearchDocsTool.call({ connector_id: 'conn-sheets', query: '', max_results: 10 }, context);
 
     expect(mockDriveFilesList.mock.calls[0][0].q).toContain("mimeType = 'application/vnd.google-apps.spreadsheet'");
+  });
+
+  it('marks connector as needs_reconnect when Google Drive rejects missing scopes', async () => {
+    mockDriveFilesList.mockRejectedValueOnce({
+      response: { status: 403, data: { error: { message: 'insufficient authentication scopes' } } },
+    });
+    const context = makeContext({
+      id: 'conn-drive',
+      type: 'google_drive',
+      is_active: true,
+      config: { linked_account_id: 'linked-1' },
+    });
+
+    const result = await connectorsSearchDocsTool.call({ connector_id: 'conn-drive', query: '', max_results: 10 }, context);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('needs reconnect');
+    expect(context.chain.update).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ connection_status: 'needs_reconnect' }),
+    }));
   });
 
   it('reads the selected Google Doc file text from Drive discovery', async () => {

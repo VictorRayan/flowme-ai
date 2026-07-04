@@ -78,7 +78,8 @@ describe('Google OAuth callback', () => {
 
     expect(response.headers.get('location')).toBe('http://localhost:3000/app/connectors?connector_connected=conn-1');
 
-    expect(chains.user_google_tokens[0].upsert).toHaveBeenCalledWith(expect.objectContaining({
+    const tokenUpsert = chains.user_google_tokens.find((chain) => chain.upsert.mock.calls.length > 0);
+    expect(tokenUpsert.upsert).toHaveBeenCalledWith(expect.objectContaining({
       linked_account_id: 'linked-1',
       access_token: 'access-token',
       refresh_token: 'refresh-token',

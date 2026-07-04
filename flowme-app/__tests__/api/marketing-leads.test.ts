@@ -52,6 +52,24 @@ describe('marketing public endpoints', () => {
     }));
   });
 
+  it('preserves international lead phone numbers', async () => {
+    const token = createMarketingCsrfToken('https://flow-me.online');
+    const response = await POST_LEAD(req('/api/marketing/leads', {
+      locale: 'pt-BR',
+      name: 'Victor Rayan',
+      email: 'victor@example.com',
+      phone: '+1 (415) 555-2671',
+      path: '/pt-br',
+      interval: 'annual',
+    }, token));
+
+    expect(response.status).toBe(200);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      phone: '+1 (415) 555-2671',
+      phone_e164: '+14155552671',
+    }));
+  });
+
   it('rejects invalid lead data', async () => {
     const token = createMarketingCsrfToken('https://flow-me.online');
     const response = await POST_LEAD(req('/api/marketing/leads', { locale: 'pt-BR', name: 'V', email: 'bad', phone: '1', path: '/pt-br' }, token));

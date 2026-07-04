@@ -8,6 +8,7 @@ import {
   verifyMarketingCsrfToken,
 } from '@/lib/marketing/security';
 import { createSignedMarketingToken } from '@/lib/marketing/signed-token';
+import { parseInternationalPhone } from '@/lib/whatsapp/phone-number';
 
 const LOCALES = ['pt-BR', 'en-US'] as const;
 const BILLING_INTERVALS = ['monthly', 'annual'] as const;
@@ -19,6 +20,14 @@ function text(value: unknown, limit: number) {
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, '');
+}
+
+function phoneForLocale(phone: string, locale: typeof LOCALES[number]) {
+  if (phone.trim().startsWith('+')) return phone;
+  const digits = normalizePhone(phone);
+  return locale === 'pt-BR'
+    ? `+55${digits.length > 11 ? digits.slice(-11) : digits}`
+    : `+1${digits.length > 10 ? digits.slice(-10) : digits}`;
 }
 
 export function OPTIONS(req: NextRequest) {
@@ -43,15 +52,13 @@ export async function POST(req: NextRequest) {
     : 'annual';
   const digits = normalizePhone(phone);
   const path = text(body.path, 300);
-  if (!locale || name.length < 2 || !EMAIL_RE.test(email) || digits.length < 10 || !path) {
+  const parsedPhone = locale ? parseInternationalPhone(phoneForLocale(phone, locale)) : null;
+  if (!locale || name.length < 2 || !EMAIL_RE.test(email) || digits.length < 10 || !parsedPhone || !path) {
     return NextResponse.json({ ok: false, error: { code: 'VALIDATION_ERROR', message: 'Name, email, phone and path are required' } }, { status: 400, headers });
   }
 
   const bodyMetadata = typeof body.metadata === 'object' && body.metadata !== null && !Array.isArray(body.metadata) ? body.metadata : {};
   const metadata = { ...bodyMetadata, billing_interval: billingInterval };
-  const phoneE164 = locale === 'pt-BR'
-    ? `+55${digits.length > 11 ? digits.slice(-11) : digits}`
-    : `+1${digits.length > 10 ? digits.slice(-10) : digits}`;
   const { data, error } = await getSupabaseAdmin().from('marketing_leads').insert({
     visitor_id: text(body.visitor_id, 120),
     session_id: text(body.session_id, 120),
@@ -59,7 +66,7 @@ export async function POST(req: NextRequest) {
     name,
     email,
     phone,
-    phone_e164: phoneE164,
+    phone_e164: parsedPhone.e164,
     path,
     source: text(body.source, 120),
     utm_source: text(body.utm_source, 120),

@@ -1,6 +1,6 @@
 # Flow Me LP Implementation Plan
 
-Last updated: 2026-06-28
+Last updated: 2026-07-03
 
 ## Goal
 
@@ -119,3 +119,136 @@ If the user is not authenticated, the app should handle login and return to chec
 - [ ] Docker image builds.
 - [ ] Compose config validates.
 - [ ] Production CI builds/publishes `flowme-lp` image.
+
+## Landing Execution Doctrine
+
+This LP inherits the implementation method from `../flowme-app/AGENTS.md`, adapted to a static site:
+
+- [x] Maintain an implementation plan before broad landing changes.
+- [x] Use mobile-first layout for 390x844, 768x1024, 1024x768 and 1440x900.
+- [x] Verify render states with browser screenshots.
+- [x] Treat known-tool logos as product-critical. Slack, WhatsApp, Drive, Sheets, Calendar and similar brands must use original logos or official/original-looking variants.
+- [x] Mock lead/pricing behavior with static fixtures or intercepted requests before relying on production endpoints.
+- [x] Keep legal, footer, pricing and CTA links reachable on every viewport.
+
+## Current Execution Plan: Flow Me Landing Refresh
+
+### 1. WhatsApp Animation
+
+Goal: show Balys answering a real routine question, then scrolling to a training answer and reminder case.
+
+Implementation checklist:
+
+- [x] Extend the phone chat sequence with training and reminder examples.
+- [x] Add internal chat scroll animation that resets cleanly.
+- [x] Keep WhatsApp UI faithful: header, typing, bubbles, compose row and iPhone frame.
+- [x] Keep animation inside first-fold phone bounds.
+
+Test checklist:
+
+- [x] Desktop screenshot shows the phone and active chat.
+- [x] Mobile screenshot confirms no horizontal overflow.
+- [x] Observe one full 35s cycle and confirm it resets.
+
+### 2. Hero Micro-Points
+
+Goal: simplify "Registre por audio", "Consulte em segundos" and "Organize tudo no painel" into premium proof points.
+
+Implementation checklist:
+
+- [x] Replace icon badges with small purple dots.
+- [x] Keep text bold and readable on dark hero.
+- [x] Preserve three-column desktop and stacked mobile layout.
+
+Test checklist:
+
+- [x] Desktop screenshot confirms icons are gone.
+- [x] Mobile screenshot confirms touch/spacing remains readable.
+
+### 3. Proof Slider Logos
+
+Goal: make proof slider icons sophisticated and white on dark hero background.
+
+Implementation checklist:
+
+- [x] Use white official-looking Drive and Sheets variants in the proof slider.
+- [x] Keep full-color official logos in detailed integration/product sections where inspection matters.
+- [x] Preserve Slack official white variant.
+
+Test checklist:
+
+- [x] Browser render confirms white icons on dark background.
+- [x] Confirm slider has no clipping at 390px.
+
+### 4. Pricing Cards
+
+Goal: restore locked pricing with blur and make plan differences explicit.
+
+Implementation checklist:
+
+- [x] Keep price blurred until unlock/checkout intent.
+- [x] Use green unlock buttons.
+- [x] List all core features in both plans.
+- [x] Strike annual-only benefits on the monthly plan.
+- [x] Highlight annual as the best value.
+
+Test checklist:
+
+- [x] Computed style confirms price blur.
+- [x] Computed style confirms green button.
+- [x] Mobile screenshot confirms long feature list fits.
+
+### 5. Footer And Legal
+
+Goal: provide a complete footer inspired by Meu Assessor while using Flow Me brand and legal content.
+
+Implementation checklist:
+
+- [x] Add Flow Me footer with product links, account links, proof bullets and CNPJ.
+- [x] Add Privacy page.
+- [x] Add Terms page.
+- [x] Keep legal copy aligned with Flow Me behavior: AI, WhatsApp, app, checkout, integrations and LGPD.
+
+Test checklist:
+
+- [x] Footer links render.
+- [x] Click privacy and terms links in browser.
+- [x] Confirm CNPJ appears in footer and legal pages.
+
+### 6. Narrative By Fold Based On Meu Assessor Scan
+
+Goal: adapt Meu Assessor's conversion rhythm to Flow Me without copying its product scope.
+
+Implementation plan:
+
+- Fold 1: "Flow Me. Balys no seu WhatsApp." with animated iPhone chat. Visual: current WhatsApp animation with typing, scroll, training and reminder.
+- Fold 2: proof strip and singularity. Visual: integration singularity pulling WhatsApp, Slack, Drive, Docs, Sheets, bank, files, meetings, Calendar, checklist and goals into Flow Me.
+- Fold 3: routine capture. Visual: voice/audio command becoming tasks, reminders and checklist.
+- Fold 4: specialist council. Visual: premium panel showing risk, priority, next step and AI specialists.
+- Fold 5: agenda and reminders. Visual: calendar timeline plus WhatsApp reminder confirmation.
+- Fold 6: checklists and goals. Visual: checklist progress and goal milestones moving into the day.
+- Fold 7: finance by conversation. Visual: transaction captured by WhatsApp and categorized in the dashboard.
+- Fold 8: integrations. Visual: Slack/Drive/Sheets/Calendar logos connected to Balys with natural language search.
+- Fold 9: plans. Visual: locked price cards, annual differential and green unlock CTA.
+- Fold 10: FAQ/legal/footer. Visual: compact dark footer with product/account/support/legal.
+
+Execution checklist:
+
+- [x] Fold 1 implemented in `flowme-app/app/page.tsx`.
+- [x] Fold 2 implemented as singularity section.
+- [x] Fold 9 implemented as locked plans.
+- [x] Fold 10 footer/legal implemented.
+- [ ] Add dedicated routine capture fold.
+- [ ] Add dedicated premium specialist council fold.
+- [ ] Add dedicated agenda/reminder fold.
+- [ ] Add dedicated checklists/goals fold.
+- [ ] Add dedicated finance fold.
+- [ ] Add FAQ.
+
+Test checklist:
+
+- [ ] Full-page desktop screenshot.
+- [ ] Full-page mobile screenshot.
+- [ ] Links and CTAs from every fold.
+- [ ] No console errors.
+- [x] No horizontal overflow.

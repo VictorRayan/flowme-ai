@@ -10,6 +10,8 @@ Balys connector behavior is product-critical. Before changing chat commands, con
 
 Balys is built for non-technical end users. Connector work must never require users to know file IDs, document IDs, spreadsheet IDs, connector IDs, OAuth terms, or tool names; resolve natural names like "Finance 2026" internally through connector search and prior context.
 
+It is inadmissible to reference well-known tools without using the original logo or an official/original logo variation. Do not replace Slack, Google Drive, Google Sheets, Gmail, WhatsApp, or equivalent brands with generic icons.
+
 Production deployment files are split by responsibility:
 
 - `traefik/` reverse proxy and TLS entrypoint

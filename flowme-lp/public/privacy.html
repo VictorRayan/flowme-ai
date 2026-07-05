@@ -94,7 +94,7 @@
     <main>
       <section class="legal-section">
         <h1>Privacy Policy &amp; <em>Google User Data Disclosures</em></h1>
-        <p class="last-updated">Last Updated: July 4, 2026</p>
+        <p class="last-updated">Last Updated: July 5, 2026</p>
 
         <p>
           At <strong>Flow Me</strong> (operated by CNPJ: 49.858.359/0001-93 - Rayan Barbieri Consultoria em Tecnologia), 
@@ -103,65 +103,85 @@
           focusing on the data accessed through Google API Services.
         </p>
 
-        <h2>1. Google User Data Accessed (Scopes)</h2>
+        <h2>1. Google User Data Accessed and Actions Requested</h2>
         <p>
-          To deliver our core productivity features, Flow Me requests authorization to connect to your Google account. 
-          We only access data within the scopes you explicitly authorize, which may include:
+          To deliver our core productivity features, Flow Me asks you to connect your Google account. We only access
+          Google user data within the permissions you approve on Google's consent screen. Depending on the connectors
+          you choose to use, Flow Me may access or act on the following Google user data:
         </p>
         <ul>
           <li>
-            <strong>Google Calendar (https://www.googleapis.com/auth/calendar)</strong>: Used to list, read, create, update, 
-            and delete calendar events on your behalf, keeping your schedule synchronized.
+            <strong>Google Calendar (https://www.googleapis.com/auth/calendar and https://www.googleapis.com/auth/calendar.events)</strong>:
+            calendar lists, event titles, event descriptions, dates, times, attendees, locations, recurrence rules, and reminders.
+            Flow Me uses this access to list, read, create, update, reschedule, and delete calendar events only when you ask Balys
+            or the Flow Me app to manage your schedule.
           </li>
           <li>
-            <strong>Gmail (https://www.googleapis.com/auth/gmail.readonly)</strong>: Used to read email metadata (headers, subject, sender) 
-            and body contents so the assistant can search, read, and summarize messages for you.
+            <strong>Gmail (https://www.googleapis.com/auth/gmail.modify)</strong>: message metadata such as sender, recipients,
+            subject, dates, thread information, snippets, labels, and message body content. Flow Me uses this access to search,
+            open, read, summarize, and create draft replies at your request. Balys does not send email for you.
           </li>
           <li>
-            <strong>Google Docs (https://www.googleapis.com/auth/documents)</strong>: Used to list, read, edit, write, 
-            and create documents in your Google Docs account based on your instructions.
+            <strong>Google Docs (https://www.googleapis.com/auth/documents)</strong>: document titles, metadata, structure,
+            text content, comments or formatting context available through the Docs API. Flow Me uses this access to find, read,
+            create, draft, edit, and format documents based on your instructions.
           </li>
           <li>
-            <strong>Google Sheets (https://www.googleapis.com/auth/spreadsheets)</strong>: Used to list, read, and write cell values 
-            in your spreadsheets to help organize financial, task, or business records.
+            <strong>Google Sheets (https://www.googleapis.com/auth/spreadsheets)</strong>: spreadsheet titles, sheet names, cell
+            values, formulas, formatting context, and table structure. Flow Me uses this access to read, analyze, create, update,
+            and organize spreadsheet data when you request spreadsheet work.
           </li>
           <li>
-            <strong>Google Drive (https://www.googleapis.com/auth/drive.readonly)</strong>: Used to search, locate, and read files 
-            and folders inside your Google Drive as requested by your commands.
+            <strong>Google Drive (https://www.googleapis.com/auth/drive.readonly)</strong>: file and folder names, metadata,
+            MIME types, search results, and text-readable file contents for files you ask Flow Me to find or read. Flow Me uses
+            Drive access to locate files by natural names such as "Finance 2026" and to route Docs or Sheets work to the proper
+            Google connector without asking you for technical IDs.
           </li>
         </ul>
 
         <h2>2. Data Usage and Purpose</h2>
         <p>
-          We use Google user data exclusively to power your personal assistant, Balys. Data is retrieved and processed only 
-          in response to your direct, user-initiated commands (such as asking "What is scheduled for tomorrow?", "Read my last email", 
-          or "Create a new document with my meeting notes").
+          We use Google user data exclusively to provide and improve user-facing Flow Me features that you can see in the app:
+          Balys assistant responses, calendar management, email reading and draft assistance, document editing, spreadsheet
+          analysis, and Drive file discovery. Data is retrieved and processed only in response to your direct, user-initiated
+          commands or settings you enable, such as asking "What is scheduled for tomorrow?", "Read my last email", "Create a
+          new document with my meeting notes", or "Analyze my finance spreadsheet".
         </p>
         <p>
-          The assistant processes your natural language inputs, searches your files or accounts internally, matches titles or search queries, 
-          and retrieves the relevant information to answer your questions or execute the requested task. We do not use this data for any 
-          marketing, advertising, or profiling purposes.
+          The assistant processes your natural language inputs, searches your connected Google account internally, resolves file
+          names, spreadsheet names, messages, and folders without exposing IDs to you, and retrieves only the relevant information
+          needed to answer your question or complete your requested task. We do not use Google user data for advertising,
+          retargeting, personalized ads, data brokerage, credit-worthiness decisions, or unrelated marketing profiles.
         </p>
 
         <h2>3. Data Sharing and Third-Party Disclosures</h2>
         <p>
-          Flow Me values your trust. We implement strict constraints regarding how your data is shared:
+          Flow Me does not sell, rent, lease, broker, or disclose Google user data to advertisers, data brokers, information
+          resellers, or surveillance services. We share Google user data only in the limited cases needed to provide the product
+          you requested:
         </p>
         <ul>
           <li>
-            <strong>AI API Service Providers</strong>: To understand and respond to your natural language queries, user commands and 
-            the text content retrieved from your Google account (such as the text inside a Doc, Sheet, or Email body) may be transmitted to 
-            secure AI model API endpoints (such as OpenAI, Anthropic, or Google Gemini). 
+            <strong>AI API service providers</strong>: User commands and relevant Google content, such as text from an email,
+            document, spreadsheet, or readable Drive file, may be sent to secure AI model API providers such as OpenAI, Anthropic,
+            or Google Gemini so Balys can understand your instruction, summarize content, draft text, edit documents, or analyze
+            spreadsheet data for you.
           </li>
           <li>
-            <strong>Zero Data Retention &amp; No Model Training</strong>: Under our developer agreements with these AI providers, they are 
-            <strong>strictly prohibited</strong> from storing, retaining, or using any part of this user data to train or fine-tune their AI models.
+            <strong>Infrastructure and database providers</strong>: We use secure hosting, database, logging, and storage vendors
+            only to operate Flow Me, authenticate users, store encrypted credentials, run the app, and protect the service.
           </li>
           <li>
-            <strong>No External Sharing</strong>: We do <strong>not</strong> share, sell, rent, lease, or distribute your Google user data 
-            with any other third parties, advertisers, data brokers, or marketing platforms.
+            <strong>Legal and security purposes</strong>: We may process or disclose data only when required to comply with
+            applicable law, enforce our rights, investigate abuse, or protect the security of Flow Me and its users.
           </li>
         </ul>
+        <p>
+          We do not allow AI providers or infrastructure vendors to use your Google user data to train their own models or to
+          build unrelated products. Flow Me's use and transfer of information received from Google APIs is limited to providing
+          or improving user-facing Flow Me features and complies with the Google API Services User Data Policy, including the
+          Limited Use requirements.
+        </p>
 
         <h2>4. Data Storage and Protection</h2>
         <p>
@@ -170,27 +190,37 @@
         <ul>
           <li>
             <strong>Secure Token Storage</strong>: Your Google OAuth credentials (access tokens and refresh tokens) are encrypted at rest 
-            and stored securely in our databases.
+            and stored securely in our databases for as long as the connector remains connected.
           </li>
           <li>
             <strong>Encryption in Transit</strong>: All data transmitted between Google APIs, our backend servers, and your clients 
-            (WhatsApp interface or the Web App dashboard) is fully encrypted in transit using industry-standard HTTPS (TLS 1.3).
+            (WhatsApp interface or the Web App dashboard) is encrypted in transit using HTTPS/TLS.
           </li>
           <li>
             <strong>Access Isolation</strong>: We enforce strict PostgreSQL Row Level Security (RLS) and app-level controls to ensure that 
             only the authenticated account owner can trigger operations on their connected integrations.
           </li>
+          <li>
+            <strong>Limited Logs</strong>: We do not intentionally log Google OAuth tokens, passwords, or full Google document,
+            spreadsheet, file, or email bodies. Diagnostic logs are limited to operational metadata needed to debug and secure the service.
+          </li>
+          <li>
+            <strong>Human Access Limits</strong>: Flow Me personnel do not read Google user data unless you ask for support involving
+            specific content, access is needed for security or abuse investigation, or access is required by law.
+          </li>
         </ul>
 
         <h2>5. Data Retention, Deletion, and Revocation</h2>
         <p>
-          We keep your connected integration credentials only as long as your account remains active and the integration is connected.
+          We retain Google OAuth credentials only while your Flow Me account is active and the relevant Google connector remains
+          connected. Google content retrieved to answer a command is used for that assistant workflow and may be reflected in the
+          conversation, document, spreadsheet, event, draft, or app record you asked Flow Me to create or update.
         </p>
         <ul>
           <li>
             <strong>Self-Service Disconnection</strong>: You can disconnect your Google account from Flow Me at any time through the 
-            Integrations dashboard in the web panel. Disconnecting instantly and permanently deletes your OAuth credentials and access 
-            tokens from our database.
+            Integrations dashboard in the web panel. Disconnecting deletes the stored OAuth credentials and access tokens for that
+            connection from our database and stops future access through that connector.
           </li>
           <li>
             <strong>Full Account Deletion</strong>: You can request the complete deletion of your Flow Me account and all stored history at any 
@@ -202,6 +232,10 @@
             via the Google Security settings page at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.
           </li>
         </ul>
+        <p>
+          After disconnection or deletion, Flow Me will not continue accessing your Google account. Residual copies may remain for a
+          limited period in encrypted backups or security logs and are removed according to our backup rotation and legal obligations.
+        </p>
 
         <h2>6. Compliance with Google API Services User Data Policy</h2>
         <p>

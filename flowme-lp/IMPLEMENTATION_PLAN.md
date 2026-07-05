@@ -1,6 +1,6 @@
 # Flow Me LP Implementation Plan
 
-Last updated: 2026-07-04
+Last updated: 2026-07-05
 
 ## Goal
 
@@ -132,6 +132,101 @@ This LP inherits the implementation method from `../flowme-app/AGENTS.md`, adapt
 - [x] Treat known-tool logos as product-critical. Slack, WhatsApp, Drive, Sheets, Calendar and similar brands must use original logos or official/original-looking variants.
 - [x] Mock lead/pricing behavior with static fixtures or intercepted requests before relying on production endpoints.
 - [x] Keep legal, footer, pricing and CTA links reachable on every viewport.
+
+## Current Compliance Plan: Google OAuth Verification
+
+Specification: `specs/2026-07-05-google-oauth-verification-remediation.md`
+
+Goal: resolve the Google Cloud OAuth verification follow-up for project
+`775297347877` (`solar-program-347814`) by proving domain ownership, keeping
+homepage and privacy URLs distinct, expanding Google user data disclosures, and
+giving reviewers a reachable OAuth consent workflow for Gmail, Google Docs,
+Google Sheets and Google Drive.
+
+### Required Public Pages
+
+- [x] Homepage: `https://flow-me.online/`
+  - File: `public/index.html`
+  - Purpose: identify Flow Me, describe app functionality, and visibly link to
+    the privacy policy configured in Google Cloud.
+  - Requirement: must be static on `flow-me.online` and must not redirect to
+    `app.flow-me.online`.
+- [x] English privacy policy: `https://flow-me.online/privacy`
+  - File: `public/privacy.html`
+  - Purpose: canonical Google Cloud OAuth privacy URL.
+  - Requirement: must disclose accessed Google data, data use, sharing,
+    storage/protection, retention/deletion, revocation, and Limited Use.
+- [x] Portuguese privacy policy: `https://flow-me.online/privacidade`
+  - File: `public/privacidade.html`
+  - Purpose: pt-BR parity for public users.
+  - Requirement: must mirror the English Google user data disclosures.
+- [x] English terms: `https://flow-me.online/terms`
+  - File: `public/terms.html`
+  - Purpose: public terms for app trust, subscriptions, connectors and support.
+- [x] Portuguese terms: `https://flow-me.online/termos`
+  - File: `public/termos.html`
+  - Purpose: pt-BR parity for terms.
+- [ ] Domain verification artifact, if DNS verification is not used.
+  - File: Google-provided HTML verification file under `public/`.
+  - Purpose: prove `flow-me.online` ownership in Search Console.
+  - Requirement: the verifying Google account must also be Project Owner or
+    Project Editor for `solar-program-347814`.
+
+### Disclosure Fixes
+
+- [x] Align privacy pages with the actual production OAuth scopes.
+- [x] Resolve the current Gmail mismatch: code requests
+  `https://www.googleapis.com/auth/gmail.modify`, while the public privacy page
+  currently describes `gmail.readonly`.
+- [x] Explicitly state whether Balys can create Gmail drafts. If `gmail.modify`
+  remains requested, disclose message search/read plus draft creation and that
+  Balys does not send email unless the product implements and discloses it.
+- [x] Keep Docs, Sheets and Drive disclosures natural-user focused: users name
+  files normally; Flow Me searches/resolves IDs internally.
+- [x] State no sale, rental, brokerage, advertising disclosure or unrelated
+  marketing use of Google user data.
+- [x] State transfers to AI API providers only happen to fulfill user-initiated
+  assistant commands and remain subject to Google API Services User Data Policy
+  and Limited Use requirements.
+
+### Google Cloud Console Updates
+
+- [ ] Verify `flow-me.online` in Google Search Console from a Google account
+  that is also Owner/Editor on the Google Cloud project.
+- [ ] Add/confirm Authorized domain: `flow-me.online`.
+- [ ] Set App homepage URL: `https://flow-me.online/`.
+- [ ] Set Privacy policy URL: `https://flow-me.online/privacy`.
+- [ ] Confirm Terms URL, if configured: `https://flow-me.online/terms`.
+- [ ] Resubmit verification only after production URLs return the correct pages.
+
+### Reviewer OAuth Test Path
+
+Do not publish reviewer credentials in `flowme-lp`. Send them privately in the
+Google email or Cloud Console verification notes.
+
+- [ ] Prepare a reviewer account with Pro/connectors entitlement enabled.
+- [ ] Confirm reviewer can open `https://app.flow-me.online/login`.
+- [ ] Confirm reviewer can reach `https://app.flow-me.online/app/connectors`.
+- [ ] Test `Add connector` -> Gmail -> `Add & connect` -> Google consent ->
+  return to `/app/connectors` with connected status.
+- [ ] Repeat for Google Docs, Google Sheets and Google Drive, or confirm that
+  the shared Google linked account grants all requested scopes in one consent.
+- [ ] Confirm `/app/ai` can demonstrate natural commands:
+  `/gmail procure um email recente`, `/docs liste meus documentos`,
+  `/planilhas quais planilhas tenho`, and `/drive procure arquivos recentes`.
+
+### Verification Checklist
+
+- [ ] `curl https://flow-me.online/privacy` contains the privacy policy heading,
+  not the LP hero copy.
+- [ ] `curl https://flow-me.online/privacidade` contains the Portuguese privacy
+  policy heading.
+- [ ] `curl https://flow-me.online/terms` and `/termos` contain terms headings.
+- [ ] Footer legal links on `/`, `/pt-br`, and `/en-us` resolve to the expected
+  legal pages.
+- [ ] Browser QA at 390x844, 768x1024, 1024x768 and 1440x900 for legal pages.
+- [ ] Production deploy goes through GitHub CI/CD; no long-lived production
+  hot-edit for app code, Compose files or environment values.
 
 ## Current Execution Plan: Flow Me Landing Refresh
 

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Leticia Goncalves</title>
+  <desc id="desc">Avatar visual para depoimento de Leticia Goncalves.</desc>
+  <defs>
+    <radialGradient id="bg" cx="48%" cy="16%" r="84%">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset=".48" stop-color="#7c2d12"/>
+      <stop offset="1" stop-color="#020617"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#35dc9b"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="160" fill="url(#bg)"/>
+  <circle cx="160" cy="160" r="146" fill="none" stroke="url(#ring)" stroke-width="9"/>
+  <circle cx="160" cy="126" r="52" fill="#fff7ed" opacity=".95"/>
+  <path d="M78 260c14-56 48-86 82-86s68 30 82 86" fill="#0f172a" opacity=".92"/>
+  <path d="M104 123c8-46 38-69 78-62 31 5 52 30 50 69-38-20-79-22-128-7Z" fill="#111827"/>
+  <text x="160" y="286" text-anchor="middle" fill="#fff7ed" font-family="Arial, sans-serif" font-size="34" font-weight="700">LG</text>
+</svg>

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Victor Rayan</title>
+  <desc id="desc">Avatar visual para depoimento de Victor Rayan.</desc>
+  <defs>
+    <radialGradient id="bg" cx="38%" cy="18%" r="82%">
+      <stop offset="0" stop-color="#64748b"/>
+      <stop offset=".52" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#020617"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#f97316"/>
+      <stop offset="1" stop-color="#6d5dfc"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="160" fill="url(#bg)"/>
+  <circle cx="160" cy="160" r="146" fill="none" stroke="url(#ring)" stroke-width="9"/>
+  <circle cx="160" cy="124" r="54" fill="#f8fafc" opacity=".92"/>
+  <path d="M72 260c15-58 50-88 88-88s73 30 88 88" fill="#f8fafc" opacity=".9"/>
+  <path d="M103 126c11-44 42-64 83-52 25 7 40 25 43 52-28-15-63-17-126 0Z" fill="#111827"/>
+  <text x="160" y="286" text-anchor="middle" fill="#f8fafc" font-family="Arial, sans-serif" font-size="34" font-weight="700">VR</text>
+</svg>

@@ -332,3 +332,73 @@ Test checklist:
 - [ ] Re-check slider crop on both viewports after the real prints are added.
 
 Rollback note: remove the `#financas` section, the finance CSS block and `setupFinanceSlider()`/`finance` copy entries; nav/footer anchors revert to `#features`.
+
+### 9. Agent Instruction And Spec Governance
+
+Goal: make the LP execution process reproducible across agents and prevent regressions during future visual iterations.
+
+Surface: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `specs/`.
+
+Implementation checklist:
+
+- [x] Make `AGENTS.md` the single canonical instruction source for the LP.
+- [x] Make `CLAUDE.md` and `GEMINI.md` reference `AGENTS.md` only.
+- [x] Add the UX -> P.O. -> frontend engineer -> QA Playwright -> P.O. -> frontend loop.
+- [x] Require a versioned `specs/` file before changing shipped sections.
+- [x] Require a whole-page Flesch-Kincaid style readability audit with concrete copy recommendations.
+
+Test checklist:
+
+- [x] Confirm `CLAUDE.md` and `GEMINI.md` do not fork implementation rules.
+- [x] Confirm specs exist for this iteration.
+- [ ] Re-run the spec checklist before every commit touching LP copy, layout or animation.
+
+Rollback note: if the process becomes too heavy for small text edits, keep `AGENTS.md` as source of truth and mark specs optional only for non-shipped copy changes.
+
+### 10. Notes Memory And Social Proof Refresh
+
+Goal: add a premium memory/notes fold and convert social proof into an animated testimonial carousel with real roles and image slots.
+
+Surface: `public/index.html`, `public/styles.css`, `public/landing.js`, `public/assets/testimonials/`.
+
+Implementation checklist:
+
+- [x] Add a notes and memory fold covering organization, project tracking, meeting recording, saved insights and WhatsApp consultation.
+- [x] Add a knowledge graph demo showing Flow Me centralizing notes, meetings, files, people and tasks.
+- [x] Add testimonial image slots for Victor and Leticia.
+- [x] Add requested roles: Revenue Operations & Engenheiro de Software, Analista de CRM and Coordenador de Marketing.
+- [x] Convert testimonials into an autoplay carousel with minimized side avatars, active center message, five stars and dots.
+- [x] Keep the testimonial carousel deterministic for Playwright checks.
+
+Test checklist:
+
+- [ ] Desktop screenshot confirms the memory fold reads like a product proof section, not a generic card grid.
+- [ ] Mobile screenshot confirms the graph and cards do not overflow.
+- [ ] Carousel auto-advances, dots update and side cards show only images.
+- [ ] Portrait assets load without broken images.
+
+Rollback note: if the carousel hurts readability, keep the section content and replace absolute carousel positioning with a stacked card layout under 620px.
+
+### 11. Hero WhatsApp Fidelity And Fold Pruning
+
+Goal: make the hero WhatsApp mock look faithful to the reference and shorten the LP to the requested selling path.
+
+Surface: `public/index.html`, `public/styles.css`, `public/landing.js`, `specs/2026-07-04-hero-whatsapp-and-pruned-folds.md`.
+
+Implementation checklist:
+
+- [x] Replace improvised WhatsApp/iPhone glyphs in the hero with SVG-style iOS status, video, phone, smile, camera and microphone icons.
+- [x] Add a verified-style badge beside the Flow Me assistant name in the WhatsApp header.
+- [x] Remove the folds for assistant organization, council, full product map, memory/notes, WhatsApp/reminders, finance and generic use cases.
+- [x] Keep the testimonials section and remove the heading "Rotinas reais. Menos ruido."
+- [x] Rework testimonials toward the Meu Assessor proof rhythm: proof stats, active quote, five stars and compact controls.
+- [x] Update nav/footer anchors after removing sections.
+
+Test checklist:
+
+- [ ] Browser check at 390x844 and 1440x900 (blocked locally by Chromium sandbox/usage-limit approval).
+- [x] Confirm removed fold copy no longer appears in `public`.
+- [x] Confirm stale removed anchors no longer appear in `public`.
+- [x] Confirm `landing.js` syntax and CSS brace balance.
+
+Rollback note: restore the removed sections from git if the shorter LP underperforms; the WhatsApp icon fidelity changes can stay independently.

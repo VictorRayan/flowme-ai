@@ -1,8 +1,12 @@
 # Flowme LP Agent Instructions
 
+`AGENTS.md` is the canonical instruction source for this project. Other LLM instruction files such as `CLAUDE.md` and `GEMINI.md` must only point back here and must not duplicate or fork rules.
+
 This project is the static landing page for Flow Me. It is separate from the authenticated Next.js app in `../flowme-app`, but it must follow the same execution discipline.
 
 Before changing landing copy, layout, animations, lead capture, pricing reveal, privacy links, or deployment files, read `IMPLEMENTATION_PLAN.md` and update the relevant checklist when the work changes scope.
+
+Before changing a shipped section, create or update a versioned spec in `specs/` describing the UX intent, acceptance criteria, responsive behavior, test plan and regression risks.
 
 ## Source Of Truth
 
@@ -25,6 +29,19 @@ The landing page sells Flow Me to non-technical users. It must make the product 
 - Keep deployment files stable unless the request is deployment-specific.
 - For every meaningful section, maintain an implementation plan and checklist with: goal, surface, copy, layout, animation, responsive behavior, links, analytics, tests and rollback note.
 - Prefer static, inspectable HTML/CSS/JS. If interaction is needed, keep it in `public/landing.js` and make it deterministic enough to test with DOM fixtures.
+
+## Agile UX Delivery Pipeline
+
+Every meaningful landing change must follow this loop:
+
+1. UX: define the visible user outcome, emotional tone, reference pattern, first mobile layout and failure states.
+2. Product Owner: confirm the business objective, conversion intent, required copy, links, claims and what must not regress.
+3. Frontend Engineer: implement in `public/index.html`, `public/styles.css` and `public/landing.js` using existing patterns and stable dimensions.
+4. QA Playwright: validate 390x844, 768x1024, 1024x768 and 1440x900; check no console errors, no horizontal overflow, CTA anchors, pricing unlock, forms and animations.
+5. Product Owner Review: compare screenshots against the requested narrative and decide whether the section sells the intended promise.
+6. Frontend Loop: apply the smallest corrective iteration, rerun QA Playwright and update the spec/checklist before commit.
+
+Do not skip from UX request directly to commit. Keep the loop visible in the implementation plan or the relevant `specs/` file.
 
 ## Frontend Standards
 
@@ -64,6 +81,7 @@ Use browser checks for every visual change:
 - Verify animated elements are not blank and do not hide critical copy.
 - Verify logos render correctly and remain readable on dark/light backgrounds.
 - Verify `https://flow-me.online` maps to the static LP service (`flowme-lp`) and `https://app.flow-me.online` maps to the app service (`flowme-app`) through Traefik labels before changing deployment shape.
+- Run a whole-page Flesch-Kincaid style readability audit before finalizing broad copy changes. For Portuguese copy, treat the score as a rough proxy and pair it with concrete recommendations: shorter sentences, fewer clauses, fewer abstract nouns and more direct verbs.
 
 ## Mock And Render Testing
 
@@ -85,3 +103,5 @@ The LP is static, so mocks are DOM/data fixtures rather than API test doubles.
 - Never ask users to understand IDs, OAuth, connector IDs, file IDs or technical implementation details.
 - Speak like a smart operator, not a database or developer log.
 - Claims must be credible and supported by visible product behavior.
+- Prefer sentence-level copy that survives mobile cards without line-height crowding.
+- When Flesch-Kincaid is high, recommend exact copy cuts rather than only reporting the number.

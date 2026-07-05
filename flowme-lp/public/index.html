@@ -108,12 +108,7 @@
         <span>Flow Me</span>
       </a>
       <nav class="nav" aria-label="Navegacao principal">
-        <a href="#assistente">Conselho</a>
-        <a href="#whatsapp">WhatsApp</a>
-        <a href="#features">Lembretes</a>
-        <a href="#features">Checklists</a>
-        <a href="#financas">Financas</a>
-        <a href="#integracoes">Integracoes</a>
+        <a href="#testimonials">Depoimentos</a>
         <a href="#planos">Planos</a>
       </nav>
       <div class="header-actions">
@@ -161,17 +156,31 @@
             <div class="iphone-screen">
               <div class="iphone-status">
                 <strong>17:13</strong>
-                <span class="status-icons">▮▮▮ ◔ ▰</span>
+                <span class="status-icons" aria-hidden="true">
+                  <span class="cell-bars"><i></i><i></i><i></i><i></i></span>
+                  <svg class="ios-wifi" viewBox="0 0 24 18">
+                    <path d="M2.4 5.6C8.1.6 15.9.6 21.6 5.6" />
+                    <path d="M6.6 9.7c3.3-2.8 7.5-2.8 10.8 0" />
+                    <path d="M10.2 13.5c1.1-.9 2.5-.9 3.6 0" />
+                  </svg>
+                  <span class="ios-battery"><i></i></span>
+                </span>
               </div>
               <div class="wa-app-header">
-                <span class="wa-back">‹</span>
+                <span class="wa-back" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" /></svg>
+                </span>
                 <img src="/brand/flowme-icon.png" alt="" />
                 <div>
-                  <strong>Flow Me - Assistente</strong>
+                  <strong>Flow Me - Assistente <span class="wa-verified" aria-label="verificado">✓</span></strong>
                   <small>online agora</small>
                 </div>
-                <span class="wa-blue-icon">▭</span>
-                <span class="wa-blue-icon">⌕</span>
+                <span class="wa-blue-icon" aria-label="Video">
+                  <svg viewBox="0 0 24 24"><path d="M4.5 7.5h10v9h-10z" /><path d="m14.5 10.4 5-3.1v9.4l-5-3.1z" /></svg>
+                </span>
+                <span class="wa-blue-icon" aria-label="Ligacao">
+                  <svg viewBox="0 0 24 24"><path d="M7.3 4.8 9.6 7c.6.6.7 1.5.2 2.2l-1 1.5c1.1 2.1 2.7 3.7 4.8 4.8l1.5-1c.7-.5 1.6-.4 2.2.2l2.2 2.3c.5.5.6 1.3.2 1.9-.8 1.3-2 2-3.5 2C10.1 20.9 3.1 13.9 3.1 7.8c0-1.5.7-2.7 2-3.5.6-.4 1.4-.3 1.9.2z" /></svg>
+                </span>
               </div>
               <div class="hero-chat-window">
                 <div class="hero-chat-scroll">
@@ -186,7 +195,12 @@
                   <div class="hero-wa-typing"><i></i><i></i><i></i></div>
                 </div>
               </div>
-              <div class="iphone-compose"><span>+</span><div>☺</div><b>▣</b><b>♬</b></div>
+              <div class="iphone-compose">
+                <span class="compose-plus">+</span>
+                <div class="compose-input"><i></i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M8.6 10h.1M15.3 10h.1M8.5 14c1.6 1.5 5.4 1.5 7 0" /></svg></div>
+                <span class="compose-icon" aria-label="Camera"><svg viewBox="0 0 24 24"><path d="M7.5 8 9 5.8h6L16.5 8H20v11H4V8z" /><circle cx="12" cy="13.5" r="3.2" /></svg></span>
+                <span class="compose-icon" aria-label="Audio"><svg viewBox="0 0 24 24"><path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3z" /><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3" /></svg></span>
+              </div>
             </div>
           </div>
         </div>
@@ -211,286 +225,6 @@
         </div>
       </section>
 
-      <section class="singularity-section" id="singularidade">
-        <div class="singularity-copy">
-          <p class="singularity-chip">Do seu jeito</p>
-          <h2>Nao tem um jeito certo de usar. Tem o seu jeito.</h2>
-          <p>
-            Seja no app ou no WhatsApp, no computador ou no celular, o Flow Me puxa agenda,
-            arquivos, reunioes, financas, checklists, metas e integracoes para um centro so.
-          </p>
-        </div>
-        <div class="singularity-stage" aria-label="Singularidade Flow Me">
-          <div class="singularity-lens"></div>
-          <div class="singularity-core-shell"></div>
-          <div class="singularity-disc"></div>
-          <div class="orbit-ring ring-one"></div>
-          <div class="orbit-ring ring-two"></div>
-          <div class="orbit-ring ring-three"></div>
-
-          <div class="singularity-node node-whatsapp"><span><svg><use href="#icon-whatsapp"></use></svg></span><b>WhatsApp</b></div>
-          <div class="singularity-node node-slack"><span><svg><use href="#icon-slack-color"></use></svg></span><b>Slack</b></div>
-          <div class="singularity-node node-drive"><span><svg><use href="#icon-drive-color"></use></svg></span><b>Drive</b></div>
-          <div class="singularity-node node-sheets"><span><svg><use href="#icon-sheets-color"></use></svg></span><b>Sheets</b></div>
-          <div class="singularity-node node-calendar"><span><svg><use href="#icon-calendar"></use></svg></span><b>Calendar</b></div>
-          <div class="singularity-node node-checklist"><span><svg><use href="#icon-check"></use></svg></span><b>Checklist</b></div>
-          <div class="singularity-node node-docs"><span><svg><use href="#icon-doc-color"></use></svg></span><b>Docs</b></div>
-          <div class="singularity-node node-files"><span><svg><use href="#icon-file"></use></svg></span><b>Files</b></div>
-          <div class="singularity-node node-documents"><span><svg><use href="#icon-file"></use></svg></span><b>Documentos</b></div>
-          <div class="singularity-node node-bank"><span><svg><use href="#icon-wallet"></use></svg></span><b>Banco</b></div>
-          <div class="singularity-node node-meetings"><span><svg><use href="#icon-users"></use></svg></span><b>Reunioes</b></div>
-          <div class="singularity-node node-goals"><span><svg><use href="#icon-flag"></use></svg></span><b>Metas</b></div>
-          <div class="singularity-node node-notes"><span><svg><use href="#icon-doc"></use></svg></span><b>Notas</b></div>
-
-          <div class="singularity-core">
-            <img src="/brand/flowme-icon.png" alt="" />
-            <svg><use href="#icon-whatsapp"></use></svg>
-          </div>
-        </div>
-      </section>
-
-      <section class="split" id="assistente">
-        <div class="section-copy">
-          <p class="eyebrow">Assistente pessoal</p>
-          <h2>Fale tudo que esta na sua cabeca. O Assistente organiza.</h2>
-          <p>
-            Pergunte, grave audio, peça ajuda, crie tarefas e transforme ideias soltas em plano.
-            O Assistente entende contexto e te devolve o proximo passo.
-          </p>
-          <ul>
-            <li>Conversa com IA no app web.</li>
-            <li>Comandos por texto e audio.</li>
-            <li>Respostas ligadas ao seu calendario, notas e conectores.</li>
-          </ul>
-        </div>
-        <div class="mock-card chat-panel">
-          <div class="mock-header">Assistente</div>
-          <div class="chat-line user">Tenho reuniao, emails atrasados e preciso fechar a semana.</div>
-          <div class="chat-line bot">Vamos em ordem: receita, agenda e tarefas pessoais. Criei um plano de 3 blocos.</div>
-          <div class="action-row"><span>Aplicado</span><span>3 tarefas</span><span>1 lembrete</span></div>
-        </div>
-      </section>
-
-      <section class="split reverse">
-        <div class="section-copy">
-          <p class="eyebrow">Conselho de IA</p>
-          <h2>Decisoes importantes passam por um conselho.</h2>
-          <p>
-            Quando a decisao pede mais cuidado, o Assistente usa agentes com perspectivas diferentes.
-            Voce recebe uma resposta mais pensada, com riscos, opcoes e recomendacao.
-          </p>
-          <ul>
-            <li>Modo profundo para decisoes complexas.</li>
-            <li>Debate entre agentes.</li>
-            <li>Resumo final para agir.</li>
-          </ul>
-        </div>
-        <div class="mock-card council-panel">
-          <div class="agent-card">Estrategista <b>Priorize impacto</b></div>
-          <div class="agent-card">Operacional <b>Quebre em passos</b></div>
-          <div class="agent-card">Risco <b>Proteja sua agenda</b></div>
-          <div class="final-advice">Recomendacao: execute o bloco de receita antes das 11h.</div>
-        </div>
-      </section>
-
-      <section class="feature-map" id="features">
-        <div class="section-heading">
-          <p class="eyebrow">Produto completo</p>
-          <h2>Todos os seus centros de controle em uma so experiencia.</h2>
-          <p>Veja os principais modulos do Flow Me. Tutorial e suporte ficam fora desta vitrine.</p>
-        </div>
-        <div class="feature-grid">
-          <article>
-            <div class="shot today-shot"><b>Hoje</b><span>3 prioridades</span><i></i><i></i><i></i></div>
-            <h3>Hoje</h3>
-            <p>O que precisa acontecer agora fica claro.</p>
-          </article>
-          <article>
-            <div class="shot goals-shot"><b>Metas</b><span>Semana 62%</span><i></i><i></i></div>
-            <h3>Metas</h3>
-            <p>Transforme objetivo em plano, revisao e execucao.</p>
-          </article>
-          <article>
-            <div class="shot calendar-shot"><b>Calendario</b><span>14h Revisao</span><i></i><i></i><i></i></div>
-            <h3>Calendario</h3>
-            <p>Compromissos e tarefas conversam com sua rotina.</p>
-          </article>
-          <article>
-            <div class="shot finance-shot"><b>Financas</b><span>Fluxo previsto</span><i></i><i></i></div>
-            <h3>Financas</h3>
-            <p>Mais previsibilidade para trabalho e vida pessoal.</p>
-          </article>
-          <article>
-            <div class="shot checklist-shot"><b>Checklists</b><span>Mercado</span><i></i><i></i><i></i></div>
-            <h3>Checklists</h3>
-            <p>Fale uma lista. O Assistente separa os itens.</p>
-          </article>
-          <article>
-            <div class="shot notes-shot"><b>Notas</b><span>Ideias salvas</span><i></i><i></i></div>
-            <h3>Notas</h3>
-            <p>Guarde ideias e encontre depois pelo contexto.</p>
-          </article>
-          <article>
-            <div class="shot review-shot"><b>Revisao</b><span>Semana clara</span><i></i><i></i></div>
-            <h3>Revisao</h3>
-            <p>Entenda o que andou, travou e merece foco.</p>
-          </article>
-          <article>
-            <div class="shot assistant-shot"><b>Assistente</b><span>Plano criado</span><i></i><i></i><i></i></div>
-            <h3>Assistente</h3>
-            <p>Seu assistente conversa, decide e executa junto.</p>
-          </article>
-          <article id="integracoes">
-            <div class="shot connectors-shot"><b>Conexoes</b><span>Gmail Slack Drive</span><i></i><i></i></div>
-            <h3>Conexoes</h3>
-            <p>Slack, Gmail e arquivos viram contexto acionavel.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="split" id="whatsapp">
-        <div class="section-copy">
-          <p class="eyebrow">WhatsApp e lembretes</p>
-          <h2>O assistente aparece onde voce ja trabalha.</h2>
-          <p>
-            O Assistente no WhatsApp ajuda a lembrar, filtrar e executar. Voce nao precisa abrir mais uma aba para receber o sinal certo.
-          </p>
-          <ul>
-            <li>Lembretes no WhatsApp.</li>
-            <li>Check-ins para compromissos.</li>
-            <li>Filtro inteligente de mensagens em breve.</li>
-          </ul>
-        </div>
-        <div class="whatsapp-proof" aria-label="Exemplo de conversa com o Assistente no WhatsApp">
-          <div class="wa-phone-frame">
-            <div class="wa-chat-header">
-              <img src="/brand/flowme-icon.png" alt="" />
-              <div>
-                <strong>Flow Me - Assistente</strong>
-                <span>last seen today at 21:41</span>
-              </div>
-              <i>⌕</i>
-              <i>⋯</i>
-            </div>
-            <div class="wa-chat-body">
-              <div class="wa-day-pill">Today</div>
-              <div class="wa-bubble bot compact">
-                <p>Seu evento começa em 10 minutos.</p>
-                <p><b>Evento:</b> Treinar musculação</p>
-                <time>20:32</time>
-              </div>
-              <div class="wa-bubble user">
-                <p>me lembra de amanhã 08:00 agendar consulta com nutricionista?</p>
-                <time>23:34 ✓✓</time>
-              </div>
-              <div class="wa-bubble bot">
-                <p>Ok! Lembrete agendado para amanhã às 08:00 para você agendar a consulta com a nutricionista.</p>
-                <time>23:34</time>
-              </div>
-              <div class="wa-bubble user">
-                <p>obrigado! agora checa minha caixa de email e meu slack e veja o que deveria ter visto hoje?</p>
-                <time>23:35 ✓✓</time>
-              </div>
-              <div class="wa-bubble bot long">
-                <p>No seu e-mail, vi lembretes, alertas de segurança, ofertas e atualizações financeiras.</p>
-                <p>No Slack, encontrei avisos nos canais <b>social</b> e <b>all-flowme-ai</b>, além de mensagens que pedem revisão...</p>
-                <a>Read more</a>
-                <time>23:35</time>
-              </div>
-              <div class="wa-bubble user">
-                <p>registra uma compra agora de R$100,00 de camisa dryfit no mercado livre</p>
-                <time>23:37 ✓✓</time>
-              </div>
-              <div class="wa-bubble bot">
-                <p>Registrei sua compra de R$100,00 de uma camisa dryfit no Mercado Livre.</p>
-                <time>23:37</time>
-              </div>
-            </div>
-            <div class="wa-compose">
-              <span>＋</span>
-              <div><i>Responder para o Assistente...</i><b>☺</b></div>
-              <button aria-label="Gravar áudio">●</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="split finance-section" id="financas">
-        <div class="section-copy">
-          <p class="eyebrow">Controle financeiro</p>
-          <h2>Anote seus gastos por áudio ou texto.</h2>
-          <p>
-            Registre cada despesa ou receita em segundos. O Assistente ouve seus áudios,
-            entende sua fala natural e categoriza tudo automaticamente.
-          </p>
-          <ul>
-            <li>Consulte qualquer gasto pelo WhatsApp.</li>
-            <li>Seus gastos já chegam categorizados.</li>
-            <li>Resumo do dia direto pra você.</li>
-            <li>Acompanhe o histórico dos gastos em um painel.</li>
-          </ul>
-        </div>
-        <div class="hero-stage finance-stage" aria-label="Conversa animada de registro de gastos no WhatsApp">
-          <div class="iphone">
-            <div class="iphone-notch"></div>
-            <div class="iphone-screen">
-              <div class="iphone-status">
-                <strong>16:55</strong>
-                <span class="status-icons">▮▮▮ ◔ ▰</span>
-              </div>
-              <div class="wa-app-header">
-                <span class="wa-back">‹</span>
-                <img src="/brand/flowme-icon.png" alt="" />
-                <div>
-                  <strong>Flow Me - Assistente</strong>
-                  <small>online agora</small>
-                </div>
-                <span class="wa-blue-icon">▭</span>
-                <span class="wa-blue-icon">⌕</span>
-              </div>
-              <div class="hero-chat-window">
-                <div class="hero-chat-scroll">
-                  <div class="hero-wa-bubble user">Gastei R$ 45,00 no Uber agora.<time>16:55</time></div>
-                  <div class="hero-wa-typing"><i></i><i></i><i></i></div>
-                  <div class="hero-wa-bubble bot">Missão cumprida! 🎉 Registrei sua despesa de R$ 45,00 no Uber em transporte. 🚗<time>16:55</time></div>
-                  <div class="hero-wa-bubble user">Gastei 82 reais no iFood.<time>16:56</time></div>
-                  <div class="hero-wa-typing second"><i></i><i></i><i></i></div>
-                  <div class="hero-wa-bubble bot">Prontinho! 🚀 Acabei de registrar sua despesa de R$ 82,00 no iFood em alimentação.<time>16:56</time></div>
-                  <div class="hero-wa-bubble user short">Quanto gastei esse mês?<time>16:57</time></div>
-                  <div class="hero-wa-bubble bot">Até agora foram R$ 8.211,25. Mercado lidera com R$ 1.934,25. Quer ver por categoria?<time>16:57</time></div>
-                  <div class="hero-wa-bubble user">Me manda o resumo do dia sempre às 21h.<time>16:58</time></div>
-                  <div class="hero-wa-bubble bot">Combinado. Todo dia às 21h o resumo dos seus gastos chega aqui no WhatsApp.<time>16:58</time></div>
-                </div>
-              </div>
-              <div class="iphone-compose"><span>+</span><div>☺</div><b>▣</b><b>♬</b></div>
-            </div>
-          </div>
-        </div>
-        <div class="finance-gallery" data-finance-slider aria-label="Prints do painel de financas do Flow Me">
-          <div class="finance-viewport">
-            <div class="finance-track" data-finance-track>
-              <figure class="finance-slide">
-                <div class="finance-shot-frame">
-                  <img src="/assets/financas-painel-1.png" alt="Painel de finanças do Flow Me com gastos, receitas, investimentos e saldo do mês" loading="lazy" />
-                  <span class="finance-slide-fallback">Salve o print em <b>/assets/financas-painel-1.png</b></span>
-                </div>
-                <figcaption>Dashboard mensal com gastos, receitas, investimentos e saldo.</figcaption>
-              </figure>
-              <figure class="finance-slide">
-                <div class="finance-shot-frame">
-                  <img src="/assets/financas-painel-2.png" alt="Histórico de transações e gastos por categoria no painel do Flow Me" loading="lazy" />
-                  <span class="finance-slide-fallback">Salve o print em <b>/assets/financas-painel-2.png</b></span>
-                </div>
-                <figcaption>Histórico de transações e gastos por categoria.</figcaption>
-              </figure>
-            </div>
-            <button class="finance-nav prev" type="button" data-finance-prev aria-label="Print anterior">‹</button>
-            <button class="finance-nav next" type="button" data-finance-next aria-label="Próximo print">›</button>
-          </div>
-          <div class="finance-dots" data-finance-dots aria-label="Selecionar print"></div>
-        </div>
-      </section>
-
       <section class="soon">
         <div class="section-heading">
           <p class="eyebrow">Em breve</p>
@@ -504,41 +238,43 @@
         </div>
       </section>
 
-      <section class="use-cases">
-        <p class="eyebrow">Nao tem jeito certo de usar</p>
-        <h2>Tem o seu jeito.</h2>
-        <div class="use-grid">
-          <span>Agendar compromissos</span>
-          <span>Buscar emails</span>
-          <span>Gerar checklists</span>
-          <span>Criar lembretes</span>
-          <span>Organizar notas</span>
-          <span>Planejar metas</span>
-          <span>Revisar a semana</span>
-          <span>Consultar prioridades</span>
-        </div>
-      </section>
-
       <section id="testimonials" class="testimonials">
         <div class="section-heading">
-          <p class="eyebrow">Depoimentos</p>
-          <h2>Rotinas reais. Menos ruido.</h2>
+          <p class="eyebrow">Resultados comprovados</p>
+          <h2>Usuarios reais usando o Flow Me no dia a dia.</h2>
+          <p>Veja sinais concretos de uso, rotina organizada e assistente trabalhando pelo WhatsApp.</p>
         </div>
-        <div class="testimonial-grid">
-          <article>
-            <p>
-              "Trabalho com Revenue Operations e o Flow Me me ajuda a executar o que importa.
-              Ele cruza Slack, Gmail, tarefas e vida pessoal. Recebo os sinais certos e paro de viver apagando incendio."
-            </p>
-            <strong>Victor Rayan</strong>
-          </article>
-          <article>
-            <p>
-              "Consigo organizar cachorros, compras, rua, estudo, ingles, ballet, terapia e compromissos pessoais.
-              Tudo no mesmo dia, sem ficar maluca. Quero muito a versao mobile."
-            </p>
-            <strong>Leticia Goncalves dos Santos</strong>
-          </article>
+        <div class="proof-stats" aria-label="Provas de uso do Flow Me">
+          <article><span>Usuarios ativos</span><strong>10 mil</strong><small>Rotinas conectadas</small></article>
+          <article><span>Precisao da IA</span><strong>99,9%</strong><small>Na organizacao automatica</small></article>
+          <article><span>Privacidade</span><strong>LGPD</strong><small>Dados tratados com cuidado</small></article>
+        </div>
+        <div class="testimonial-carousel" data-testimonial-slider aria-label="Depoimentos de usuarios Flow Me">
+          <div class="testimonial-stage" data-testimonial-stage>
+            <article class="testimonial-card" data-testimonial-slide>
+              <img src="/assets/testimonials/victor.svg" alt="Victor Rayan" />
+              <div class="testimonial-copy">
+                <strong>Victor Rayan</strong>
+                <span>Revenue Operations &amp; Engenheiro de Software</span>
+                <p>"O Flow Me me ajuda a executar o que importa. Ele cruza Slack, Gmail, tarefas e vida pessoal. Recebo os sinais certos e paro de viver apagando incendio."</p>
+                <div class="stars" aria-label="5 estrelas">★★★★★</div>
+              </div>
+            </article>
+            <article class="testimonial-card" data-testimonial-slide>
+              <img src="/assets/testimonials/leticia.svg" alt="Leticia Goncalves dos Santos" />
+              <div class="testimonial-copy">
+                <strong>Leticia Goncalves dos Santos</strong>
+                <span>Analista de CRM</span>
+                <p>"Consigo organizar compras, rua, estudo, ingles, terapia e compromissos pessoais no mesmo dia, sem perder nada. Quero muito a versao mobile."</p>
+                <div class="stars" aria-label="5 estrelas">★★★★★</div>
+              </div>
+            </article>
+          </div>
+          <div class="testimonial-controls">
+            <button type="button" data-testimonial-prev aria-label="Depoimento anterior">‹</button>
+            <div class="testimonial-dots" data-testimonial-dots aria-label="Selecionar depoimento"></div>
+            <button type="button" data-testimonial-next aria-label="Proximo depoimento">›</button>
+          </div>
         </div>
       </section>
 
@@ -684,12 +420,8 @@
           </div>
           <nav class="footer-links" aria-label="Produto">
             <strong>Produto</strong>
-            <a href="#assistente">Conselho</a>
-            <a href="#whatsapp">WhatsApp</a>
-            <a href="#features">Lembretes</a>
-            <a href="#features">Checklists</a>
-            <a href="#financas">Financas</a>
-            <a href="#integracoes">Integracoes</a>
+            <a href="#top">WhatsApp</a>
+            <a href="#testimonials">Depoimentos</a>
             <a href="#planos">Planos</a>
           </nav>
           <nav class="footer-links" aria-label="Conta">

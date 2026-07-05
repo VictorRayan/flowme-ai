@@ -5,7 +5,7 @@ const copy = {
     title: "Flow Me | Personal assistant on WhatsApp",
     description:
       "Get into flow with your personal assistant on WhatsApp. Calendar, reminders, checklists, finance, Slack, Drive and Sheets organized by conversation.",
-    nav: ["Council", "WhatsApp", "Reminders", "Checklists", "Finance", "Integrations", "Plans"],
+    nav: ["Testimonials", "Plans"],
     headerCta: "Start now",
     eyebrow: "AI on WhatsApp for routine, work and real life",
     h1: 'Get into flow with <em>your personal assistant on WhatsApp.</em>',
@@ -55,32 +55,37 @@ const copy = {
     priceNote: "/month billed yearly",
     buy: "Buy now",
     secure: "Secure purchase. Cancel anytime.",
-    testimonialsTitle: "Real routines. Less noise.",
+    testimonialsTitle: "Real users using Flow Me every day.",
+    testimonials: [
+      {
+        name: "Victor Rayan",
+        role: "Revenue Operations & Software Engineer",
+        quote:
+          '"Flow Me helps me execute what matters. It connects Slack, Gmail, tasks and personal life. I get the right signals and stop living in firefighting mode."',
+      },
+      {
+        name: "Leticia Goncalves dos Santos",
+        role: "CRM Analyst",
+        quote:
+          '"I can organize groceries, errands, study, English class, therapy and personal commitments in the same day without losing anything. I really want the mobile app."',
+      },
+    ],
     testimonial1:
       '"I work in Revenue Operations and Flow Me helps me execute what matters. It connects Slack, Gmail, tasks and personal life. I get the right signals and stop living in firefighting mode."',
     testimonial2:
       '"I can organize pets, groceries, errands, study, English class, therapy and personal commitments in the same day without losing my mind. I really want the mobile app."',
-    finance: {
-      eyebrow: "Financial control",
-      title: "Log your expenses by voice or text.",
-      text: "Record every expense or income in seconds. The Assistant listens to your voice notes, understands natural speech and categorizes everything automatically.",
-      bullets: [
-        "Ask about any expense on WhatsApp.",
-        "Your expenses arrive categorized.",
-        "Daily summary sent straight to you.",
-        "Track your spending history in a dashboard.",
-      ],
-      captions: [
-        "Monthly dashboard with expenses, income, investments and balance.",
-        "Transaction history and spending by category.",
-      ],
-    },
+    footerSupport:
+      "Need help choosing a plan or accessing your account? Our team replies via Flow Me support.",
+    footerRights:
+      "© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Technology Consulting. All rights reserved.",
+    footerSecurity:
+      "Security, GDPR compliance and AI applied to real routine.",
   },
   "pt-br": {
     title: "Flow Me | Assistente pessoal no WhatsApp",
     description:
       "Entre em flow com seu assistente pessoal no WhatsApp. Agenda, lembretes, checklists, financas, Slack, Drive e Sheets organizados por conversa.",
-    nav: ["Conselho", "WhatsApp", "Lembretes", "Checklists", "Financas", "Integracoes", "Planos"],
+    nav: ["Depoimentos", "Planos"],
     headerCta: "Comecar agora",
     eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
     h1: 'Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em>',
@@ -130,26 +135,31 @@ const copy = {
     priceNote: "/mes no anual",
     buy: "Adquirir agora",
     secure: "Compra segura. Cancele quando quiser.",
-    testimonialsTitle: "Rotinas reais. Menos ruido.",
+    testimonialsTitle: "Usuarios reais usando o Flow Me no dia a dia.",
+    testimonials: [
+      {
+        name: "Victor Rayan",
+        role: "Revenue Operations & Engenheiro de Software",
+        quote:
+          '"O Flow Me me ajuda a executar o que importa. Ele cruza Slack, Gmail, tarefas e vida pessoal. Recebo os sinais certos e paro de viver apagando incendio."',
+      },
+      {
+        name: "Leticia Goncalves dos Santos",
+        role: "Analista de CRM",
+        quote:
+          '"Consigo organizar compras, rua, estudo, ingles, terapia e compromissos pessoais no mesmo dia, sem perder nada. Quero muito a versao mobile."',
+      },
+    ],
     testimonial1:
       '"Trabalho com Revenue Operations e o Flow Me me ajuda a executar o que importa. Ele cruza Slack, Gmail, tarefas e vida pessoal. Recebo os sinais certos e paro de viver apagando incendio."',
     testimonial2:
       '"Consigo organizar cachorros, compras, rua, estudo, ingles, ballet, terapia e compromissos pessoais. Tudo no mesmo dia, sem ficar maluca. Quero muito a versao mobile."',
-    finance: {
-      eyebrow: "Controle financeiro",
-      title: "Anote seus gastos por áudio ou texto.",
-      text: "Registre cada despesa ou receita em segundos. O Assistente ouve seus áudios, entende sua fala natural e categoriza tudo automaticamente.",
-      bullets: [
-        "Consulte qualquer gasto pelo WhatsApp.",
-        "Seus gastos já chegam categorizados.",
-        "Resumo do dia direto pra você.",
-        "Acompanhe o histórico dos gastos em um painel.",
-      ],
-      captions: [
-        "Dashboard mensal com gastos, receitas, investimentos e saldo.",
-        "Histórico de transações e gastos por categoria.",
-      ],
-    },
+    footerSupport:
+      "Precisa de ajuda para escolher um plano ou acessar sua conta? Nosso time responde pelo suporte do Flow Me.",
+    footerRights:
+      "© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Consultoria em Tecnologia. Todos os direitos reservados.",
+    footerSecurity:
+      "Seguranca, LGPD e IA aplicada a rotina real.",
   },
 };
 
@@ -365,49 +375,75 @@ function applyLocale(locale) {
     button.textContent = `🔒 ${t.unlock}`;
   });
   setText("#testimonials h2", t.testimonialsTitle);
-  setTexts(".testimonial-grid article p", [t.testimonial1, t.testimonial2]);
-
-  if (t.finance) {
-    setText("#financas .eyebrow", t.finance.eyebrow);
-    setText("#financas h2", t.finance.title);
-    setText("#financas .section-copy p:nth-of-type(2)", t.finance.text);
-    setTexts("#financas .section-copy li", t.finance.bullets);
-    setTexts("#financas .finance-slide figcaption", t.finance.captions);
+  if (t.testimonials) {
+    const slides = Array.from(document.querySelectorAll("[data-testimonial-slide]"));
+    slides.forEach((slide, index) => {
+      const testimonial = t.testimonials[index];
+      if (!testimonial) return;
+      const name = slide.querySelector(".testimonial-copy strong");
+      const role = slide.querySelector(".testimonial-copy span");
+      const quote = slide.querySelector(".testimonial-copy p");
+      if (name) name.textContent = testimonial.name;
+      if (role) role.textContent = testimonial.role;
+      if (quote) quote.textContent = testimonial.quote;
+      slide.querySelector("img")?.setAttribute("alt", testimonial.name);
+    });
   }
+
+  // Update footer links and content dynamically based on active locale
+  const privacyLink = document.querySelector('a[href="/privacidade"], a[href="/privacy"]');
+  if (privacyLink) {
+    privacyLink.setAttribute("href", locale === "en-us" ? "/privacy" : "/privacidade");
+    privacyLink.textContent = locale === "en-us" ? "Privacy policy" : "Politica de privacidade";
+  }
+  const termsLink = document.querySelector('a[href="/termos"], a[href="/terms"]');
+  if (termsLink) {
+    termsLink.setAttribute("href", locale === "en-us" ? "/terms" : "/termos");
+    termsLink.textContent = locale === "en-us" ? "Terms of use" : "Termos de uso";
+  }
+
+  // Update footer text elements
+  setText(".footer-links p", t.footerSupport);
+  const footerSpans = document.querySelectorAll(".footer-bottom span");
+  if (footerSpans[0] && t.footerRights) footerSpans[0].textContent = t.footerRights;
+  if (footerSpans[1] && t.footerSecurity) footerSpans[1].textContent = t.footerSecurity;
 }
 
-function setupFinanceSlider() {
-  const slider = document.querySelector("[data-finance-slider]");
+function setupTestimonialSlider() {
+  const slider = document.querySelector("[data-testimonial-slider]");
   if (!slider) return;
-  const track = slider.querySelector("[data-finance-track]");
-  const slides = Array.from(slider.querySelectorAll(".finance-slide"));
-  const dotsWrap = slider.querySelector("[data-finance-dots]");
-  const prevButton = slider.querySelector("[data-finance-prev]");
-  const nextButton = slider.querySelector("[data-finance-next]");
-  if (!track || slides.length === 0) return;
+  const slides = Array.from(slider.querySelectorAll("[data-testimonial-slide]"));
+  const dotsWrap = slider.querySelector("[data-testimonial-dots]");
+  const prevButton = slider.querySelector("[data-testimonial-prev]");
+  const nextButton = slider.querySelector("[data-testimonial-next]");
+  if (!slides.length || !dotsWrap) return;
+
   let index = 0;
   let timer = null;
 
-  slides.forEach((slide) => {
-    slide.querySelector("img")?.addEventListener("error", () => slide.classList.add("is-missing"));
-  });
-
-  const dots = slides.map((_, slideIndex) => {
+  const dots = slides.map((_, dotIndex) => {
     const dot = document.createElement("button");
     dot.type = "button";
-    dot.className = "finance-dot";
-    dot.setAttribute("aria-label", `Print ${slideIndex + 1}`);
+    dot.className = "testimonial-dot";
+    dot.setAttribute("aria-label", `Depoimento ${dotIndex + 1}`);
     dot.addEventListener("click", () => {
-      goTo(slideIndex);
+      goTo(dotIndex);
       restart();
     });
-    dotsWrap?.appendChild(dot);
+    dotsWrap.appendChild(dot);
     return dot;
   });
 
   function goTo(nextIndex) {
     index = (nextIndex + slides.length) % slides.length;
-    track.style.transform = `translateX(-${index * 100}%)`;
+    const prev = (index - 1 + slides.length) % slides.length;
+    const next = (index + 1) % slides.length;
+    slides.forEach((slide, slideIndex) => {
+      slide.classList.toggle("is-active", slideIndex === index);
+      slide.classList.toggle("is-prev", slideIndex === prev);
+      slide.classList.toggle("is-next", slideIndex === next);
+      slide.setAttribute("aria-hidden", String(slideIndex !== index));
+    });
     dots.forEach((dot, dotIndex) => dot.setAttribute("aria-current", String(dotIndex === index)));
   }
 
@@ -418,7 +454,7 @@ function setupFinanceSlider() {
 
   function restart() {
     stop();
-    timer = window.setInterval(() => goTo(index + 1), 6000);
+    timer = window.setInterval(() => goTo(index + 1), 5200);
   }
 
   prevButton?.addEventListener("click", () => {
@@ -686,6 +722,6 @@ function recordLandingVisit(locale) {
 const locale = getLocale();
 applyLocale(locale);
 setupLeadGate(locale);
-setupFinanceSlider();
+setupTestimonialSlider();
 setupHeroChat();
 recordLandingVisit(locale);

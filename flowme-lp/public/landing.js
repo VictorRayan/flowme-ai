@@ -4,13 +4,46 @@ const copy = {
   "en-us": {
     title: "Flow Me | Personal assistant on WhatsApp",
     description:
-      "Get into flow with your personal assistant on WhatsApp. Calendar, reminders, checklists, finance, Slack, Drive and Sheets organized by conversation.",
+      "Centralize WhatsApp, calendar, reminders, notes, finance, documents and work with your personal assistant on WhatsApp.",
     nav: ["Testimonials", "Plans"],
     headerCta: "Start now",
     eyebrow: "AI on WhatsApp for routine, work and real life",
     h1: 'Get into flow with <em>your personal assistant on WhatsApp.</em>',
     hero:
-      "Expert council powered by artificial intelligence, calendar, reminders, checklists, finance and integrations organized by conversation. You speak your way; the Assistant understands, records and returns the next step.",
+      "Your personal assistant to centralize WhatsApp, calendar, reminders, notes, finance, documents and work. Speak your way. Flow Me records, organizes and reminds you of the next step.",
+    reminder: {
+      eyebrow: "WhatsApp reminders",
+      title: "Never miss an important commitment again.",
+      text:
+        "Calendar, tasks and personal life stay in the same assistant. Flow Me reminds you before a small miss becomes a late reply, forgotten plan or rushed day.",
+      proof: "The assistant remembers for you",
+      bullets: [
+        "Important commitments before they become late.",
+        "Client follow-ups at the right time.",
+        "Personal plans that should not live in your memory.",
+      ],
+      date: "Tue, July 7",
+      notifications: [
+        {
+          app: "Flow Me on WhatsApp",
+          title: "Girlfriend's birthday tomorrow",
+          body: "Buy the gift by 6 PM and book dinner.",
+          time: "now",
+        },
+        {
+          app: "Flow Me on WhatsApp",
+          title: "Client Felipe",
+          body: "Send the revised proposal before 2:30 PM.",
+          time: "12 min",
+        },
+        {
+          app: "Flow Me on WhatsApp",
+          title: "Closing call at 3 PM",
+          body: "Review price, risk and next step.",
+          time: "28 min",
+        },
+      ],
+    },
     primary: "Start now",
     secondary: "See features",
     pills: ["Capture by voice", "Ask in seconds", "Organize in the dashboard"],
@@ -18,6 +51,16 @@ const copy = {
     pricingTitle: "One plan to centralize your life.",
     pricingText:
       "Personal assistant, calendar, tasks, checklists, notes, reviews, connectors and reminders in one subscription.",
+    soon: {
+      eyebrow: "Coming soon",
+      title: "Join now and get access to the future of Flow Me.",
+      items: [
+        ["Android and iOS mobile app", "No extra cost for current buyers."],
+        ["WhatsApp filter", "Work only with what matters."],
+        ["Telegram", "One more channel connected to your assistant."],
+        ["Microsoft Teams", "Work context inside your assistant."],
+      ],
+    },
     plans: {
       monthlyTitle: "Monthly",
       monthlyDescription: "Full Flow Me Pro without annual commitment. Ideal for testing with your real routine.",
@@ -56,6 +99,49 @@ const copy = {
     buy: "Buy now",
     secure: "Secure purchase. Cancel anytime.",
     testimonialsTitle: "Real users using Flow Me every day.",
+    faqTitle: "Quick questions about centralizing your routine.",
+    faqs: [
+      {
+        question: "What is Flow Me?",
+        answer:
+          "A personal assistant to centralize WhatsApp, calendar, reminders, notes, finance, documents and work. You speak naturally and it organizes the next step.",
+      },
+      {
+        question: "Does it work on WhatsApp?",
+        answer:
+          "Yes. You can ask, save and receive reminders on WhatsApp. The web dashboard helps you review everything later.",
+      },
+      {
+        question: "How do reminders work?",
+        answer:
+          'You ask in plain language, such as "remind me tomorrow at 9 AM to call the client". Flow Me saves it and reminds you at the right time.',
+      },
+      {
+        question: "Can I use it with Slack?",
+        answer:
+          "Yes. Flow Me can use Slack context to help you find important signals, turn conversations into tasks and track follow-ups.",
+      },
+      {
+        question: "Does it work with Google Docs, Drive and Sheets?",
+        answer:
+          "Yes. You can ask for files and spreadsheets by natural names. The assistant searches Drive, reads connected Docs and Sheets and returns practical answers.",
+      },
+      {
+        question: "Can it organize finance?",
+        answer:
+          "Yes. You can log expenses by conversation, check categories and track income, spending and financial decisions in one place.",
+      },
+      {
+        question: "Can I use it for notes?",
+        answer:
+          "Yes. Flow Me stores notes, ideas, decisions and daily context. Later you can ask and recover what was saved.",
+      },
+      {
+        question: "Do I need to install an app?",
+        answer:
+          "No. The web app already works. The Android and iOS mobile apps will be released later at no extra cost for current buyers.",
+      },
+    ],
     testimonials: [
       {
         name: "Victor Rayan",
@@ -84,13 +170,46 @@ const copy = {
   "pt-br": {
     title: "Flow Me | Assistente pessoal no WhatsApp",
     description:
-      "Entre em flow com seu assistente pessoal no WhatsApp. Agenda, lembretes, checklists, financas, Slack, Drive e Sheets organizados por conversa.",
+      "Centralize WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho com seu assistente pessoal no WhatsApp.",
     nav: ["Depoimentos", "Planos"],
     headerCta: "Comecar agora",
     eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
     h1: 'Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em>',
     hero:
-      "Conselho de especialistas com inteligencia artificial, agenda, lembretes, checklists, financas e integracoes organizados por conversa. Voce fala do seu jeito; o Assistente entende, registra e devolve o proximo passo.",
+      "Seu assistente pessoal para centralizar WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho. Voce fala do seu jeito. O Flow Me registra, organiza e lembra o proximo passo.",
+    reminder: {
+      eyebrow: "Lembretes no WhatsApp",
+      title: "Nunca mais esqueca um compromisso.",
+      text:
+        "Agenda, tarefas e vida pessoal ficam no mesmo assistente. O Flow Me avisa antes do assunto virar atraso, esquecimento ou correria.",
+      proof: "O assistente lembra por voce",
+      bullets: [
+        "Compromissos importantes antes de atrasar.",
+        "Follow-up de cliente no horario certo.",
+        "Planos pessoais que nao podem ficar na memoria.",
+      ],
+      date: "Ter, 7 de julho",
+      notifications: [
+        {
+          app: "Flow Me no WhatsApp",
+          title: "Aniversario da namorada amanha",
+          body: "Comprar presente hoje ate 18h e reservar o jantar.",
+          time: "agora",
+        },
+        {
+          app: "Flow Me no WhatsApp",
+          title: "Cliente Felipe",
+          body: "Enviar proposta revisada antes das 14h30.",
+          time: "12 min",
+        },
+        {
+          app: "Flow Me no WhatsApp",
+          title: "Call de fechamento as 15h",
+          body: "Revisar preco, risco e proximo passo.",
+          time: "28 min",
+        },
+      ],
+    },
     primary: "Comecar agora",
     secondary: "Ver funcionalidades",
     pills: ["Registre por audio", "Consulte em segundos", "Organize tudo no painel"],
@@ -98,6 +217,16 @@ const copy = {
     pricingTitle: "Um plano para centralizar sua vida.",
     pricingText:
       "Assistente pessoal, agenda, tarefas, checklists, notas, revisoes, conectores e lembretes em uma assinatura.",
+    soon: {
+      eyebrow: "Em breve",
+      title: "Quem entra agora ganha acesso ao futuro do Flow Me.",
+      items: [
+        ["App mobile Android e iOS", "Acesso sem custo adicional para compradores atuais."],
+        ["Filtro de WhatsApp", "Trabalhe somente com o que importa."],
+        ["Telegram", "Mais um canal conectado ao Assistente."],
+        ["Microsoft Teams", "Contexto de trabalho dentro do seu Assistente."],
+      ],
+    },
     plans: {
       monthlyTitle: "Mensal",
       monthlyDescription: "Flow Me Pro completo, sem compromisso anual. Ideal para testar com rotina real.",
@@ -136,6 +265,49 @@ const copy = {
     buy: "Adquirir agora",
     secure: "Compra segura. Cancele quando quiser.",
     testimonialsTitle: "Usuarios reais usando o Flow Me no dia a dia.",
+    faqTitle: "Duvidas rapidas sobre centralizar sua rotina.",
+    faqs: [
+      {
+        question: "O que e o Flow Me?",
+        answer:
+          "Um assistente pessoal para centralizar WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho. Voce fala de forma natural e ele organiza o proximo passo.",
+      },
+      {
+        question: "Funciona pelo WhatsApp?",
+        answer:
+          "Sim. Voce pode pedir, registrar e receber lembretes pelo WhatsApp. O painel web ajuda a revisar tudo com calma depois.",
+      },
+      {
+        question: "Como os lembretes funcionam?",
+        answer:
+          'Voce pede em linguagem simples, como "me lembra amanha as 9h de ligar para o cliente". O Flow Me salva o compromisso e te avisa no horario certo.',
+      },
+      {
+        question: "Posso usar com Slack?",
+        answer:
+          "Sim. O Flow Me pode usar contexto do Slack para ajudar voce a encontrar sinais importantes, transformar conversas em tarefas e acompanhar follow-ups.",
+      },
+      {
+        question: "Ele trabalha com Google Docs, Drive e Sheets?",
+        answer:
+          "Sim. Voce pode pedir por nomes naturais de arquivos e planilhas. O assistente procura no Drive, consulta Docs e Sheets conectados e devolve respostas praticas.",
+      },
+      {
+        question: "Da para organizar financas?",
+        answer:
+          "Sim. Voce pode registrar gastos por conversa, consultar categorias e acompanhar entradas, saidas e decisoes financeiras em um so lugar.",
+      },
+      {
+        question: "Ele tambem serve para notas?",
+        answer:
+          "Sim. O Flow Me guarda notas, ideias, decisoes e contexto do dia. Depois voce pode perguntar e recuperar o que foi registrado.",
+      },
+      {
+        question: "Preciso instalar app?",
+        answer:
+          "Nao. O app web ja funciona. O app mobile Android e iOS sera liberado depois sem custo adicional para compradores atuais.",
+      },
+    ],
     testimonials: [
       {
         name: "Victor Rayan",
@@ -341,10 +513,42 @@ function applyLocale(locale) {
   setText(".hero-actions .primary-cta", t.primary);
   setText(".hero-actions .secondary-cta", t.secondary);
   setTexts(".hero-pills span", t.pills);
+  if (t.reminder) {
+    setText(".reminder-fold .eyebrow", t.reminder.eyebrow);
+    setText(".reminder-fold h2", t.reminder.title);
+    setText(".reminder-fold .section-heading p:not(.eyebrow)", t.reminder.text);
+    setText(".reminder-proof-line strong", t.reminder.proof);
+    setTexts(".reminder-copy li", t.reminder.bullets);
+    setText(".lock-time span", t.reminder.date);
+    document.querySelectorAll(".flow-notification").forEach((notification, index) => {
+      const item = t.reminder.notifications[index];
+      if (!item) return;
+      const app = notification.querySelector("span");
+      const title = notification.querySelector("strong");
+      const body = notification.querySelector("p");
+      const time = notification.querySelector("time");
+      if (app) app.textContent = item.app;
+      if (title) title.textContent = item.title;
+      if (body) body.textContent = item.body;
+      if (time) time.textContent = item.time;
+    });
+  }
 
   setText(".pricing .eyebrow", t.pricingEyebrow);
   setText(".pricing h2", t.pricingTitle);
   setText(".pricing > div:first-child p:last-child", t.pricingText);
+  if (t.soon) {
+    setText(".soon .eyebrow", t.soon.eyebrow);
+    setText(".soon h2", t.soon.title);
+    document.querySelectorAll(".soon-list div").forEach((item, index) => {
+      const soonItem = t.soon.items[index];
+      if (!soonItem) return;
+      const title = item.querySelector("b");
+      const text = item.querySelector("span");
+      if (title) title.textContent = soonItem[0];
+      if (text) text.textContent = soonItem[1];
+    });
+  }
   fillPlanCard("monthly", {
     title: t.plans.monthlyTitle,
     description: t.plans.monthlyDescription,
@@ -387,6 +591,18 @@ function applyLocale(locale) {
       if (role) role.textContent = testimonial.role;
       if (quote) quote.textContent = testimonial.quote;
       slide.querySelector("img")?.setAttribute("alt", testimonial.name);
+    });
+  }
+  setText(".faq h2", t.faqTitle);
+  if (t.faqs) {
+    const faqItems = Array.from(document.querySelectorAll(".faq details"));
+    faqItems.forEach((item, index) => {
+      const faq = t.faqs[index];
+      if (!faq) return;
+      const summary = item.querySelector("summary");
+      const answer = item.querySelector("p");
+      if (summary) summary.textContent = faq.question;
+      if (answer) answer.textContent = faq.answer;
     });
   }
 

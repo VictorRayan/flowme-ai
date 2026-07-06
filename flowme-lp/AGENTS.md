@@ -82,6 +82,7 @@ Use browser checks for every visual change:
 - Verify logos render correctly and remain readable on dark/light backgrounds.
 - Verify `https://flow-me.online` maps to the static LP service (`flowme-lp`) and `https://app.flow-me.online` maps to the app service (`flowme-app`) through Traefik labels before changing deployment shape.
 - Run a whole-page Flesch-Kincaid style readability audit before finalizing broad copy changes. For Portuguese copy, treat the score as a rough proxy and pair it with concrete recommendations: shorter sentences, fewer clauses, fewer abstract nouns and more direct verbs.
+- For any broad landing copy change, record the Flesch-Kincaid result in the relevant `specs/` checklist or final QA notes, and revise copy until the main promise can be understood without reading technical terms.
 
 ## Mock And Render Testing
 

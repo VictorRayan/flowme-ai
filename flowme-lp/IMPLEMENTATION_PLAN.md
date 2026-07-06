@@ -228,6 +228,24 @@ Google email or Cloud Console verification notes.
 - [ ] Production deploy goes through GitHub CI/CD; no long-lived production
   hot-edit for app code, Compose files or environment values.
 
+## Current LP Refresh Plan: Personal Assistant And Reminder Proof
+
+Specification: `specs/2026-07-06-personal-assistant-reminders-faq-testimonials.md`
+
+Goal: simplify the public LP around Flow Me as the personal assistant that
+centralizes WhatsApp, agenda, reminders, notes, finance, documents and work.
+
+- [x] Update hero copy away from broad "conselho de especialistas" language.
+- [x] Add the second fold: `Nunca mais esqueca um compromisso`.
+- [x] Show WhatsApp reminder notifications on a lock-screen phone mockup.
+- [x] Move the `Em breve` fold below higher-intent proof and FAQ content.
+- [x] Replace testimonial SVG avatars with real testimonial photos.
+- [x] Reduce testimonial fold height for faster section transition.
+- [x] Add FAQ answers for Slack, Google Docs, Drive, Sheets, finance, reminders,
+  WhatsApp and notes.
+- [x] Run Flesch-Kincaid style readability audit and pair it with concrete copy
+  checks.
+
 ## Current Execution Plan: Flow Me Landing Refresh
 
 ### 0. Public LP Migration Boundary

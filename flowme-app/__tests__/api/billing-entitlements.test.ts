@@ -46,6 +46,7 @@ describe('GET /api/billing/entitlements', () => {
     expect(body.ok).toBe(true);
     expect(body.entitlements.plan_code).toBe('free');
     expect(body.entitlements.features.notes).toBe(true);
+    expect(body.entitlements.features.connectors).toBe(true);
     expect(body.entitlements.features.finance).toBe(false);
     expect(body.billing).toEqual({
       provider: null,
@@ -61,7 +62,7 @@ describe('GET /api/billing/entitlements', () => {
       plan_code: 'pro',
       billing_provider: 'stripe',
       status: 'active',
-      current_period_end: '2026-07-06T00:00:00.000Z',
+      current_period_end: '2099-07-06T00:00:00.000Z',
       cancel_at_period_end: false,
     };
 
@@ -75,7 +76,7 @@ describe('GET /api/billing/entitlements', () => {
     expect(body.billing).toEqual({
       provider: 'stripe',
       state: 'active',
-      current_period_end: '2026-07-06T00:00:00.000Z',
+      current_period_end: '2099-07-06T00:00:00.000Z',
       cancel_at_period_end: false,
       management_surface: 'stripe',
     });

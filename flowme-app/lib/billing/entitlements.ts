@@ -92,7 +92,7 @@ const FREE_FEATURES: FeatureMap = {
   goals: false,
   finance: false,
   reviews: false,
-  connectors: false,
+  connectors: true,
   whatsapp: false,
   briefings: false,
   reminders: false,

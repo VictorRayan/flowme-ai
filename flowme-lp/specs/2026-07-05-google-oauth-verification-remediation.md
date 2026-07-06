@@ -66,7 +66,8 @@ Approval purpose:
 Required content:
 
 - App/operator identity: Flow Me, Balys, Rayan Barbieri Consultoria em
-  Tecnologia, CNPJ `49.858.359/0001-93`, support email.
+  Tecnologia, CNPJ `49.858.359/0001-93`, official support email
+  `support@flow-me.online`.
 - Google data accessed:
   - Calendar events and calendar metadata.
   - Gmail message metadata, message body content, draft creation capability if

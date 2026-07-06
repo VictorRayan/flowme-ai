@@ -75,7 +75,7 @@ const copy = {
     testimonial2:
       '"I can organize pets, groceries, errands, study, English class, therapy and personal commitments in the same day without losing my mind. I really want the mobile app."',
     footerSupport:
-      "Need help choosing a plan or accessing your account? Our team replies via Flow Me support.",
+      "Need help choosing a plan or accessing your account? Contact support@flow-me.online.",
     footerRights:
       "© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Technology Consulting. All rights reserved.",
     footerSecurity:
@@ -155,7 +155,7 @@ const copy = {
     testimonial2:
       '"Consigo organizar cachorros, compras, rua, estudo, ingles, ballet, terapia e compromissos pessoais. Tudo no mesmo dia, sem ficar maluca. Quero muito a versao mobile."',
     footerSupport:
-      "Precisa de ajuda para escolher um plano ou acessar sua conta? Nosso time responde pelo suporte do Flow Me.",
+      "Precisa de ajuda para escolher um plano ou acessar sua conta? Fale com support@flow-me.online.",
     footerRights:
       "© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Consultoria em Tecnologia. Todos os direitos reservados.",
     footerSecurity:

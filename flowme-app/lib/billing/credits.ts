@@ -1,5 +1,8 @@
 import { computeCostUsd, estimateTokensFromText } from '@/lib/ai/billing';
+import { isValidTimezone } from '@/lib/timezones/user-timezone';
 import { FREE_AI_CREDITS_PER_DAY, getUserEntitlements } from './entitlements';
+
+export { isValidTimezone } from '@/lib/timezones/user-timezone';
 
 export const AI_CREDIT_COSTS = {
   simple_chat: 1,
@@ -60,15 +63,6 @@ type CreditClient = {
   from(table: string): CreditQuery;
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: AiCreditState | null; error: { message?: string } | null }>;
 };
-
-export function isValidTimezone(timezone: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function timezoneOffsetMs(date: Date, timezone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {

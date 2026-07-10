@@ -83,7 +83,7 @@ export default function PlatformTour({
         <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, mb: 2, color: '#fff', letterSpacing: '-1px' }}>
           {section.title}
         </Typography>
-        <Typography variant="body1" sx={{ color: 'text.secondary', fontSize: { xs: 15, md: 17 }, lineHeight: 1.7 }}>
+        <Typography variant="body1" sx={{ color: '#cbd5e1', fontSize: { xs: 15, md: 17 }, lineHeight: 1.7 }}>
           {section.intro}
         </Typography>
       </Box>
@@ -93,7 +93,7 @@ export default function PlatformTour({
           {section.features.map((f) => (
             <Box key={f.title} sx={cardSx}>
               <Typography sx={{ color: '#fff', fontWeight: 700, mb: 0.5 }}>{f.title}</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+              <Typography variant="body2" sx={{ color: '#cbd5e1', lineHeight: 1.6 }}>
                 {f.example}
               </Typography>
             </Box>
@@ -107,7 +107,7 @@ export default function PlatformTour({
             {section.bullets.map((b, i) => (
               <Box key={i} sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
                 <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.light', mt: '8px', flexShrink: 0 }} />
-                <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                <Typography variant="body2" sx={{ color: '#cbd5e1', lineHeight: 1.6 }}>
                   {b}
                 </Typography>
               </Box>
@@ -148,7 +148,7 @@ export default function PlatformTour({
           onClick={goBack}
           disabled={index === 0 || completing}
           startIcon={<ArrowBackIcon />}
-          sx={{ color: 'text.secondary', textTransform: 'none', visibility: index === 0 ? 'hidden' : 'visible' }}
+          sx={{ color: '#cbd5e1', textTransform: 'none', visibility: index === 0 ? 'hidden' : 'visible' }}
         >
           {labels.back}
         </Button>
@@ -156,7 +156,7 @@ export default function PlatformTour({
         <Box sx={{ flex: 1 }} />
 
         {!isReview && (
-          <Button onClick={skipToReview} disabled={completing} sx={{ color: 'text.disabled', textTransform: 'none' }}>
+          <Button onClick={skipToReview} disabled={completing} sx={{ color: '#94a3b8', textTransform: 'none' }}>
             {labels.skip}
           </Button>
         )}

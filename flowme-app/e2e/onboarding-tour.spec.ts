@@ -23,6 +23,16 @@ async function reachTour(page: Page, context: BrowserContext) {
   await page.route('**/api/web-push/vapid-public-key', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ publicKey: '' }) }),
   );
+  await page.route('**/api/places/autocomplete**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ predictions: [{ label: 'São Paulo, São Paulo — Brasil', description: 'São Paulo, São Paulo — Brasil', place_id: 'sp-1' }] }),
+    }),
+  );
+  await page.route('**/api/places/timezone**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ timezone: 'America/Sao_Paulo' }) }),
+  );
 
   await page.goto('/onboarding');
 
@@ -41,6 +51,9 @@ async function reachTour(page: Page, context: BrowserContext) {
 
   // Final ritual contract → advance into the tour.
   await expect(page.getByRole('heading', { name: 'Seus Rituais Diários' })).toBeVisible();
+  await page.getByLabel('Cidade, estado — país').fill('São Paulo');
+  await page.getByRole('option', { name: 'São Paulo, São Paulo — Brasil' }).click();
+  await expect(page.getByText('Horário local: America/Sao_Paulo')).toBeVisible();
   await page.getByRole('button', { name: 'Continuar' }).click();
 }
 

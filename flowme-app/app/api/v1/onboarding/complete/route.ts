@@ -7,6 +7,7 @@ import { createCalendarEvent } from '@/lib/google/google-calendar';
 import { isFinanceCurrency } from '@/lib/finance/currency';
 import { upsertFinancialProfile } from '@/lib/finance/finance';
 import type { FinanceCurrency } from '@/lib/finance/types';
+import { isValidTimezone } from '@/lib/timezones/user-timezone';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const isRateLimit = (err: any) => err?.code === 403 || err?.status === 403 || /rate limit/i.test(String(err?.message || ''));
@@ -20,12 +21,16 @@ export async function POST(req: NextRequest) {
     const timezone = typeof body.timezone === 'string' && body.timezone.trim()
       ? body.timezone.trim()
       : 'UTC';
+    const city = typeof body.city === 'string' && body.city.trim() ? body.city.trim() : null;
 
     if (!morningTime || !eveningTime) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'Missing morningTime or eveningTime');
     }
     if (!isFinanceCurrency(defaultCurrency)) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'Invalid default currency');
+    }
+    if (!isValidTimezone(timezone)) {
+      return apiError(ErrorCode.VALIDATION_ERROR, 'Invalid timezone');
     }
 
     // Upsert user settings
@@ -44,6 +49,22 @@ export async function POST(req: NextRequest) {
       console.error('[Onboarding Complete API] Upsert Error:', error);
       return apiError(ErrorCode.SUPABASE_ERROR, error.message, 500);
     }
+
+    const { data: existingProfile, error: profileReadError } = await supabase
+      .from('user_profile')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (profileReadError) return apiError(ErrorCode.SUPABASE_ERROR, profileReadError.message, 500);
+    const locationProfile = {
+      briefing_timezone: timezone,
+      ...(city ? { briefing_city: city } : {}),
+      last_updated_at: new Date().toISOString(),
+    };
+    const profileWrite = existingProfile
+      ? await supabase.from('user_profile').update(locationProfile).eq('user_id', user.id)
+      : await supabase.from('user_profile').insert({ user_id: user.id, profile: {}, ...locationProfile });
+    if (profileWrite.error) return apiError(ErrorCode.SUPABASE_ERROR, profileWrite.error.message, 500);
 
     await upsertFinancialProfile(supabase, user.id, {
       default_currency: String(defaultCurrency).toUpperCase() as FinanceCurrency,

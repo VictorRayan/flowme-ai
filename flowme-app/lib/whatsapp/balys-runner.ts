@@ -16,6 +16,7 @@ import { FeatureLockedError, requireFeature } from '@/lib/billing/entitlements';
 import { acquireAiUsageGuard, releaseAiUsageGuard, resolveAiGuardWorkload } from '@/lib/billing/ai-guardrails';
 import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
 import { connectorReconnectMessage } from '@/lib/connectors/reconnect';
+import { resolveUserTimezone } from '@/lib/timezones/user-timezone';
 
 const SUPABASE_URL         = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -215,10 +216,11 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
       thinking: Array.isArray(message.thinking) ? message.thinking : undefined,
     }));
 
-  const [notesMap, userProfile, topFacts] = await Promise.all([
+  const [notesMap, userProfile, topFacts, userTimezone] = await Promise.all([
     buildNotesGraphMap(authContext).catch(() => ''),
     loadProfile(supabase as any, user.id),
     loadTopFacts(supabase as any, user.id),
+    resolveUserTimezone(supabase, user.id),
   ]);
 
   if (topFacts.length > 0) {
@@ -261,7 +263,7 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
   const effectiveAddendum = [WHATSAPP_ADDENDUM, connectorMemoryPrompt].filter((part) => part.trim()).join('\n\n');
 
   const systemPrompt = buildBalysSystemPrompt({
-    nowSection: buildNowSystemPrompt({ timezone: 'UTC', clientNowIso: nowIso }),
+    nowSection: buildNowSystemPrompt({ timezone: userTimezone, clientNowIso: nowIso }),
     systemAddendum: effectiveAddendum,
     notesMap: typeof notesMap === 'string' ? notesMap : undefined,
     toolsAvailable: getActiveToolDomains(),
@@ -305,7 +307,7 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
         supabase: supabase as any,
         user: authContext.user,
         nowIso,
-        timezone: 'UTC',
+        timezone: userTimezone,
         threadId,
         preferredConnectorType: preferredConnectorTypeForWhatsApp(userText, routeMessages, requiredFirstTool),
       },

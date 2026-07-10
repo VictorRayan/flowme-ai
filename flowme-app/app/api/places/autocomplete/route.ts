@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, apiSuccess, ErrorCode } from '@/lib/api/errors';
+import { formatGoogleCityPrediction, formatNominatimCity } from '@/lib/location/cities';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,45 +10,43 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');
     
-    if (!query || query.length < 3) {
+    if (!query || query.trim().length < 2) {
       return apiSuccess({ predictions: [] });
     }
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    const language = searchParams.get('language') || 'pt-BR';
 
     if (apiKey) {
-      // Use Google Places API
-      const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${apiKey}`);
+      const params = new URLSearchParams({ input: query.trim(), key: apiKey, types: '(cities)', language });
+      const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`);
       const data = await response.json();
       
       if (data.status === 'OK') {
-        const predictions = data.predictions.map((p: any) => ({
-          description: p.description,
-          place_id: p.place_id,
-        }));
+        const predictions = (Array.isArray(data.predictions) ? data.predictions : [])
+          .map(formatGoogleCityPrediction)
+          .filter(Boolean);
         return apiSuccess({ predictions });
       }
       return apiSuccess({ predictions: [] });
     } else {
-      // Fallback to OpenStreetMap Nominatim
-      // Note: Nominatim requires a valid user-agent by their ToS
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`, {
+      const params = new URLSearchParams({ q: query.trim(), format: 'json', addressdetails: '1', limit: '7' });
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
         headers: {
             'User-Agent': 'FlowMeApp/1.0 (local development)',
-            'Accept-Language': 'en-US,en;q=0.9'
+            'Accept-Language': language,
         }
       });
       
       if (!response.ok) {
-        return apiSuccess({ predictions: [] }); // Soft fail
+        return apiSuccess({ predictions: [] });
       }
 
       const data = await response.json();
-      
-      const predictions = (data || []).map((p: any) => ({
-        description: p.display_name,
-        place_id: p.place_id.toString(),
-      }));
+      const predictions = (Array.isArray(data) ? data : [])
+        .map(formatNominatimCity)
+        .filter(Boolean)
+        .slice(0, 5);
       
       return apiSuccess({ predictions });
     }

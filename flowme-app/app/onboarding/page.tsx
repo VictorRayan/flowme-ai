@@ -23,6 +23,7 @@ import { buildBriefingDelivery } from '@/lib/onboarding/briefing-delivery';
 import { isAcceptProposalIntent } from '@/lib/onboarding/accept-intent';
 import { requestBrowserNotificationPermission } from '@/lib/web-push/permission';
 import WaveBackground from '@/components/ui/WaveBackground';
+import CityTimezoneSelect, { type CityTimezoneSelection } from '@/components/onboarding/CityTimezoneSelect';
 
 const dict = {
   pt: {
@@ -75,8 +76,8 @@ const dict = {
     topics_placeholder: 'Ex: IA, mercado de startups, vôlei',
     topics_add: 'Adicionar',
     topics_max: 'Você pode adicionar até 3 tópicos',
-    city_title: 'Sua cidade (pra previsão do tempo)',
-    city_placeholder: 'Ex: São Paulo',
+    city_title: 'Onde você mora?',
+    city_desc: 'O Balys usa sua cidade para entender seu horário local e trazer a previsão do tempo certa.',
     delivery_title: 'Como quer receber',
     delivery_whatsapp: 'WhatsApp',
     delivery_push: 'Notificação no navegador',
@@ -170,8 +171,8 @@ const dict = {
     topics_placeholder: 'e.g. AI, startup funding, basketball',
     topics_add: 'Add',
     topics_max: 'You can add up to 3 topics',
-    city_title: 'Your city (for the weather)',
-    city_placeholder: 'e.g. New York',
+    city_title: 'Where do you live?',
+    city_desc: 'Balys uses your city to understand your local time and provide the right weather forecast.',
     delivery_title: 'How you want it',
     delivery_whatsapp: 'WhatsApp',
     delivery_push: 'Browser notification',
@@ -261,7 +262,7 @@ export default function OnboardingWizard() {
   const [defaultCurrency, setDefaultCurrency] = React.useState('BRL');
   const [newsTopics, setNewsTopics] = React.useState<string[]>([]);
   const [topicDraft, setTopicDraft] = React.useState('');
-  const [briefingCity, setBriefingCity] = React.useState('');
+  const [cityLocation, setCityLocation] = React.useState<CityTimezoneSelection | null>(null);
   const [pushGranted, setPushGranted] = React.useState(false);
   const [enablingPush, setEnablingPush] = React.useState(false);
   const [pushError, setPushError] = React.useState<'denied' | 'unsupported' | null>(null);
@@ -422,12 +423,19 @@ export default function OnboardingWizard() {
     if (aiProposal?.data && proposalsToPersist.length < goalCount) {
       proposalsToPersist[currentGoalIndex - 1] = aiProposal.data;
     }
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const timezone = cityLocation?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     try {
       const res = await fetch('/api/v1/onboarding/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ morningTime, eveningTime, goalProposals: proposalsToPersist.filter(Boolean), timezone, defaultCurrency })
+        body: JSON.stringify({
+          morningTime,
+          eveningTime,
+          goalProposals: proposalsToPersist.filter(Boolean),
+          timezone,
+          city: cityLocation?.city || null,
+          defaultCurrency,
+        })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) {
@@ -455,7 +463,7 @@ export default function OnboardingWizard() {
           news_topics: newsTopics,
           briefing_delivery: delivery,
           daily_routine_enabled: true,
-          briefing_city: briefingCity.trim() || null,
+          briefing_city: cityLocation?.city || null,
           daily_briefing_note_prompt_enabled: true,
           daily_briefing_note_time: eveningTime,
           daily_briefing_note_channels: delivery.filter((channel) => channel === 'push' || channel === 'whatsapp'),
@@ -563,29 +571,48 @@ export default function OnboardingWizard() {
       bgcolor: '#040711',
       display: 'flex', 
       flexDirection: 'column',
-      position: 'relative'
+      position: 'relative',
+      isolation: 'isolate',
+      overflowX: 'hidden',
     }}>
       <WaveBackground />
       
       {/* Top Nav */}
-      <Box sx={{ p: { xs: 2, md: 4 }, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80, position: 'relative' }}>
+      <Box sx={{
+        p: { xs: 2, md: 4 },
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'center',
+        alignItems: { xs: 'stretch', sm: 'center' },
+        gap: { xs: 1.5, sm: 0 },
+        minHeight: 80,
+        position: 'relative',
+        zIndex: 2,
+      }}>
         {step > 0 && (
           <Button
             variant="text"
             startIcon={<LanguageIcon />}
             onClick={() => setStep(0)}
-            sx={{ position: 'absolute', left: { xs: 8, md: 24 }, color: 'text.secondary', textTransform: 'none' }}
+            sx={{
+              position: { xs: 'static', sm: 'absolute' },
+              alignSelf: { xs: 'flex-start', sm: 'auto' },
+              left: { sm: 16, md: 24 },
+              minHeight: 44,
+              color: '#cbd5e1',
+              textTransform: 'none',
+            }}
           >
             {t.change_language}
           </Button>
         )}
         {step > 1 && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
             {[2,3,4,5,6,7].map((i) => (
               <Box 
                 key={i} 
                 sx={{ 
-                  width: 40, height: 4, borderRadius: 2, 
+                  width: { xs: 'auto', sm: 40 }, flex: { xs: 1, sm: 'none' }, height: 4, borderRadius: 2,
                   bgcolor: i <= step ? 'primary.main' : 'rgba(255,255,255,0.1)',
                   transition: 'all 0.3s ease'
                 }} 
@@ -596,7 +623,31 @@ export default function OnboardingWizard() {
       </Box>
 
       {/* Main Content */}
-      <Container maxWidth="sm" sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', pb: 10 }}>
+      <Container maxWidth="sm" sx={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        position: 'relative',
+        zIndex: 2,
+        py: { xs: 2, sm: 5 },
+      }}>
+        <Box
+          data-testid="onboarding-stage"
+          sx={{
+            width: '100%',
+            p: { xs: 2.5, sm: 4 },
+            borderRadius: { xs: 4, sm: 5 },
+            bgcolor: 'rgba(4, 7, 17, 0.82)',
+            border: '1px solid rgba(148, 163, 184, 0.18)',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.42)',
+            backdropFilter: 'blur(12px)',
+            color: '#fff',
+            '& .MuiInputBase-input::placeholder': { color: '#94a3b8', opacity: 1 },
+            '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#94a3b8' },
+            '& .MuiInputLabel-root.Mui-disabled, & .MuiFormControlLabel-label.Mui-disabled': { color: '#94a3b8' },
+          }}
+        >
         
         {/* Step 0: Language Selection */}
         {step === 0 && (
@@ -611,22 +662,22 @@ export default function OnboardingWizard() {
               <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, color: '#fff', letterSpacing: '-1px' }}>
                 Flow-me
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 6 }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 6 }}>
                 Please choose your language / Por favor, escolha seu idioma.
               </Typography>
               
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, justifyContent: 'center' }}>
                 <Button 
                   variant="outlined"
                   onClick={() => { setLang('pt'); setStep(1); }}
-                  sx={{ py: 3, px: 6, borderRadius: 4, fontSize: 18, borderColor: 'rgba(255,255,255,0.2)', color: '#fff' }}
+                  sx={{ py: 2.25, px: 6, minHeight: 56, borderRadius: 4, fontSize: 18, borderColor: 'rgba(255,255,255,0.28)', color: '#fff' }}
                 >
                   Português
                 </Button>
                 <Button 
                   variant="outlined"
                   onClick={() => { setLang('en'); setStep(1); }}
-                  sx={{ py: 3, px: 6, borderRadius: 4, fontSize: 18, borderColor: 'rgba(255,255,255,0.2)', color: '#fff' }}
+                  sx={{ py: 2.25, px: 6, minHeight: 56, borderRadius: 4, fontSize: 18, borderColor: 'rgba(255,255,255,0.28)', color: '#fff' }}
                 >
                   English
                 </Button>
@@ -643,7 +694,7 @@ export default function OnboardingWizard() {
               <Typography variant="h3" sx={{ fontWeight: 800, mb: 3, color: '#fff', letterSpacing: '-1px' }}>
                 {t.prelude_title}
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 8, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7 }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 8, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7 }}>
                 {t.prelude_desc}
               </Typography>
               
@@ -673,7 +724,7 @@ export default function OnboardingWizard() {
               <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, mb: 2, color: '#fff', letterSpacing: '-1px' }}>
                 {t.step1_title}
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 6, fontSize: { xs: 16, md: 18 } }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 6, fontSize: { xs: 16, md: 18 } }}>
                 {t.step1_desc}
               </Typography>
               
@@ -723,7 +774,7 @@ export default function OnboardingWizard() {
               <Typography variant="h4" sx={{ fontWeight: 800, mt: 1, mb: 1, color: '#fff', letterSpacing: '-1px' }}>
                 {t.step2_title} {currentGoalIndex}
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4 }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 4 }}>
                 {t.step2_desc}
               </Typography>
               
@@ -739,7 +790,7 @@ export default function OnboardingWizard() {
                     <Typography variant="body1" sx={{ color: '#fff', mb: 1, fontWeight: 600 }}>
                       {t.start_typing}
                     </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.disabled' }}>
+                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>
                       {t.hints}
                     </Typography>
                   </Box>
@@ -761,7 +812,7 @@ export default function OnboardingWizard() {
                 {isLoading && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, alignSelf: 'flex-start', p: 2 }}>
                     <CircularProgress size={20} sx={{ color: 'primary.light' }} />
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t.ai_typing}</Typography>
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>{t.ai_typing}</Typography>
                   </Box>
                 )}
                 <div ref={chatEndRef} />
@@ -806,7 +857,7 @@ export default function OnboardingWizard() {
               <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, mb: 2, color: '#fff', letterSpacing: '-1px' }}>
                 {t.notif_title}
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 5, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7, maxWidth: 460 }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 5, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7, maxWidth: 460 }}>
                 {t.notif_desc}
               </Typography>
 
@@ -833,7 +884,7 @@ export default function OnboardingWizard() {
                   <Button
                     variant="text"
                     onClick={nextStep}
-                    sx={{ mt: 1, color: 'text.secondary', textTransform: 'none' }}
+                    sx={{ mt: 1, color: '#cbd5e1', textTransform: 'none' }}
                   >
                     {t.notif_continue}
                   </Button>
@@ -854,7 +905,7 @@ export default function OnboardingWizard() {
               <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, mb: 2, color: '#fff', letterSpacing: '-1px' }}>
                 {t.wa_title}
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7, maxWidth: 460 }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 4, fontSize: { xs: 16, md: 18 }, lineHeight: 1.7, maxWidth: 460 }}>
                 {t.wa_desc}
               </Typography>
 
@@ -873,9 +924,9 @@ export default function OnboardingWizard() {
                     error={Boolean(waPhone && !parseInternationalPhone(waPhone))}
                     inputProps={{ inputMode: 'tel', autoComplete: 'tel' }}
                     disabled={waSubmitting}
-                    sx={{ mb: 1, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
+                    sx={{ mb: 1, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: '#cbd5e1' } }}
                   />
-                  <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mb: 3, textAlign: 'left' }}>
+                  <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mb: 3, textAlign: 'left' }}>
                     {t.wa_phone_hint}
                     {whatsappInstanceNumber && ` ${t.wa_send_from} ${whatsappInstanceNumber}.`}
                   </Typography>
@@ -891,7 +942,7 @@ export default function OnboardingWizard() {
                 </Box>
               ) : (
                 <Box sx={{ width: '100%', maxWidth: 420 }}>
-                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1', mb: 2 }}>
                     {t.wa_code_sent}
                   </Typography>
                   <TextField
@@ -902,7 +953,7 @@ export default function OnboardingWizard() {
                     label={t.wa_code_label}
                     inputProps={{ inputMode: 'numeric', maxLength: 6, style: { textAlign: 'center', letterSpacing: '0.4em', fontSize: 22 } }}
                     disabled={waSubmitting}
-                    sx={{ mb: 3, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
+                    sx={{ mb: 3, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiInputLabel-root': { color: '#cbd5e1' } }}
                   />
                   <Button
                     fullWidth variant="contained" size="large"
@@ -917,7 +968,7 @@ export default function OnboardingWizard() {
                     variant="text"
                     onClick={() => { setWaStage('idle'); setWaCode(''); setWaError(null); }}
                     disabled={waSubmitting}
-                    sx={{ mt: 1.5, color: 'text.secondary', textTransform: 'none' }}
+                    sx={{ mt: 1.5, color: '#cbd5e1', textTransform: 'none' }}
                   >
                     {t.wa_use_different}
                   </Button>
@@ -934,11 +985,11 @@ export default function OnboardingWizard() {
                 variant="text"
                 onClick={skipWhatsapp}
                 disabled={waSubmitting}
-                sx={{ mt: 4, color: 'text.secondary', textTransform: 'none' }}
+                sx={{ mt: 4, color: '#cbd5e1', textTransform: 'none' }}
               >
                 {t.wa_skip}
               </Button>
-              <Typography variant="caption" sx={{ color: 'text.disabled', mt: 0.5, maxWidth: 420 }}>
+              <Typography variant="caption" sx={{ color: '#94a3b8', mt: 0.5, maxWidth: 420 }}>
                 {t.wa_skip_hint}
               </Typography>
             </Box>
@@ -953,7 +1004,7 @@ export default function OnboardingWizard() {
               <Typography variant="h3" sx={{ fontWeight: 800, mb: 2, color: '#fff', letterSpacing: '-1px', textAlign: 'center' }}>
                 {t.step3_title}
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 6, fontSize: { xs: 16, md: 18 }, maxWidth: 450, textAlign: 'center' }}>
+              <Typography variant="body1" sx={{ color: '#cbd5e1', mb: 6, fontSize: { xs: 16, md: 18 }, maxWidth: 450, textAlign: 'center' }}>
                 {t.step3_desc}
               </Typography>
 
@@ -961,14 +1012,14 @@ export default function OnboardingWizard() {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <Box sx={{ textAlign: 'left' }}>
                     <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700 }}>{t.finance_currency_title}</Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{t.finance_currency_desc}</Typography>
+                    <Typography variant="body2" sx={{ color: '#cbd5e1', mt: 0.5 }}>{t.finance_currency_desc}</Typography>
                   </Box>
                   <TextField
                     select
                     value={defaultCurrency}
                     onChange={(e) => setDefaultCurrency(e.target.value)}
                     label={t.finance_currency_label}
-                    sx={{ minWidth: { xs: '100%', sm: 160 }, '& .MuiOutlinedInput-root': { color: '#fff' }, '& .MuiInputLabel-root': { color: 'text.secondary' } }}
+                    sx={{ minWidth: { xs: '100%', sm: 160 }, '& .MuiOutlinedInput-root': { color: '#fff' }, '& .MuiInputLabel-root': { color: '#cbd5e1' } }}
                   >
                     {['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'MXN'].map(currency => (
                       <MenuItem key={currency} value={currency}>{currency}</MenuItem>
@@ -988,7 +1039,7 @@ export default function OnboardingWizard() {
                     sx={{ width: 130, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiOutlinedInput-input': { py: 1, textAlign: 'center' } }}
                   />
                 </Box>
-                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6 }}>
+                <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.6 }}>
                   {t.morning_desc}
                 </Typography>
               </Box>
@@ -1004,7 +1055,7 @@ export default function OnboardingWizard() {
                     sx={{ width: 130, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiOutlinedInput-input': { py: 1, textAlign: 'center' } }}
                   />
                 </Box>
-                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6 }}>
+                <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.6 }}>
                   {t.afternoon_desc}
                 </Typography>
               </Box>
@@ -1020,7 +1071,7 @@ export default function OnboardingWizard() {
                     sx={{ width: 130, '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } }, '& .MuiOutlinedInput-input': { py: 1, textAlign: 'center' } }}
                   />
                 </Box>
-                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6 }}>
+                <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.6 }}>
                   {t.evening_desc}
                 </Typography>
               </Box>
@@ -1028,7 +1079,7 @@ export default function OnboardingWizard() {
               {/* City for weather */}
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>{t.weekly_review_sync}</Typography>
-                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6, mb: 2 }}>
+                <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.6, mb: 2 }}>
                   {t.weekly_review_desc}
                 </Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -1054,7 +1105,7 @@ export default function OnboardingWizard() {
 
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1 }}>{t.monthly_review_sync}</Typography>
-                <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6, mb: 2 }}>
+                <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.6, mb: 2 }}>
                   {t.monthly_review_desc}
                 </Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -1077,20 +1128,17 @@ export default function OnboardingWizard() {
 
               {/* City for weather */}
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
-                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 1.5 }}>{t.city_title}</Typography>
-                <TextField
-                  fullWidth
-                  value={briefingCity}
-                  onChange={(e) => setBriefingCity(e.target.value)}
-                  placeholder={t.city_placeholder}
-                  sx={{ '& .MuiOutlinedInput-root': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' } } }}
-                />
+                <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 0.5 }}>{t.city_title}</Typography>
+                <Typography variant="body2" sx={{ color: '#cbd5e1', lineHeight: 1.6, mb: 2 }}>
+                  {t.city_desc}
+                </Typography>
+                <CityTimezoneSelect lang={lang} value={cityLocation} onChange={setCityLocation} />
               </Box>
 
               {/* News topics chips */}
               <Box sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', mb: 3, width: '100%' }}>
                 <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 700, mb: 0.5 }}>{t.topics_title}</Typography>
-                <Typography variant="body2" sx={{ color: 'text.disabled', mb: 2 }}>{t.topics_desc}</Typography>
+                <Typography variant="body2" sx={{ color: '#94a3b8', mb: 2 }}>{t.topics_desc}</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: newsTopics.length > 0 ? 2 : 0 }}>
                   {newsTopics.map((topic) => (
                     <Chip key={topic} label={topic} onDelete={() => removeTopic(topic)} sx={{ bgcolor: 'rgba(99,102,241,0.18)', color: '#a5b4fc', '& .MuiChip-deleteIcon': { color: '#a5b4fc' } }} />
@@ -1111,7 +1159,7 @@ export default function OnboardingWizard() {
                   </Button>
                 </Stack>
                 {newsTopics.length >= 3 && (
-                  <Typography variant="caption" sx={{ color: 'text.disabled', mt: 1, display: 'block' }}>{t.topics_max}</Typography>
+                  <Typography variant="caption" sx={{ color: '#94a3b8', mt: 1, display: 'block' }}>{t.topics_max}</Typography>
                 )}
               </Box>
 
@@ -1121,22 +1169,22 @@ export default function OnboardingWizard() {
                 <Stack spacing={1}>
                   <FormControlLabel
                     control={<Switch checked disabled />}
-                    label={<Typography sx={{ color: 'text.disabled' }}>{t.delivery_web}</Typography>}
+                    label={<Typography sx={{ color: '#94a3b8' }}>{t.delivery_web}</Typography>}
                   />
                   <Box sx={{ pl: 1, py: 0.75, display: 'flex', alignItems: 'center', gap: 1 }}>
                     {whatsappLinked
                       ? <CheckCircleOutlineIcon sx={{ fontSize: 20, color: '#34d399' }} />
-                      : <WhatsAppIcon sx={{ fontSize: 20, color: 'text.disabled' }} />}
+                      : <WhatsAppIcon sx={{ fontSize: 20, color: '#94a3b8' }} />}
                     <Box>
                       <Typography sx={{ color: '#fff', fontWeight: 600 }}>{t.delivery_whatsapp}</Typography>
-                      <Typography sx={{ display: 'block', color: whatsappLinked ? '#34d399' : 'text.disabled', fontSize: 12, mt: 0.25 }}>
+                      <Typography sx={{ display: 'block', color: whatsappLinked ? '#34d399' : '#94a3b8', fontSize: 12, mt: 0.25 }}>
                         {whatsappLinked ? t.wa_connected : t.wa_not_connected}
                       </Typography>
                     </Box>
                   </Box>
                   <Box sx={{ pl: 1, py: 0.75 }}>
                     <Typography sx={{ color: '#fff', fontWeight: 600 }}>{t.delivery_push}</Typography>
-                    <Typography sx={{ display: 'block', color: pushGranted ? '#34d399' : pushError ? '#f87171' : 'text.disabled', fontSize: 12, mt: 0.5 }}>
+                    <Typography sx={{ display: 'block', color: pushGranted ? '#34d399' : pushError ? '#f87171' : '#94a3b8', fontSize: 12, mt: 0.5 }}>
                       {pushGranted
                         ? t.notif_granted
                         : pushError === 'unsupported'
@@ -1146,15 +1194,25 @@ export default function OnboardingWizard() {
                   </Box>
                   <FormControlLabel
                     control={<Switch checked={mirrorCalendarWhatsapp} onChange={(event) => setMirrorCalendarWhatsapp(event.target.checked)} disabled={!whatsappLinked} />}
-                    label={<Typography sx={{ color: whatsappLinked ? '#fff' : 'text.disabled' }}>{t.mirror_calendar_whatsapp}</Typography>}
+                    label={<Typography sx={{ color: whatsappLinked ? '#fff' : '#94a3b8' }}>{t.mirror_calendar_whatsapp}</Typography>}
                   />
                 </Stack>
               </Box>
 
               <Button
                 fullWidth variant="contained" size="large" onClick={nextStep}
+                disabled={!cityLocation}
                 endIcon={<ArrowForwardIcon />}
-                sx={{ py: 2.5, borderRadius: 4, fontSize: 18, fontWeight: 700, textTransform: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}
+                sx={{
+                  py: 2.5,
+                  minHeight: 56,
+                  borderRadius: 4,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  '&.Mui-disabled': { color: 'rgba(255,255,255,0.58)', background: 'rgba(99,102,241,0.28)' },
+                }}
               >
                 {t.btn_continue}
               </Button>
@@ -1170,6 +1228,7 @@ export default function OnboardingWizard() {
             </Box>
           </Fade>
         )}
+        </Box>
       </Container>
 
       <Backdrop open={finishing} sx={{ zIndex: (theme) => theme.zIndex.modal + 10, bgcolor: 'rgba(5, 5, 5, 0.85)', backdropFilter: 'blur(8px)' }}>

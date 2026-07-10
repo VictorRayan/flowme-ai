@@ -4,11 +4,21 @@ import { persistGoalOperatingPlan } from '@/lib/goals/persist-plan';
 import { createCalendarEvent } from '@/lib/google/google-calendar';
 import { recordGoalCalendarEventLinks } from '@/lib/goals/calendar-event-links';
 
+const profileWrites: Array<Record<string, unknown>> = [];
+
 function makeChain() {
   let currentTable = '';
   const chain: any = {};
-  const methods = ['select', 'eq', 'order', 'upsert'];
+  const methods = ['select', 'eq', 'order', 'upsert', 'update', 'insert'];
   methods.forEach(method => { chain[method] = jest.fn().mockReturnValue(chain); });
+  chain.update = jest.fn((values: Record<string, unknown>) => {
+    if (currentTable === 'user_profile') profileWrites.push(values);
+    return chain;
+  });
+  chain.insert = jest.fn((values: Record<string, unknown>) => {
+    if (currentTable === 'user_profile') profileWrites.push(values);
+    return chain;
+  });
   chain.from = jest.fn((table: string) => {
     currentTable = table;
     return chain;
@@ -20,6 +30,10 @@ function makeChain() {
     }).then(resolve as any, reject as any);
   chain.single = jest.fn().mockImplementation(() => Promise.resolve({
     data: currentTable === 'financial_profiles' ? { user_id: 'user-1', default_currency: 'BRL' } : null,
+    error: null,
+  }));
+  chain.maybeSingle = jest.fn().mockImplementation(() => Promise.resolve({
+    data: currentTable === 'user_profile' ? { user_id: 'user-1' } : null,
     error: null,
   }));
   return chain;
@@ -60,6 +74,7 @@ jest.mock('@/lib/api/auth', () => ({
 describe('POST /api/v1/onboarding/complete', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    profileWrites.length = 0;
     (persistGoalOperatingPlan as jest.Mock).mockResolvedValue({
       plan: {
         active_tasks: [{ title: 'Prospect', description: 'Prospect daily', scheduled_date: '2026-05-19', start_at: null, end_at: null, duration_minutes: 20 }],
@@ -120,6 +135,25 @@ describe('POST /api/v1/onboarding/complete', () => {
       }),
     );
     expect(body.calendar_events_created).toBe(1);
+  });
+
+  it('persists the selected city timezone in the user profile', async () => {
+    const res = await POST(new NextRequest('http://localhost/api/v1/onboarding/complete', {
+      method: 'POST',
+      body: JSON.stringify({
+        morningTime: '08:00',
+        eveningTime: '20:00',
+        timezone: 'America/Sao_Paulo',
+        city: 'São Paulo, São Paulo — Brasil',
+        goalProposals: [],
+      }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(profileWrites).toContainEqual(expect.objectContaining({
+      briefing_timezone: 'America/Sao_Paulo',
+      briefing_city: 'São Paulo, São Paulo — Brasil',
+    }));
   });
 
   it('fails loudly when all expected Google Calendar events fail to create', async () => {
@@ -187,6 +221,14 @@ describe('POST /api/v1/onboarding/complete', () => {
     const res = await POST(new NextRequest('http://localhost/api/v1/onboarding/complete', {
       method: 'POST',
       body: JSON.stringify({ morningTime: '08:00', eveningTime: '20:00', defaultCurrency: 'BTC' }),
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects invalid timezone identifiers', async () => {
+    const res = await POST(new NextRequest('http://localhost/api/v1/onboarding/complete', {
+      method: 'POST',
+      body: JSON.stringify({ morningTime: '08:00', eveningTime: '20:00', timezone: 'Not/A_Timezone' }),
     }));
     expect(res.status).toBe(400);
   });

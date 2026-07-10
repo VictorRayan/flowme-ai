@@ -16,11 +16,12 @@ import { ensureThread, persistMessage, type ThreadAttachmentMeta } from '@/lib/a
 import { extractConnectorContextItems, hasRecentConnectorContext, inferRecentConnectorType, renderConnectorContextForPrompt } from '@/lib/ai/connector-context';
 import { inferImplicitConnectorIntent, type ConnectorIntent } from '@/lib/ai/connector-intent';
 import { improveBalysAnswerIfNeeded } from '@/lib/ai/answer-satisfaction';
-import { consumeAiCredits, creditPreflightMessage, estimateBalysCreditUsage, isValidTimezone } from '@/lib/billing/credits';
+import { consumeAiCredits, creditPreflightMessage, estimateBalysCreditUsage } from '@/lib/billing/credits';
 import { getUserEntitlements } from '@/lib/billing/entitlements';
 import { getSupabaseAdmin } from '@/lib/api/admin';
 import { acquireAiUsageGuard, releaseAiUsageGuard, resolveAiGuardWorkload } from '@/lib/billing/ai-guardrails';
 import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
+import { resolveUserTimezone } from '@/lib/timezones/user-timezone';
 
 const PROFILE_UPDATE_EVERY_N_USER_TURNS = 12;
 
@@ -207,7 +208,11 @@ export async function POST(request: NextRequest) {
     } = await request.json();
     if (!messages?.length) return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
 
-    const requestedTimezone = typeof timezone === 'string' && isValidTimezone(timezone) ? timezone : 'UTC';
+    const requestedTimezone = await resolveUserTimezone(
+      auth.supabase,
+      auth.user.id,
+      typeof timezone === 'string' ? timezone : null,
+    );
     const parsedConnectorIntent: ConnectorIntent | null = connectorIntent && typeof connectorIntent === 'object'
       ? connectorIntent
       : null;

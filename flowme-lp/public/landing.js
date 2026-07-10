@@ -1294,6 +1294,8 @@ function applyLocale(locale) {
     });
   }
 
+  if (t.plans?.popular) setText(".plan-ribbon", t.plans.popular.replace("★ ", ""));
+
   if (t.planTabs) {
     document.querySelectorAll("[data-plan-tab]").forEach((tab) => {
       const pair = t.planTabs[tab.getAttribute("data-interval")];

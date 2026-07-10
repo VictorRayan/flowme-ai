@@ -48,7 +48,21 @@
 
 ## QA Notes
 
-- (fill after run)
+- 2026-07-10: Playwright innerText audit — `/` has zero unaccented pt
+  residuals (52-word scan list) and `/en-us/` has zero Portuguese leaks
+  (accented chars + pt word scan), keeping brand/legal identity intact.
+- 2026-07-10: Viewport sweep OK on `/` at 390/768/1024/1440 plus `/pt-br/`
+  and `/en-us/` at 1440 and `/en-us/` at 390: no console errors, no
+  horizontal overflow; nav "Revisão/Review", plan ribbon and urgency banner
+  localized. `<time>`/`<svg>` children survive localization via the new
+  text-node-preserving helpers.
+- Fixes surfaced by the audit: capitalized "Começar"/"Precisão"/"Segurança"
+  missing from the word map, "versão" in one static testimonial and in the
+  pt dict, plan ribbon not wired, and the leak set (hero chat, ticker,
+  proof stats, testimonials heading, plan features/tabs, footer) now wired.
+- Cache verified locally: assets referenced as `?v=20260709-locale-cache`;
+  nginx header change ships with this deploy (verify Cache-Control in prod
+  with curl -I after the workflow finishes).
 
 ## Rollback Note
 

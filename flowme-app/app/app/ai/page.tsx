@@ -470,6 +470,8 @@ export default function AIPage() {
   const inputBoxRef = useRef<HTMLDivElement>(null);
 
   const bottomRef    = useRef<HTMLDivElement>(null);
+  const messagesBoxRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -640,7 +642,18 @@ export default function AIPage() {
     };
   }, [activeThreadId, activeIsWhatsAppThread, refreshThreadMessages]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeThread?.messages, loading]);
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesBoxRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }, []);
+
+  useEffect(() => { stickToBottomRef.current = true; }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!stickToBottomRef.current) return;
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeThread?.messages, loading]);
 
   const persistThreads = (t: Thread[]) => {
     // Strip attachment dataUrls (base64) before persisting — they blow the localStorage quota
@@ -863,6 +876,7 @@ export default function AIPage() {
     const effectivePendingAction = override?.action ?? pendingAction;
     if ((!effectiveInput.trim() && attachments.length === 0 && contextItems.length === 0 && !effectivePendingAction) || loading || !activeThread) return;
 
+    stickToBottomRef.current = true;
     const rawUserInput = effectiveInput.trim();
     let messageContent = rawUserInput;
 
@@ -1274,7 +1288,7 @@ Rules:
         </Box>
 
         {/* Messages */}
-        <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, md: 3 }, py: 2 }}>
+        <Box ref={messagesBoxRef} onScroll={handleMessagesScroll} sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, md: 3 }, py: 2 }}>
           {(!activeThread || activeThread.messages.length === 0) && (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100%', gap: 2.2, py: { xs: 3, md: 5 } }}>
               <BalysIcon sx={{ fontSize: { xs: 76, md: 88 }, opacity: 0.36, color: '#818cf8', filter: 'drop-shadow(0 0 22px rgba(99,102,241,0.22))' }} />

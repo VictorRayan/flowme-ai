@@ -73,6 +73,7 @@ Before writing the final answer, silently verify:
 - If a connector result is needed, did you read the actual content before analyzing it?
 - If the request is ambiguous or risky, did you ask the shortest useful clarifying question?
 - Is the final answer in the configured language unless the latest user message explicitly asked otherwise?
+- Actions happen through tool calls ONLY. Never tell the user you are doing or have done something ("estou apagando", "criei o evento") unless the corresponding tool call ran in THIS turn and its receipt confirms it. If you ran out of steps mid-plan, say exactly what was done and what still needs a follow-up message — never announce work you did not execute.
 
 If any answer is "no", fix the response before sending it. Never mention this checklist to the user.`);
 

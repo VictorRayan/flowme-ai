@@ -76,6 +76,12 @@ function renderAccountOptions(accounts: GoogleAccount[]): string {
   return accounts.map(account => account.name).join(', ');
 }
 
+const GOOGLE_EVENT_ID_RE = /^[A-Za-z0-9_@.]+$/;
+
+function invalidGoogleEventIdError(eventId: string): string {
+  return `"${eventId}" is not a Google Calendar event ID — it looks like an internal app ID (Google event ids never contain dashes). Use the exact "id" field returned by calendar.list_events, or "recurring_event_id" to act on a whole recurring series.`;
+}
+
 function validateAndNormalizeCreateArgs(args: any, timezone: string): { ok: true; normalized: NormalizedEvent } | { ok: false; error: string } {
   const title = (args.title || '').trim();
   if (!title) return { ok: false, error: 'title is required and cannot be empty' };
@@ -187,16 +193,17 @@ CONTRACT:
 - query filters in-memory by title/description substring (case-insensitive) AFTER the date-range fetch — it does NOT expand the date range. To search "any meeting with Anna ever", widen start_iso/end_iso explicitly. Omit query to get every event in the range.
 - Read-only. Safe to call multiple times.
 
-RETURNS receipt.events[]: { id, title, description, location, start_at, end_at }, sorted ascending by start_at.
+RETURNS receipt.events[]: { id, title, description, location, start_at, end_at, recurring_event_id }, sorted ascending by start_at.
 - id is a Google event ID — TECHNICAL, never read it aloud or show it. Keep it for chaining into update_event / delete_event / delete_events_batch.
+- recurring_event_id (when set) means this row is ONE INSTANCE of a recurring series. Deleting the recurring_event_id itself deletes the WHOLE series at once.
 - start_at / end_at are ISO strings — convert to the user's timezone before quoting times back to them.
 - count is the total number of events in the window (also surfaced in receipt.count).
 
-For "delete all events tomorrow" type requests:
-1. Call list_events with start_iso/end_iso covering tomorrow, query omitted, limit=0
-2. Collect all event_ids from receipt.events
-3. Call delete_events_batch with those ids
-4. Confirm to the user how many were deleted.
+For "delete all events" type requests:
+1. Call list_events with start_iso/end_iso covering the window, query omitted, limit=0
+2. Group receipt.events by recurring_event_id. For each recurring series, use its recurring_event_id ONCE (deletes every instance); collect plain ids for non-recurring events. 55 instances of 4 series = 4 ids, not 55.
+3. Confirm the plan with the user (how many series + single events), then call delete_events_batch with that deduplicated id list.
+4. Read the receipt and confirm to the user exactly what was deleted.
 
 ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous bounds AND the answer matters (e.g. before scheduling). Otherwise infer reasonable bounds and proceed.`,
   isReadOnly: true,
@@ -257,6 +264,7 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
           location: e.location || null,
           start_at: e.start?.dateTime || e.start?.date,
           end_at: e.end?.dateTime || e.end?.date,
+          recurring_event_id: e.recurringEventId || null,
         })).filter(e => e.start_at);
       }));
       let mapped = eventBatches.flat();
@@ -605,6 +613,9 @@ ALWAYS ASK THE USER FIRST IF: the cancellation has invitees, the event is recurr
     account_nickname: z.string().optional().describe('Linked Google account nickname/name containing the event. Required when the user has more than one active Google account.'),
   }),
   call: async (args, context) => {
+    if (!GOOGLE_EVENT_ID_RE.test(args.event_id)) {
+      return { ok: false, error: invalidGoogleEventIdError(args.event_id) };
+    }
     const resolved = await resolveGoogleAccount(context, args.account_nickname, true);
     if (!resolved.ok) return { ok: false, error: resolved.error };
 
@@ -646,9 +657,14 @@ export const calendarDeleteEventsBatchTool = defineCalendarTool({
 
 WHEN TO USE: user says "delete all events tomorrow", "cancel everything in my calendar this week", "apaga esses eventos aqui" (with multiple events visible), or after listing events the user wants to clear in bulk. Saves N round-trips and avoids the model getting stuck on the first one.
 
+RECURRING SERIES — read this first:
+- When list_events rows share the same recurring_event_id, they are instances of ONE series. Pass the recurring_event_id ONCE instead of every instance id — deleting it removes the whole series. 55 instances of 4 series = 4 ids, done in one call, no cap issues.
+- Only pass individual instance ids (the ones with a _timestamp suffix) when the user wants to remove SOME occurrences but keep the series.
+
 CONTRACT:
-- event_ids is REQUIRED — array of Google Calendar event IDs from a prior calendar.list_events call. Never invent IDs.
-- Deletions run in parallel; failures are reported per-id without aborting the whole batch.
+- event_ids is REQUIRED — array of Google Calendar event IDs (id or recurring_event_id) from a prior calendar.list_events call. Never invent IDs; internal app UUIDs are rejected per-id.
+- Duplicated ids are deduplicated automatically.
+- Deletions run in small parallel chunks; failures are reported per-id without aborting the whole batch.
 - Each deleted event sends a cancellation email to its invitees.
 - If the user has not explicitly confirmed bulk deletion, ASK FIRST. This is destructive — show the count and a brief description ("found 3 events tomorrow: X at 10am, Y at 2pm, Z at 5pm — cancel all?") and wait for confirmation before calling.
 
@@ -675,39 +691,50 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
     if (!Array.isArray(args.event_ids) || args.event_ids.length === 0) {
       return { ok: false, error: 'event_ids must be a non-empty array' };
     }
-    if (args.event_ids.length > 50) {
-      return { ok: false, error: `event_ids exceeds the safety cap of 50 (got ${args.event_ids.length}). Confirm with the user before deleting this many — split the operation if needed.` };
+    const uniqueIds = [...new Set(args.event_ids)];
+    if (uniqueIds.length > 50) {
+      return { ok: false, error: `event_ids exceeds the safety cap of 50 (got ${uniqueIds.length} unique ids). If these are instances of recurring series, call list_events and pass each recurring_event_id once instead — that deletes whole series with a handful of ids. Otherwise split into chunks of at most 50 and call this tool repeatedly.` };
     }
 
-    const results = await Promise.all(
-      args.event_ids.map(async (event_id) => {
+    const invalidResults = uniqueIds
+      .filter((event_id) => !GOOGLE_EVENT_ID_RE.test(event_id))
+      .map((event_id) => ({ event_id, status: 'failed' as const, error: invalidGoogleEventIdError(event_id) }));
+    const validIds = uniqueIds.filter((event_id) => GOOGLE_EVENT_ID_RE.test(event_id));
+
+    const deleteOne = async (event_id: string) => {
+      try {
+        await deleteCalendarEvent(resolved.account.id, event_id, context);
+        let goal_event_impact = null;
         try {
-          await deleteCalendarEvent(resolved.account.id, event_id, context);
-          let goal_event_impact = null;
-          try {
-            goal_event_impact = await markGoalCalendarEventDeleted(context.supabase, context.user.id, {
-              linkedAccountId: resolved.account.id,
-              providerEventId: event_id,
-              deletionSource: 'balys',
-              deletionNote: 'Deleted by Balys calendar.delete_events_batch',
-            });
-          } catch (trackingError) {
-            console.error('[calendar.delete_events_batch] goal-event tracking failed:', { event_id, trackingError });
-          }
-          return { event_id, status: 'deleted' as const, goal_event_impact };
-        } catch (e: any) {
-          const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
-          const errCode = e?.response?.data?.error?.code || e?.code;
-          const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to delete event');
-          console.error('[calendar.delete_events_batch] one event failed:', { event_id, errCode, googleMsg });
-          return { event_id, status: 'failed' as const, error: detailedError };
+          goal_event_impact = await markGoalCalendarEventDeleted(context.supabase, context.user.id, {
+            linkedAccountId: resolved.account.id,
+            providerEventId: event_id,
+            deletionSource: 'balys',
+            deletionNote: 'Deleted by Balys calendar.delete_events_batch',
+          });
+        } catch (trackingError) {
+          console.error('[calendar.delete_events_batch] goal-event tracking failed:', { event_id, trackingError });
         }
-      })
-    );
+        return { event_id, status: 'deleted' as const, goal_event_impact };
+      } catch (e: any) {
+        const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
+        const errCode = e?.response?.data?.error?.code || e?.code;
+        const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to delete event');
+        console.error('[calendar.delete_events_batch] one event failed:', { event_id, errCode, googleMsg });
+        return { event_id, status: 'failed' as const, error: detailedError };
+      }
+    };
+
+    const DELETE_CHUNK_SIZE = 6;
+    const results: Array<Awaited<ReturnType<typeof deleteOne>> | (typeof invalidResults)[number]> = [...invalidResults];
+    for (let i = 0; i < validIds.length; i += DELETE_CHUNK_SIZE) {
+      const chunk = validIds.slice(i, i + DELETE_CHUNK_SIZE);
+      results.push(...await Promise.all(chunk.map(deleteOne)));
+    }
 
     const deleted_count = results.filter(r => r.status === 'deleted').length;
     const failed_count = results.length - deleted_count;
-    const requested_count = args.event_ids.length;
+    const requested_count = uniqueIds.length;
 
     let summary: string;
     if (failed_count === 0) {

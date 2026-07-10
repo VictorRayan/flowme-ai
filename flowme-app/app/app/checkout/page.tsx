@@ -23,6 +23,8 @@ import {
   checkoutCopy,
   checkoutLocaleFromUiLanguage,
   checkoutOfferRemainingSeconds,
+  checkoutPixAllowedForInterval,
+  checkoutPixAnnualOnlyMessage,
   formatCheckoutCountdown,
   type CheckoutLocale,
 } from '@/lib/billing/checkout-ui';
@@ -282,8 +284,19 @@ function CheckoutPageContent() {
     return () => window.clearInterval(timer);
   }, [paid, pendingAttempts]);
 
+  const canUsePix = pixAvailable && checkoutPixAllowedForInterval(interval);
+
+  React.useEffect(() => {
+    if (canUsePix || method !== 'pix') return;
+    setMethod('card');
+    setPixCheckout(null);
+  }, [canUsePix, method]);
+
   const requestCheckout = async (selectedMethod: Method, paymentMethodId?: string): Promise<CheckoutResponse> => {
     if (!locale) throw new Error('Checkout locale unavailable');
+    if (selectedMethod === 'pix' && !checkoutPixAllowedForInterval(interval)) {
+      throw new Error(checkoutPixAnnualOnlyMessage(locale));
+    }
     setError(null);
     const response = await fetch('/api/billing/checkout', {
       method: 'POST',
@@ -350,7 +363,7 @@ function CheckoutPageContent() {
             <Stack spacing={2.5}>
               <Box><Typography variant="h5" fontWeight={900}>{copy.headline}</Typography><Typography color="text.secondary">{copy.paymentPrompt}</Typography></Box>
               <ToggleButtonGroup aria-label={copy.headline} value={method} exclusive fullWidth disabled={loadingPix} onChange={(_, value: Method | null) => value && setMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
-                {pixAvailable && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
+                {canUsePix && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
                 <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.cardTitle}</Typography><Typography variant="caption">{copy.cardDetail}</Typography></Box></Stack></ToggleButton>
               </ToggleButtonGroup>
 
@@ -362,7 +375,7 @@ function CheckoutPageContent() {
                 </Elements>
               </Box>
 
-              {!paid && method === 'pix' && pixAvailable && (pixCheckout
+              {!paid && method === 'pix' && canUsePix && (pixCheckout
                 ? <Stack spacing={2.5} alignItems="center"><Typography variant="h5" fontWeight={900}>{copy.pixHeading}</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>{copy.copyPix}</Button><Alert severity="info">{copy.pixConfirmation}</Alert></Stack>
                 : <Stack spacing={2}><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} />{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" size="large" disabled={loadingPix || !selectedPrice || !name.trim() || !taxId.trim()} onClick={() => void startPix()} sx={{ minHeight: 54, fontWeight: 900 }}>{loadingPix ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button></Stack>)}
 

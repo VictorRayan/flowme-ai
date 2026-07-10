@@ -7,7 +7,7 @@ import { normalizeCatalogLocale } from '@/lib/billing/catalog';
 import { getBillingGateway } from '@/lib/billing/providers/registry';
 import type { WebBillingProvider, WebPaymentMethod } from '@/lib/billing/providers/contracts';
 import { resolveRequestCountry } from '@/lib/billing/ip-country';
-import { checkoutCardErrorMessage } from '@/lib/billing/checkout-ui';
+import { checkoutCardErrorMessage, checkoutPixAllowedForInterval, checkoutPixAnnualOnlyMessage } from '@/lib/billing/checkout-ui';
 import { GatewayCheckoutError } from '@/lib/billing/providers/contracts';
 
 const PAYMENT_METHODS: WebPaymentMethod[] = ['pix', 'card', 'apple_pay', 'google_pay'];
@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
     const locale = normalizeCatalogLocale(body.locale);
     if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
     if (!method) return apiError(ErrorCode.VALIDATION_ERROR, 'payment_method is invalid', 400);
+    if (method === 'pix' && !checkoutPixAllowedForInterval(interval)) {
+      return apiError(ErrorCode.VALIDATION_ERROR, checkoutPixAnnualOnlyMessage(locale), 400);
+    }
     const providerPaymentMethodId = typeof body.payment_method_id === 'string' ? body.payment_method_id.trim() : '';
     const checkoutSource = typeof body.source === 'string' ? body.source.trim().slice(0, 120) : '';
     if (method !== 'pix' && !/^pm_[A-Za-z0-9_]+$/.test(providerPaymentMethodId)) {

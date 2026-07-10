@@ -27,7 +27,7 @@ function makeBillingClient(subscription: any = null, error: any = null) {
 }
 
 describe('billing entitlements', () => {
-  it('defaults users to Free with notes, limited Balys and connectors', () => {
+  it('defaults users to Free with notes, limited Balys, Calendar and connectors', () => {
     const entitlements = getDefaultFreeEntitlements('user-1');
 
     expect(entitlements.plan_code).toBe('free');
@@ -35,6 +35,7 @@ describe('billing entitlements', () => {
     expect(entitlements.ai_credits.daily_limit).toBe(FREE_AI_CREDITS_PER_DAY);
     expect(isFeatureAllowed(entitlements, 'notes')).toBe(true);
     expect(isFeatureAllowed(entitlements, 'balys_limited')).toBe(true);
+    expect(isFeatureAllowed(entitlements, 'calendar')).toBe(true);
     expect(isFeatureAllowed(entitlements, 'connectors')).toBe(true);
     expect(isFeatureAllowed(entitlements, 'finance')).toBe(false);
     expect(isFeatureAllowed(entitlements, 'meetings')).toBe(false);
@@ -119,6 +120,15 @@ describe('billing entitlements', () => {
 
     expect(entitlements.has_pro).toBe(false);
     expect(entitlements.features.connectors).toBe(true);
+  });
+
+  it('allows Calendar for Free users during Google OAuth review', async () => {
+    const { client } = makeBillingClient();
+
+    const entitlements = await requireFeature(client, 'user-1', 'calendar');
+
+    expect(entitlements.has_pro).toBe(false);
+    expect(entitlements.features.calendar).toBe(true);
   });
 
   it('allows required Pro features for active subscriptions', async () => {

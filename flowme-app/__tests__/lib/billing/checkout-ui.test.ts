@@ -4,6 +4,8 @@ import {
   checkoutCopy,
   checkoutLocaleFromUiLanguage,
   checkoutOfferRemainingSeconds,
+  checkoutPixAllowedForInterval,
+  checkoutPixAnnualOnlyMessage,
   formatCheckoutCountdown,
 } from '@/lib/billing/checkout-ui';
 
@@ -25,6 +27,13 @@ describe('checkout UI state', () => {
     expect(checkoutCopy('en-US').headline).toBe('How would you like to pay?');
     expect(checkoutCopy('en-US').cardNumber).toBe('Card number');
     expect(checkoutCopy('pt-BR').cardReady).toContain('diretamente');
+  });
+
+  it('limits Pix to the annual checkout interval', () => {
+    expect(checkoutPixAllowedForInterval('annual')).toBe(true);
+    expect(checkoutPixAllowedForInterval('monthly')).toBe(false);
+    expect(checkoutPixAnnualOnlyMessage('pt-BR')).toContain('plano anual');
+    expect(checkoutPixAnnualOnlyMessage('en-US')).toContain('annual plan');
   });
 
   it('localizes safe card errors and hides unknown provider messages', () => {

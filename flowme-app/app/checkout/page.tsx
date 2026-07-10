@@ -22,6 +22,8 @@ import {
   checkoutCardErrorMessage,
   checkoutCopy,
   checkoutOfferRemainingSeconds,
+  checkoutPixAllowedForInterval,
+  checkoutPixAnnualOnlyMessage,
   formatCheckoutCountdown,
   type CheckoutLocale,
 } from '@/lib/billing/checkout-ui';
@@ -62,6 +64,10 @@ function money(cents: number, locale: string) {
 
 function localeFromQuery(value: string | null): CheckoutLocale {
   return value === 'en-US' ? 'en-US' : 'pt-BR';
+}
+
+function queryText(value: string | null, limit: number) {
+  return value ? value.trim().slice(0, limit) : '';
 }
 
 function trackingId(storage: Storage, key: string) {
@@ -113,16 +119,18 @@ function CardPaymentForm({
   disabled,
   createCheckout,
   onPending,
+  initialName,
 }: {
   locale: CheckoutLocale;
   disabled: boolean;
   createCheckout: (paymentMethodId: string) => Promise<CheckoutResponse>;
   onPending: (token: string, email: string) => void;
+  initialName: string;
 }) {
   const copy = checkoutCopy(locale);
   const stripe = useStripe();
   const elements = useElements();
-  const [cardholderName, setCardholderName] = React.useState('');
+  const [cardholderName, setCardholderName] = React.useState(initialName);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -176,13 +184,15 @@ function PublicCheckoutContent() {
   const locale = localeFromQuery(params.get('locale'));
   const copy = checkoutCopy(locale);
   const leadToken = params.get('lead_token') || '';
-  const displayEmail = params.get('email') || '';
+  const capturedName = queryText(params.get('name'), 160);
+  const displayEmail = queryText(params.get('email'), 240);
+  const capturedPhone = queryText(params.get('phone'), 40);
   const [plan, setPlan] = React.useState<Plan | null>(null);
   const [pixAvailable, setPixAvailable] = React.useState(false);
   const [marketLoaded, setMarketLoaded] = React.useState(false);
   const [interval, setInterval] = React.useState<Interval>(params.get('interval') === 'monthly' ? 'monthly' : 'annual');
   const [method, setMethod] = React.useState<Method>('card');
-  const [name, setName] = React.useState('');
+  const [name, setName] = React.useState(capturedName);
   const [taxId, setTaxId] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [loadingPix, setLoadingPix] = React.useState(false);
@@ -241,8 +251,19 @@ function PublicCheckoutContent() {
     return () => window.clearInterval(timer);
   }, [paid, publicToken]);
 
+  const canUsePix = pixAvailable && checkoutPixAllowedForInterval(interval);
+
+  React.useEffect(() => {
+    if (canUsePix || method !== 'pix') return;
+    setMethod('card');
+    setPixCheckout(null);
+  }, [canUsePix, method]);
+
   const requestCheckout = async (selectedMethod: Method, paymentMethodId?: string): Promise<CheckoutResponse> => {
     if (!leadToken) throw new Error(locale === 'en-US' ? 'Open this checkout from the Flow Me offer page.' : 'Abra este checkout pela página de oferta do Flow Me.');
+    if (selectedMethod === 'pix' && !checkoutPixAllowedForInterval(interval)) {
+      throw new Error(checkoutPixAnnualOnlyMessage(locale));
+    }
     setError(null);
     const response = await fetch('/api/billing/public-checkout', {
       method: 'POST',
@@ -285,6 +306,7 @@ function PublicCheckoutContent() {
   const selectedPrice = plan.prices.find(price => price.interval === interval);
   const monthlyEquivalent = interval === 'annual' && selectedPrice ? Math.round(selectedPrice.amount_cents / 12) : selectedPrice?.amount_cents || 0;
   const claimHref = `/login?claim_token=${encodeURIComponent(publicToken)}${verifiedEmail ? `&email=${encodeURIComponent(verifiedEmail)}` : ''}`;
+  const contactSummary = [verifiedEmail || displayEmail, capturedPhone].filter(Boolean).join(' · ');
 
   return (
     <Box sx={{ minHeight: '100vh', overflowX: 'hidden', background: 'radial-gradient(circle at 15% 10%, rgba(249,115,22,.18), transparent 30%), radial-gradient(circle at 85% 85%, rgba(34,197,94,.10), transparent 28%), #0d0f14' }}>
@@ -328,20 +350,20 @@ function PublicCheckoutContent() {
                   <Box>
                     <Typography variant="h5" fontWeight={900}>{copy.headline}</Typography>
                     <Typography color="text.secondary">{copy.paymentPrompt}</Typography>
-                    {(verifiedEmail || displayEmail) && <Alert severity="info" sx={{ mt: 2 }}>{locale === 'en-US' ? 'Access will be released for this email:' : 'O acesso será liberado para este email:'} <strong>{verifiedEmail || displayEmail}</strong></Alert>}
+                    {contactSummary && <Alert severity="info" sx={{ mt: 2 }}>{locale === 'en-US' ? 'Access will be released for:' : 'O acesso será liberado para:'} <strong>{contactSummary}</strong></Alert>}
                   </Box>
                   <ToggleButtonGroup value={method} exclusive fullWidth disabled={loadingPix} onChange={(_, value: Method | null) => value && setMethod(value)} sx={{ gap: 1, '& .MuiToggleButtonGroup-grouped': { border: '1px solid !important', borderColor: 'divider !important', borderRadius: '12px !important', minHeight: 74 } }}>
-                    {pixAvailable && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
+                    {canUsePix && <ToggleButton value="pix"><Stack direction="row" spacing={1} alignItems="center"><PixIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.pixTitle}</Typography><Typography variant="caption">{copy.pixDetail}</Typography></Box></Stack></ToggleButton>}
                     <ToggleButton value="card"><Stack direction="row" spacing={1} alignItems="center"><CreditCardRoundedIcon /><Box textAlign="left"><Typography fontWeight={800}>{copy.cardTitle}</Typography><Typography variant="caption">{copy.cardDetail}</Typography></Box></Stack></ToggleButton>
                   </ToggleButtonGroup>
 
                   <Box sx={{ display: method !== 'card' ? 'none' : 'block' }}>
                     <Elements stripe={stripePromise} options={{ locale: locale === 'pt-BR' ? 'pt-BR' : 'en' }}>
-                      <CardPaymentForm locale={locale} disabled={!selectedPrice} createCheckout={paymentMethodId => requestCheckout('card', paymentMethodId)} onPending={(token, email) => { setPublicToken(token); setVerifiedEmail(email); }} />
+                      <CardPaymentForm locale={locale} disabled={!selectedPrice} initialName={capturedName} createCheckout={paymentMethodId => requestCheckout('card', paymentMethodId)} onPending={(token, email) => { setPublicToken(token); setVerifiedEmail(email); }} />
                     </Elements>
                   </Box>
 
-                  {method === 'pix' && pixAvailable && (pixCheckout
+                  {method === 'pix' && canUsePix && (pixCheckout
                     ? <Stack spacing={2.5} alignItems="center"><Typography variant="h5" fontWeight={900}>{copy.pixHeading}</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>{copy.copyPix}</Button><Alert severity="info">{copy.pixConfirmation}</Alert></Stack>
                     : <Stack spacing={2}><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} />{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" size="large" disabled={loadingPix || !selectedPrice || !name.trim() || !taxId.trim()} onClick={() => void startPix()} sx={{ minHeight: 54, fontWeight: 900 }}>{loadingPix ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button></Stack>)}
                   {error && method === 'card' && <Alert severity="error">{error}</Alert>}

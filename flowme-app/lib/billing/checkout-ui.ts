@@ -1,4 +1,5 @@
 export type CheckoutLocale = 'pt-BR' | 'en-US';
+export type CheckoutInterval = 'monthly' | 'annual';
 export const CHECKOUT_OFFER_DURATION_SECONDS = 15 * 60;
 
 const CARD_ERROR_COPY = {
@@ -125,6 +126,14 @@ export function checkoutLocaleFromUiLanguage(language: string | null | undefined
 
 export function checkoutCopy(locale: CheckoutLocale) {
   return CHECKOUT_COPY[locale];
+}
+
+export function checkoutPixAllowedForInterval(interval: CheckoutInterval): boolean {
+  return interval === 'annual';
+}
+
+export function checkoutPixAnnualOnlyMessage(locale: CheckoutLocale): string {
+  return locale === 'en-US' ? 'Pix is available only on the annual plan.' : 'Pix está disponível apenas no plano anual.';
 }
 
 export function checkoutCardErrorMessage(code: string | undefined, locale: CheckoutLocale, fallbackCode?: string): string {

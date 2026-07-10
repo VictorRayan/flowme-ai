@@ -155,7 +155,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <Divider sx={{ mb: 1 }} />
 
       {/* Nav items */}
-      <List sx={{ px: 0.5, flex: 1 }}>
+      <List sx={{ px: 0.5, flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {menuItems.map((item) => {
           const active = pathname.startsWith(item.path);
           const locked = Boolean(item.feature && !isAllowed(item.feature));
@@ -247,7 +247,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <Divider />
 
       {/* Footer: logout */}
-      <Box sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.1 }}>
+      <Box sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.1, flexShrink: 0 }}>
         <Avatar
           src={currentUser?.avatar_url || undefined}
           alt={currentUser?.name || currentUser?.email || 'User'}
@@ -260,10 +260,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <Typography variant="caption" noWrap sx={{ color: 'text.disabled', display: 'block', maxWidth: 150 }}>{currentUser?.email || (uiLang === 'pt' ? 'Conta conectada' : 'Connected account')}</Typography>
         </Box>
       </Box>
-      <List sx={{ px: 0.5, pb: 1, pt: 0 }}>
+      <List sx={{ px: 0.5, pb: 1, pt: 0, flexShrink: 0 }}>
         <ListItem disablePadding>
           <Tooltip title={nav.logOut} placement="right">
-            <ListItemButton onClick={handleLogout} sx={{ borderRadius: '0 8px 8px 0', py: 1 }}>
+            <ListItemButton onClick={handleLogout} aria-label={nav.logOut} sx={{ borderRadius: '0 8px 8px 0', py: 1, minHeight: 44 }}>
               <ListItemIcon sx={{ color: 'text.disabled', minWidth: 36 }}>
                 <LogoutIcon sx={{ fontSize: 20 }} />
               </ListItemIcon>
@@ -315,7 +315,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, height: '100dvh' },
           }}
         >
           {drawer}
@@ -326,7 +326,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, height: '100dvh' },
           }}
           open
         >

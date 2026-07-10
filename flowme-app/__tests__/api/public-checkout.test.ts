@@ -82,6 +82,27 @@ describe('public checkout', () => {
     }));
   });
 
+  it('rejects Pix on the monthly plan before creating a public checkout session', async () => {
+    const leadToken = createSignedMarketingToken({ kind: 'lead', id: 'lead-1', email: 'buyer@example.com' });
+    const response = await POST_PUBLIC_CHECKOUT(new NextRequest('http://localhost/api/billing/public-checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        lead_token: leadToken,
+        interval: 'monthly',
+        payment_method: 'pix',
+        customer_name: 'Buyer',
+        cpf_cnpj: '12345678909',
+        locale: 'pt-BR',
+      }),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toEqual({ code: 'VALIDATION_ERROR', message: 'Pix está disponível apenas no plano anual.' });
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockCreateCheckout).not.toHaveBeenCalled();
+  });
+
   it('claims a paid public checkout only for the authenticated matching email', async () => {
     const checkoutToken = createToken({ kind: 'public_checkout', id: 'public-1', email: 'buyer@example.com' });
     mockFrom.mockImplementation((table: string) => {

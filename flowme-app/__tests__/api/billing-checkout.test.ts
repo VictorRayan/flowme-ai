@@ -81,10 +81,22 @@ describe('POST /api/billing/checkout', () => {
     }));
   });
 
-  it('requires payer data for Pix', async () => {
+  it('rejects Pix on the monthly plan', async () => {
     const req = new NextRequest('http://localhost/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ interval: 'monthly', payment_method: 'pix' }),
+      body: JSON.stringify({ interval: 'monthly', payment_method: 'pix', locale: 'pt-BR', customer_name: 'User One', cpf_cnpj: '12345678909' }),
+    });
+    const res = await POST(req);
+    const body = await res.json();
+    expect(res.status).toBe(400);
+    expect(body.error).toEqual({ code: 'VALIDATION_ERROR', message: 'Pix está disponível apenas no plano anual.' });
+    expect(mockCreateCheckout).not.toHaveBeenCalled();
+  });
+
+  it('requires payer data for annual Pix', async () => {
+    const req = new NextRequest('http://localhost/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ interval: 'annual', payment_method: 'pix' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
@@ -96,7 +108,7 @@ describe('POST /api/billing/checkout', () => {
     mockResolveRequestCountry.mockResolvedValueOnce('US');
     const req = new NextRequest('http://localhost/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ interval: 'monthly', payment_method: 'pix', locale: 'en-US', customer_name: 'User One', cpf_cnpj: '12345678909' }),
+      body: JSON.stringify({ interval: 'annual', payment_method: 'pix', locale: 'en-US', customer_name: 'User One', cpf_cnpj: '12345678909' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(400);

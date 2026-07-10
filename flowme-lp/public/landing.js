@@ -5,7 +5,7 @@ const copy = {
     title: "Flow Me | Personal assistant on WhatsApp",
     description:
       "Centralize WhatsApp, calendar, reminders, notes, finance, documents and work with your personal assistant on WhatsApp.",
-    nav: ["Finance", "Testimonials", "Plans"],
+    nav: ["Finance", "AI", "Day trail", "Notes", "Review", "Testimonials", "Plans"],
     headerCta: "Start now",
     eyebrow: "AI on WhatsApp for routine, work and real life",
     h1: 'Get into flow with <em>your personal assistant on WhatsApp.</em>',
@@ -128,7 +128,118 @@ const copy = {
         ["🎬 Ad shoot", "14:00 - 16:00"],
       ],
     },
+    balys: {
+      eyebrow: "AI in the app",
+      title: "BalysAI: an AI chat specialized in your routine.",
+      text:
+        "Talk to the AI that already knows your calendar, goals, emails and spreadsheets. Ask for today's priority and get the next step ready, with zero context dumping.",
+      checks: [
+        "Prioritize your day in one message",
+        "Connected to calendar, emails and spreadsheets",
+        "Unlimited AI on the Pro plan",
+      ],
+      pill: "Unlimited AI",
+      welcomeTitle: "How can I help you today?",
+      welcomeText: "Send a message, attach files, images or record audio",
+      chips: [
+        "Prioritize my day",
+        "Adjust my schedule",
+        "Goal next step",
+        "Important emails",
+        "Analyze spreadsheet",
+        "Weather and energy",
+      ],
+      placeholder: "Message BalysAI...",
+      cases: [
+        {
+          chip: 0,
+          user: "Prioritize my day",
+          bot: "Your day has 3 blocks: sales call at 11am, Phillips proposal at 2pm and workout at 6pm. Start with the proposal: highest impact.",
+        },
+        {
+          chip: 2,
+          user: "Goal next step",
+          bot: "Goal 'Launch the site': the checkout review is pending. I booked 45 min tomorrow at 9am so you can close it.",
+        },
+      ],
+    },
+    trail: {
+      eyebrow: "Activity trail",
+      title: "Know what to do today. Complete it and watch your progress.",
+      text:
+        "Flow Me builds your day as a trail of appointments and tasks in order. Every completed item becomes visible progress in your evolution.",
+      checks: [
+        "Your day in a single trail",
+        "Mark as done in one tap",
+        "Progress and evolution per day",
+      ],
+      greeting: "Good evening, Victor",
+      summary: "Your day at a glance",
+      day: "thu, jul 9",
+      labels: ["Workout", "Sales call", "Phillips proposal", "Family dinner"],
+    },
+    meetingNotes: {
+      eyebrow: "Meetings and notes",
+      title: "Record meetings and create notes without typing.",
+      text:
+        "Record the conversation or send an audio. Flow Me transcribes it, summarizes the decisions and saves everything as an organized note with next steps.",
+      checks: [
+        "Recording becomes a ready summary",
+        "Decisions and next steps flagged",
+        "Notes organized by topic",
+      ],
+      recLabel: "Recording meeting",
+      noteTitle: "Meeting with Phillips",
+      noteTime: "now",
+      lines: [
+        "Phase 1 scope closed",
+        "Budget approved: US$ 24,000",
+        "Next step: contract by Friday",
+      ],
+      tags: ["meeting", "client", "saved to Notes"],
+      stack: [
+        ["Content ideas", "3 topics for the week..."],
+        ["Groceries", "Fruit, coffee, oats..."],
+      ],
+    },
+    review: {
+      eyebrow: "Balys Review OS",
+      title: "An AI council that reviews your week.",
+      text:
+        "The week ends and the doubt stays: what got done, what stalled, why didn't the goal move? The Council analyzes your commitments, detects patterns and returns the corrected route before the next week starts.",
+      painLabel: "The pain",
+      painText:
+        "Work, traffic, kids, home. The day ends and the gym, the course and the bills slip to tomorrow again. At the end of the month, late fees collect the tab.",
+      solutionLabel: "How Flow Me solves it",
+      solutionText:
+        "Every week the Council crosses what happened with your goals and recommends the next move, ready to execute.",
+      council: [
+        ["Advanced reasoning", "Thinks like an executive committee: analyzes data, detects patterns and justifies every recommendation."],
+        ["Learns with you", "Every reviewed week teaches the Council your real pace. The next advice arrives sharper."],
+        ["Long-term memory", "Remembers old decisions, deviations and promises. Nothing gets lost between weeks."],
+      ],
+      pill: "✦ Balys Review OS",
+      panelTitle: "Reviews",
+      panelSub: "Executive clarity to correct course, protect goals and decide the next move.",
+      weekTitle: "Weekly review",
+      weekRange: "2026-06-29 to 2026-07-05",
+      stats: [
+        ["18", "Commitments"],
+        ["9", "Done"],
+        ["6", "Pushed to evenings"],
+        ["US$ 17", "Late fees"],
+      ],
+      cards: [
+        ["What happened", "18 commitments this week: 9 done. Gym, the course and the bills got pushed to \"after work\" and never happened."],
+        ["Pattern detected", "Everything you schedule after 7pm on weekdays has an 80% chance of being postponed. It's not lack of discipline: it's your calendar betting against you."],
+        ["Goal impact", "Your bills are due on the 8th and your salary lands on the 12th. That was US$ 17 in late fees this month: money that belonged to your emergency fund."],
+        ["Council recommendation", "Move gym and the course to 3 fixed mornings and ask on WhatsApp to shift due dates to the 15th. I set the reminders and follow up in the next review."],
+      ],
+    },
     pricingEyebrow: "Special offer",
+    pricingUrgencyStrong: "This is not the future anymore.",
+    pricingUrgencyText:
+      "If you don't put AI into your routine, you fall behind: today, being 2x more productive isn't an edge, it's survival.",
     pricingTitle: "One plan to centralize your life.",
     pricingText:
       "Personal assistant, calendar, tasks, checklists, notes, reviews, connectors and reminders in one subscription.",
@@ -247,34 +358,92 @@ const copy = {
       "© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Technology Consulting. All rights reserved.",
     footerSecurity:
       "Security, GDPR compliance and AI applied to real routine.",
+    heroChat: {
+      name: "Flow Me - Assistant",
+      status: "online now",
+      bubbles: [
+        "Assistant, which meetings and tasks should I focus on today?",
+        "Today you have a proposal call at 3pm. Review price, risk and next step before 2:30pm.",
+        "Log US$ 100 for groceries and create the trip checklist.",
+        "Done. I logged US$ 100 under groceries and created a checklist with documents, luggage, transport and bookings.",
+        "What about my workout?",
+        "It's set for Tuesday at 8am. I enabled a WhatsApp reminder 45 minutes before.",
+        "Remind me today at 6pm to take creatine and pack my gym clothes.",
+        "Deal. I created a reminder for today at 6pm and I'll ping you here on WhatsApp.",
+      ],
+    },
+    tickerMap: {
+      "10 mil usuários ativos": "10k active users",
+      "99,9% de precisão na IA": "99.9% AI accuracy",
+      "Grupo Rayan Barbieri Tecnologia": "Rayan Barbieri Technology Group",
+      "Assistente pessoal": "Personal assistant",
+      "Integração com Agenda": "Calendar integration",
+      "Integração com Slack": "Slack integration",
+      "Integração com Drive": "Drive integration",
+      "Integração com Sheets": "Sheets integration",
+      "LGPD": "LGPD compliant",
+    },
+    proofStats: [
+      ["Active users", "10k", "Connected routines"],
+      ["AI accuracy", "99.9%", "In automatic organization"],
+      ["Privacy", "LGPD", "Data handled with care"],
+    ],
+    testimonialsEyebrow: "Proven results",
+    testimonialsText:
+      "See concrete signs of use, organized routines and the assistant working through WhatsApp.",
+    planFeatures: [
+      "Unlimited assistant",
+      "AI on WhatsApp",
+      "Reminders and checklists",
+      "Finance by conversation",
+      "Integrations with Calendar, Slack, Drive and Sheets",
+      "Everything centralized in one personal assistant",
+      "Full dashboard on desktop and mobile",
+      "Priority on new features",
+      "Save US$ 48 a year",
+      "Best price to run your whole routine",
+    ],
+    planTabs: {
+      monthly: ["Monthly", "Flexible"],
+      annual: ["Annual", "Best seller"],
+    },
+    footer: {
+      description:
+        "Your personal AI system to organize WhatsApp, calendar, tasks, finance, documents and decisions in one place.",
+      proof: ["AI on WhatsApp", "LGPD", "Rayan Barbieri Technology Group"],
+      productTitle: "Product",
+      productLinks: ["WhatsApp", "Finance control", "Testimonials", "Plans"],
+      accountTitle: "Account",
+      accountLinks: ["Login", "Subscribe"],
+    },
   },
   "pt-br": {
     title: "Flow Me | Assistente pessoal no WhatsApp",
     description:
-      "Centralize WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho com seu assistente pessoal no WhatsApp.",
-    nav: ["Financeiro", "Depoimentos", "Planos"],
-    headerCta: "Comecar agora",
+      "Centralize WhatsApp, agenda, lembretes, notas, finanças, documentos e trabalho com seu assistente pessoal no WhatsApp.",
+    nav: ["Financeiro", "IA", "Trilha", "Notas", "Revisão", "Depoimentos", "Planos"],
+    headerCta: "Começar agora",
     eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
     h1: 'Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em>',
     hero:
-      "Centralize agenda, lembretes, notas, financas e trabalho no WhatsApp. Voce fala. O Flow Me registra, organiza e lembra o proximo passo.",
+      "Centralize agenda, lembretes, notas, finanças e trabalho no WhatsApp. Você fala. O Flow Me registra, organiza e lembra o próximo passo.",
     reminder: {
       eyebrow: "Lembretes no WhatsApp",
-      title: "Nunca mais esqueca um compromisso.",
+      title: "Nunca mais esqueça um compromisso.",
       text:
         "Agenda, tarefas e vida pessoal ficam no mesmo assistente. O Flow Me avisa antes do assunto virar atraso, esquecimento ou correria.",
-      proof: "O assistente lembra por voce",
+      proof: "O assistente lembra por você",
       bullets: [
         "Compromissos importantes antes de atrasar.",
-        "Follow-up de cliente no horario certo.",
-        "Planos pessoais que nao podem ficar na memoria.",
+        "Follow-up de cliente no horário certo.",
+        "Planos pessoais que não podem ficar na memória.",
       ],
       date: "Ter, 7 de julho",
       notifications: [
         {
           app: "Flow Me no WhatsApp",
-          title: "Aniversario da namorada amanha",
-          body: "Comprar presente hoje ate 18h e reservar o jantar.",
+          title: "Aniversário da namorada amanhã",
+          body: "Comprar presente hoje até 18h e reservar o jantar.",
           time: "agora",
         },
         {
@@ -285,44 +454,44 @@ const copy = {
         },
         {
           app: "Flow Me no WhatsApp",
-          title: "Call de fechamento as 15h",
-          body: "Revisar preco, risco e proximo passo.",
+          title: "Call de fechamento às 15h",
+          body: "Revisar preço, risco e próximo passo.",
           time: "28 min",
         },
       ],
     },
-    primary: "Comecar agora",
+    primary: "Começar agora",
     secondary: "Ver funcionalidades",
-    pills: ["Registre por audio", "Consulte em segundos", "Organize tudo no painel"],
+    pills: ["Registre por áudio", "Consulte em segundos", "Organize tudo no painel"],
     finance: {
       eyebrow: "Controle Financeiro",
-      title: "Anote seus gastos por audio ou texto.",
+      title: "Anote seus gastos por áudio ou texto.",
       text:
-        "Registre despesas e receitas pelo WhatsApp. O Flow Me entende sua fala, categoriza tudo e mostra o resumo para voce decidir melhor.",
+        "Registre despesas e receitas pelo WhatsApp. O Flow Me entende sua fala, categoriza tudo e mostra o resumo para você decidir melhor.",
       checks: [
         "Consulte qualquer gasto pelo WhatsApp",
         "Gastos chegam categorizados",
-        "Resumo do dia direto para voce",
+        "Resumo do dia direto para você",
       ],
       userMessages: [
         "Paguei 62 reais no mercado",
-        "Quanto gastei de iFood este mes?",
+        "Quanto gastei de iFood este mês?",
       ],
       botMessages: [
         "Anotado! R$ 62,00 registrado em Mercado.",
-        "Voce gastou R$ 2.146,00 no iFood este mes em 7 pedidos. O maior dia foi sexta-feira.",
+        "Você gastou R$ 2.146,00 no iFood este mês em 7 pedidos. O maior dia foi sexta-feira.",
       ],
       placeholder: "Mensagem",
       today: "Hoje",
       balance: "R$ 2.146,00",
       rows: [
         ["Pedidos no iFood", "R$ 2.146,00"],
-        ["Ticket medio", "R$ 306,57"],
+        ["Ticket médio", "R$ 306,57"],
         ["Maior dia", "Sexta-feira"],
       ],
     },
     financeChart: {
-      title: "Gastos do mes",
+      title: "Gastos do mês",
       total: "R$ 4.874,40",
       subtitle: "Julho, por categoria",
       rows: [
@@ -334,10 +503,10 @@ const copy = {
       ],
     },
     singularity: {
-      chip: "Tudo em um so lugar",
-      title: "Tudo em um lugar so. Seu agente organiza por voce.",
+      chip: "Tudo em um só lugar",
+      title: "Tudo em um lugar só. Seu agente organiza por você.",
       text:
-        "Slack, Gmail, Drive, Docs, Sheets, agenda, reunioes e notas orbitam a mesma singularidade. O Flow Me puxa tudo para o centro e devolve o proximo passo organizado no seu WhatsApp.",
+        "Slack, Gmail, Drive, Docs, Sheets, agenda, reuniões e notas orbitam a mesma singularidade. O Flow Me puxa tudo para o centro e devolve o próximo passo organizado no seu WhatsApp.",
       nodes: [
         "Gmail",
         "Slack",
@@ -349,16 +518,16 @@ const copy = {
         "Arquivos",
         "Documentos",
         "Banco",
-        "Reunioes",
+        "Reuniões",
         "Metas",
         "Notas",
       ],
     },
     agenda: {
       eyebrow: "Agenda Inteligente",
-      title: "Nunca mais esqueca um compromisso.",
+      title: "Nunca mais esqueça um compromisso.",
       text:
-        "Tenha lembretes e resumos diarios. Registre compromissos no WhatsApp falando do seu jeito: o Flow Me entende e organiza sua rotina. Tudo sincronizado com seu Google Agenda.",
+        "Tenha lembretes e resumos diários. Registre compromissos no WhatsApp falando do seu jeito: o Flow Me entende e organiza sua rotina. Tudo sincronizado com seu Google Agenda.",
       checks: [
         "Consulte sua agenda pelo WhatsApp",
         "Marque tarefas do dia como feitas",
@@ -366,19 +535,130 @@ const copy = {
       ],
       appName: "Google Agenda",
       notificationTitle: "Flow Me",
-      notificationBody: "Seus compromissos ja foram sincronizados com seu Google Agenda! 📅",
+      notificationBody: "Seus compromissos já foram sincronizados com seu Google Agenda! 📅",
       notificationTime: "agora",
       week: [["SEG", "28"], ["TER", "29"], ["QUA", "30"], ["QUI", "1"], ["SEX", "2"]],
       events: [
         ["🦷 Dentista", "09:00 - 10:00"],
         ["📞 Call de vendas", "11:00 - 12:00"],
-        ["🎬 Filmagem de anuncios", "14:00 - 16:00"],
+        ["🎬 Filmagem de anúncios", "14:00 - 16:00"],
+      ],
+    },
+    balys: {
+      eyebrow: "IA no aplicativo",
+      title: "BalysAI: um chat de IA especializado na sua rotina.",
+      text:
+        "Converse com a IA que já conhece sua agenda, metas, emails e planilhas. Peça a prioridade do dia e receba o próximo passo pronto, sem explicar contexto.",
+      checks: [
+        "Priorize seu dia em uma mensagem",
+        "Conectado à agenda, emails e planilhas",
+        "IA ilimitada no plano Pro",
+      ],
+      pill: "IA ilimitada",
+      welcomeTitle: "Como posso te ajudar hoje?",
+      welcomeText: "Envie uma mensagem, anexe arquivos, imagens ou grave áudio",
+      chips: [
+        "Priorizar meu dia",
+        "Ajustar minha agenda",
+        "Próximo passo do goal",
+        "Emails importantes",
+        "Analisar planilha",
+        "Clima e energia",
+      ],
+      placeholder: "Mensagem para o BalysAI...",
+      cases: [
+        {
+          chip: 0,
+          user: "Priorizar meu dia",
+          bot: "Seu dia tem 3 blocos: call de vendas às 11h, proposta da Phillips às 14h e treino às 18h. Comece pela proposta: é o maior impacto.",
+        },
+        {
+          chip: 2,
+          user: "Próximo passo do goal",
+          bot: "Meta 'Lançar o site': falta revisar o checkout. Já reservei 45 min amanhã às 9h para você fechar isso.",
+        },
+      ],
+    },
+    trail: {
+      eyebrow: "Trilha de atividades",
+      title: "Saiba o que fazer hoje. Conclua e veja seu progresso.",
+      text:
+        "O Flow Me monta a trilha do seu dia com compromissos e tarefas em ordem. Cada item concluído vira progresso visível na sua evolução.",
+      checks: [
+        "Seu dia em uma trilha única",
+        "Marque como feito em um toque",
+        "Progresso e evolução por dia",
+      ],
+      greeting: "Boa noite, Victor",
+      summary: "Resumo do seu dia",
+      day: "qui, jul 9",
+      labels: ["Treino", "Call de vendas", "Proposta Phillips", "Jantar em família"],
+    },
+    meetingNotes: {
+      eyebrow: "Reuniões e notas",
+      title: "Grave reuniões e crie notas sem digitar.",
+      text:
+        "Grave a conversa ou mande um áudio. O Flow Me transcreve, resume as decisões e salva tudo como nota organizada com próximos passos.",
+      checks: [
+        "Gravação vira resumo pronto",
+        "Decisões e próximos passos marcados",
+        "Notas organizadas por assunto",
+      ],
+      recLabel: "Gravando reunião",
+      noteTitle: "Reunião com a Phillips",
+      noteTime: "agora",
+      lines: [
+        "Fechamos o escopo da fase 1",
+        "Orçamento aprovado: R$ 24.000",
+        "Próximo passo: contrato até sexta",
+      ],
+      tags: ["reunião", "cliente", "salvo nas Notas"],
+      stack: [
+        ["Ideias de conteúdo", "3 pautas para a semana..."],
+        ["Mercado", "Frutas, café, aveia..."],
+      ],
+    },
+    review: {
+      eyebrow: "Balys Review OS",
+      title: "Um conselho de IA que revisa sua semana.",
+      text:
+        "A semana termina e fica a dúvida: o que foi feito, o que travou, por que a meta não andou? O Conselho analisa seus compromissos, detecta padrões e devolve a rota corrigida antes da próxima semana começar.",
+      painLabel: "A dor",
+      painText:
+        "Trabalho, trânsito, filho, casa. O dia acaba e a academia, o inglês e os boletos ficam de novo para amanhã. No fim do mês, o juro cobra a conta.",
+      solutionLabel: "Como o Flow Me resolve",
+      solutionText:
+        "Toda semana o Conselho cruza o que aconteceu com suas metas e recomenda o próximo movimento, pronto para executar.",
+      council: [
+        ["Raciocínio avançado", "Pensa como um comitê executivo: analisa dados, detecta padrões e justifica cada recomendação."],
+        ["Aprende com você", "Cada semana revisada ensina o Conselho sobre seu ritmo real. O próximo conselho chega mais certeiro."],
+        ["Memória de longo prazo", "Lembra decisões, desvios e promessas antigas. Nada se perde entre uma semana e outra."],
+      ],
+      pill: "✦ Balys Review OS",
+      panelTitle: "Revisões",
+      panelSub: "Clareza executiva para corrigir rota, proteger metas e decidir o próximo movimento.",
+      weekTitle: "Revisão semanal",
+      weekRange: "2026-06-29 a 2026-07-05",
+      stats: [
+        ["18", "Compromissos"],
+        ["9", "Feitos"],
+        ["6", "Adiados à noite"],
+        ["R$ 86", "Juros por atraso"],
+      ],
+      cards: [
+        ["O que aconteceu", "18 compromissos na semana: 9 feitos. Academia, inglês e os boletos ficaram para \"depois do expediente\" e não aconteceram."],
+        ["Padrão detectado", "Tudo que você marca depois das 19h em dia útil tem 80% de chance de ser adiado. Não é falta de disciplina: é a sua agenda apostando contra você."],
+        ["Impacto nas metas", "Seus boletos vencem dia 8 e o salário cai dia 12. Foram R$ 86 de juros este mês: dinheiro que era da sua reserva de emergência."],
+        ["Recomendação do Conselho", "Mova treino e inglês para 3 manhãs fixas e peça pelo WhatsApp para mudar os vencimentos para o dia 15. Eu monto os lembretes e cobro na próxima revisão."],
       ],
     },
     pricingEyebrow: "Oferta especial",
+    pricingUrgencyStrong: "Isso não é mais coisa do futuro.",
+    pricingUrgencyText:
+      "Quem não colocar IA na rotina vai ficar para trás: hoje, ser 2x mais produtivo não é vantagem, é sobrevivência.",
     pricingTitle: "Um plano para centralizar sua vida.",
     pricingText:
-      "Assistente pessoal, agenda, tarefas, checklists, notas, revisoes, conectores e lembretes em uma assinatura.",
+      "Assistente pessoal, agenda, tarefas, checklists, notas, revisões, conectores e lembretes em uma assinatura.",
     soon: {
       eyebrow: "Em breve",
       title: "Quem entra agora ganha acesso ao futuro do Flow Me.",
@@ -394,80 +674,80 @@ const copy = {
       monthlyDescription: "Flow Me Pro completo, sem compromisso anual. Ideal para testar com rotina real.",
       monthlyCurrency: "R$",
       monthlyPrice: "59,90",
-      monthlyPeriod: "/mes",
-      monthlyBadge: "Flexivel",
+      monthlyPeriod: "/mês",
+      monthlyBadge: "Flexível",
       annualTitle: "Anual",
-      annualDescription: "Melhor preco para centralizar agenda, tarefas, WhatsApp, financas, notas e seu Assistente pessoal.",
+      annualDescription: "Melhor preço para centralizar agenda, tarefas, WhatsApp, finanças, notas e seu Assistente pessoal.",
       annualCurrency: "R$",
       annualPrice: "39,90",
-      annualPeriod: "/mes",
+      annualPeriod: "/mês",
       annualBadge: "33% OFF",
       popular: "★ Mais vendido",
     },
-    lockedTitle: "Desbloqueie o preco especial",
-    lockedText: "Preencha seus dados para revelar a oferta nesta pagina.",
+    lockedTitle: "Desbloqueie o preço especial",
+    lockedText: "Preencha seus dados para revelar a oferta nesta página.",
     modalTitle: "Desbloqueie sua oferta Flow Me",
-    modalText: "Informe para qual contato enviaremos seu acesso. O preco aparece aqui depois da confirmacao.",
+    modalText: "Informe para qual contato enviaremos seu acesso. O preço aparece aqui depois da confirmação.",
     name: "Nome",
     namePlaceholder: "Seu nome",
     email: "Email",
-    emailPlaceholder: "voce@email.com",
+    emailPlaceholder: "você@email.com",
     phone: "Telefone",
     phonePlaceholder: "(11) 99999-9999",
-    unlock: "Ver precos agora",
+    unlock: "Ver preços agora",
     guarantee: "Garantir oferta",
     sending: "Enviando...",
     invalidName: "Informe seu nome.",
     invalidEmail: "Informe um email valido.",
     invalidPhone: "Informe um WhatsApp valido.",
-    submitError: "Nao conseguimos liberar o link de checkout. Atualize a pagina e tente novamente.",
-    submitSuccess: "Preco desbloqueado.",
+    submitError: "Não conseguimos liberar o link de checkout. Atualize a página e tente novamente.",
+    submitSuccess: "Preço desbloqueado.",
     price: "R$ 39,90",
-    priceNote: "/mes no anual",
+    priceNote: "/mês no anual",
     buy: "Adquirir agora",
     secure: "Compra segura. Cancele quando quiser.",
-    testimonialsTitle: "Usuarios reais usando o Flow Me no dia a dia.",
-    faqTitle: "Duvidas rapidas sobre centralizar sua rotina.",
+    testimonialsTitle: "Usuários reais usando o Flow Me no dia a dia.",
+    faqTitle: "Dúvidas rápidas sobre centralizar sua rotina.",
     faqs: [
       {
-        question: "O que e o Flow Me?",
+        question: "O que é o Flow Me?",
         answer:
-          "Um assistente pessoal para centralizar WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho. Voce fala de forma natural e ele organiza o proximo passo.",
+          "Um assistente pessoal para centralizar WhatsApp, agenda, lembretes, notas, finanças, documentos e trabalho. Você fala de forma natural e ele organiza o próximo passo.",
       },
       {
         question: "Funciona pelo WhatsApp?",
         answer:
-          "Sim. Voce pode pedir, registrar e receber lembretes pelo WhatsApp. O painel web ajuda a revisar tudo com calma depois.",
+          "Sim. Você pode pedir, registrar e receber lembretes pelo WhatsApp. O painel web ajuda a revisar tudo com calma depois.",
       },
       {
         question: "Como os lembretes funcionam?",
         answer:
-          'Voce pede em linguagem simples, como "me lembra amanha as 9h de ligar para o cliente". O Flow Me salva o compromisso e te avisa no horario certo.',
+          'Você pede em linguagem simples, como "me lembra amanhã às 9h de ligar para o cliente". O Flow Me salva o compromisso e te avisa no horário certo.',
       },
       {
         question: "Posso usar com Slack?",
         answer:
-          "Sim. O Flow Me pode usar contexto do Slack para ajudar voce a encontrar sinais importantes, transformar conversas em tarefas e acompanhar follow-ups.",
+          "Sim. O Flow Me pode usar contexto do Slack para ajudar você a encontrar sinais importantes, transformar conversas em tarefas e acompanhar follow-ups.",
       },
       {
         question: "Ele trabalha com Google Docs, Drive e Sheets?",
         answer:
-          "Sim. Voce pode pedir por nomes naturais de arquivos e planilhas. O assistente procura no Drive, consulta Docs e Sheets conectados e devolve respostas praticas.",
+          "Sim. Você pode pedir por nomes naturais de arquivos e planilhas. O assistente procura no Drive, consulta Docs e Sheets conectados e devolve respostas praticas.",
       },
       {
-        question: "Da para organizar financas?",
+        question: "Dá para organizar finanças?",
         answer:
-          "Sim. Voce pode registrar gastos por conversa, consultar categorias e acompanhar entradas, saidas e decisoes financeiras em um so lugar.",
+          "Sim. Você pode registrar gastos por conversa, consultar categorias e acompanhar entradas, saídas e decisões financeiras em um só lugar.",
       },
       {
-        question: "Ele tambem serve para notas?",
+        question: "Ele também serve para notas?",
         answer:
-          "Sim. O Flow Me guarda notas, ideias, decisoes e contexto do dia. Depois voce pode perguntar e recuperar o que foi registrado.",
+          "Sim. O Flow Me guarda notas, ideias, decisões e contexto do dia. Depois você pode perguntar e recuperar o que foi registrado.",
       },
       {
         question: "Preciso instalar app?",
         answer:
-          "Nao. O app web ja funciona. O app mobile Android e iOS sera liberado depois sem custo adicional para compradores atuais.",
+          "Não. O app web já funciona. O app mobile Android e iOS sera liberado depois sem custo adicional para compradores atuais.",
       },
     ],
     testimonials: [
@@ -481,19 +761,66 @@ const copy = {
         name: "Leticia Goncalves dos Santos",
         role: "Analista de CRM",
         quote:
-          '"Consigo organizar compras, rua, estudo, ingles, terapia e compromissos pessoais no mesmo dia, sem perder nada. Quero muito a versao mobile."',
+          '"Consigo organizar compras, rua, estudo, inglês, terapia e compromissos pessoais no mesmo dia, sem perder nada. Quero muito a versao mobile."',
       },
     ],
     testimonial1:
       '"Trabalho com Revenue Operations e o Flow Me me ajuda a executar o que importa. Ele cruza Slack, Gmail, tarefas e vida pessoal. Recebo os sinais certos e paro de viver apagando incendio."',
     testimonial2:
-      '"Consigo organizar cachorros, compras, rua, estudo, ingles, ballet, terapia e compromissos pessoais. Tudo no mesmo dia, sem ficar maluca. Quero muito a versao mobile."',
+      '"Consigo organizar cachorros, compras, rua, estudo, inglês, ballet, terapia e compromissos pessoais. Tudo no mesmo dia, sem ficar maluca. Quero muito a versão mobile."',
     footerSupport:
       "Precisa de ajuda para escolher um plano ou acessar sua conta? Fale com support@flow-me.online.",
     footerRights:
       "© 2026 Flow Me. CNPJ: 49.858.359/0001-93. Rayan Barbieri Consultoria em Tecnologia. Todos os direitos reservados.",
     footerSecurity:
-      "Seguranca, LGPD e IA aplicada a rotina real.",
+      "Segurança, LGPD e IA aplicada à rotina real.",
+    heroChat: {
+      name: "Flow Me - Assistente",
+      status: "online agora",
+      bubbles: [
+        "Assistente, quais reuniões e tarefas eu deveria focar hoje?",
+        "Hoje você tem call de proposta às 15h. Revise preço, risco e próximo passo antes das 14h30.",
+        "Registra R$100 de mercado e cria checklist da viagem.",
+        "Feito. Registrei R$100 em supermercado e criei um checklist com documentos, mala, transporte e reservas.",
+        "E meu treino?",
+        "Está marcado para terça às 8h. Ativei um lembrete no WhatsApp 45 minutos antes.",
+        "Me lembra hoje às 18h de tomar creatina e separar a roupa do treino.",
+        "Combinado. Criei um lembrete para hoje às 18h e vou te avisar aqui no WhatsApp.",
+      ],
+    },
+    proofStats: [
+      ["Usuários ativos", "10 mil", "Rotinas conectadas"],
+      ["Precisão da IA", "99,9%", "Na organização automática"],
+      ["Privacidade", "LGPD", "Dados tratados com cuidado"],
+    ],
+    testimonialsEyebrow: "Resultados comprovados",
+    testimonialsText:
+      "Veja sinais concretos de uso, rotina organizada e assistente trabalhando pelo WhatsApp.",
+    planFeatures: [
+      "Assistente ilimitado",
+      "IA no WhatsApp",
+      "Lembretes e checklists",
+      "Finanças por conversa",
+      "Integrações com Agenda, Slack, Drive e Sheets",
+      "Tudo centralizado em um assistente pessoal",
+      "Painel completo no computador e celular",
+      "Prioridade em recursos novos",
+      "Economia de R$240 no ano",
+      "Melhor preço para operar a rotina inteira",
+    ],
+    planTabs: {
+      monthly: ["Mensal", "Flexível"],
+      annual: ["Anual", "Mais vendido"],
+    },
+    footer: {
+      description:
+        "Seu sistema pessoal com IA para organizar WhatsApp, agenda, tarefas, finanças, documentos e decisões em um só lugar.",
+      proof: ["IA no WhatsApp", "LGPD", "Grupo Rayan Barbieri Tecnologia"],
+      productTitle: "Produto",
+      productLinks: ["WhatsApp", "Controle Financeiro", "Depoimentos", "Planos"],
+      accountTitle: "Conta",
+      accountLinks: ["Login", "Assinar plano"],
+    },
   },
 };
 
@@ -633,6 +960,19 @@ function formFeedback(message, kind = "") {
   node.className = `form-feedback ${kind}`.trim();
 }
 
+let balysCases = [
+  {
+    chip: 0,
+    user: "Priorizar meu dia",
+    bot: "Seu dia tem 3 blocos: call de vendas às 11h, proposta da Phillips às 14h e treino às 18h. Comece pela proposta: é o maior impacto.",
+  },
+  {
+    chip: 2,
+    user: "Próximo passo do goal",
+    bot: "Meta 'Lançar o site': falta revisar o checkout. Já reservei 45 min amanhã às 9h para você fechar isso.",
+  },
+];
+
 function setText(selector, value) {
   const node = document.querySelector(selector);
   if (node && value) node.textContent = value;
@@ -646,6 +986,19 @@ function setHtml(selector, value) {
 function setTexts(selector, values) {
   document.querySelectorAll(selector).forEach((node, index) => {
     if (values[index]) node.textContent = values[index];
+  });
+}
+
+function setNodeText(node, value) {
+  if (!node || !value) return;
+  const textNode = [...node.childNodes].find((child) => child.nodeType === 3 && child.data.trim());
+  if (textNode) textNode.data = value;
+  else node.textContent = value;
+}
+
+function setNodeTexts(selector, values) {
+  document.querySelectorAll(selector).forEach((node, index) => {
+    setNodeText(node, values[index]);
   });
 }
 
@@ -732,6 +1085,96 @@ function applyLocale(locale) {
     });
   }
 
+  if (t.balys) {
+    setText(".balys-copy .eyebrow", t.balys.eyebrow);
+    setText(".balys-copy h2", t.balys.title);
+    setText(".balys-copy > p:not(.eyebrow)", t.balys.text);
+    setTexts(".balys-checks b", t.balys.checks);
+    setText(".balys-pill", t.balys.pill);
+    setText(".balys-welcome h3", t.balys.welcomeTitle);
+    setText(".balys-welcome p", t.balys.welcomeText);
+    setTexts(".balys-chips b", t.balys.chips);
+    setText(".balys-compose span", t.balys.placeholder);
+    if (Array.isArray(t.balys.cases) && t.balys.cases.length) {
+      balysCases = t.balys.cases;
+      setText("[data-balys-user]", balysCases[0].user);
+      setText("[data-balys-bot]", balysCases[0].bot);
+    }
+  }
+
+  if (t.trail) {
+    setText(".trail-copy .eyebrow", t.trail.eyebrow);
+    setText(".trail-copy h2", t.trail.title);
+    setText(".trail-copy > p:not(.eyebrow)", t.trail.text);
+    setTexts(".trail-checks b", t.trail.checks);
+    setText(".trail-greeting strong", t.trail.greeting);
+    setText(".trail-greeting small", t.trail.summary);
+    setText("[data-trail-day]", t.trail.day);
+    setTexts(".trail-label", t.trail.labels);
+  }
+
+  if (t.review) {
+    setText(".review-copy .eyebrow", t.review.eyebrow);
+    setText(".review-copy h2", t.review.title);
+    setText(".review-copy > p:not(.eyebrow)", t.review.text);
+    setText(".review-pain b", t.review.painLabel);
+    setText(".review-pain p", t.review.painText);
+    setText(".review-solution b", t.review.solutionLabel);
+    setText(".review-solution p", t.review.solutionText);
+    document.querySelectorAll(".review-council article").forEach((card, index) => {
+      const item = t.review.council[index];
+      if (!item) return;
+      const title = card.querySelector("b");
+      const body = card.querySelector("p");
+      if (title) title.textContent = item[0];
+      if (body) body.textContent = item[1];
+    });
+    setText(".review-pill", t.review.pill);
+    setText(".review-panel h3", t.review.panelTitle);
+    setText(".review-sub", t.review.panelSub);
+    setText(".review-week b", t.review.weekTitle);
+    setText(".review-week small", t.review.weekRange);
+    document.querySelectorAll(".review-stats div").forEach((tile, index) => {
+      const item = t.review.stats[index];
+      if (!item) return;
+      const value = tile.querySelector("strong");
+      const label = tile.querySelector("span");
+      if (value) {
+        value.textContent = item[0];
+        value.setAttribute("data-review-stat", item[0]);
+      }
+      if (label) label.textContent = item[1];
+    });
+    document.querySelectorAll("[data-review-card]").forEach((card, index) => {
+      const item = t.review.cards[index];
+      if (!item) return;
+      const title = card.querySelector("b");
+      const body = card.querySelector("p");
+      if (title) title.textContent = item[0];
+      if (body) body.textContent = item[1];
+    });
+  }
+
+  if (t.meetingNotes) {
+    setText(".mnotes-copy .eyebrow", t.meetingNotes.eyebrow);
+    setText(".mnotes-copy h2", t.meetingNotes.title);
+    setText(".mnotes-copy > p:not(.eyebrow)", t.meetingNotes.text);
+    setTexts(".mnotes-checks b", t.meetingNotes.checks);
+    setText("[data-mnotes-rec-label]", t.meetingNotes.recLabel);
+    setText("[data-mnotes-title]", t.meetingNotes.noteTitle);
+    setText(".mnotes-note header time", t.meetingNotes.noteTime);
+    setTexts("[data-mnotes-lines] li", t.meetingNotes.lines);
+    setTexts(".mnotes-note footer span", t.meetingNotes.tags);
+    document.querySelectorAll(".mnotes-stack article").forEach((card, index) => {
+      const item = t.meetingNotes.stack[index];
+      if (!item) return;
+      const title = card.querySelector("strong");
+      const body = card.querySelector("p");
+      if (title) title.textContent = item[0];
+      if (body) body.textContent = item[1];
+    });
+  }
+
   if (t.singularity) {
     setText(".singularity-chip", t.singularity.chip);
     setText(".singularity-copy h2", t.singularity.title);
@@ -767,6 +1210,8 @@ function applyLocale(locale) {
   }
 
   setText(".pricing .eyebrow", t.pricingEyebrow);
+  setText(".pricing-urgency b", t.pricingUrgencyStrong);
+  setText(".pricing-urgency p > span", t.pricingUrgencyText);
   setText(".pricing h2", t.pricingTitle);
   setText(".pricing > div:first-child p:last-child", t.pricingText);
   if (t.soon) {
@@ -810,6 +1255,74 @@ function applyLocale(locale) {
   document.querySelectorAll("[data-plan-button]").forEach((button) => {
     button.textContent = `🔒 ${t.unlock}`;
   });
+  if (t.heroChat) {
+    setNodeText(document.querySelector(".hero .wa-app-header strong"), t.heroChat.name);
+    setTexts(".wa-app-header small", [t.heroChat.status, t.heroChat.status]);
+    setNodeTexts(".hero-chat-scroll:not(.finance-chat-scroll) .hero-wa-bubble", t.heroChat.bubbles);
+  }
+
+  if (t.tickerMap) {
+    document.querySelectorAll(".ticker-track span").forEach((span) => {
+      const textNode = [...span.childNodes].find((child) => child.nodeType === 3 && child.data.trim());
+      if (!textNode) return;
+      const translated = t.tickerMap[textNode.data.trim()];
+      if (translated) textNode.data = translated;
+    });
+  }
+
+  if (t.proofStats) {
+    document.querySelectorAll(".proof-stats article").forEach((card, index) => {
+      const item = t.proofStats[index];
+      if (!item) return;
+      const label = card.querySelector("span");
+      const value = card.querySelector("strong");
+      const detail = card.querySelector("small");
+      if (label) label.textContent = item[0];
+      if (value) value.textContent = item[1];
+      if (detail) detail.textContent = item[2];
+    });
+  }
+
+  setText("#testimonials .eyebrow", t.testimonialsEyebrow);
+  setText("#testimonials .section-heading p:not(.eyebrow)", t.testimonialsText);
+
+  if (t.planFeatures) {
+    document.querySelectorAll("[data-plan-card]").forEach((card) => {
+      card.querySelectorAll("li").forEach((item, index) => {
+        setNodeText(item, t.planFeatures[index]);
+      });
+    });
+  }
+
+  if (t.planTabs) {
+    document.querySelectorAll("[data-plan-tab]").forEach((tab) => {
+      const pair = t.planTabs[tab.getAttribute("data-interval")];
+      if (!pair) return;
+      setNodeText(tab, `${pair[0]} `);
+      const badge = tab.querySelector("small");
+      if (badge) badge.textContent = pair[1];
+    });
+  }
+
+  if (t.footer) {
+    setText(".footer-brand > p", t.footer.description);
+    setTexts(".footer-proof span", t.footer.proof);
+    const footerNavs = document.querySelectorAll(".footer-links");
+    if (footerNavs[0]) {
+      setText(".footer-links strong", t.footer.productTitle);
+      footerNavs[0].querySelectorAll("a").forEach((link, index) => {
+        if (t.footer.productLinks[index]) link.textContent = t.footer.productLinks[index];
+      });
+    }
+    if (footerNavs[1]) {
+      const accountTitle = footerNavs[1].querySelector("strong");
+      if (accountTitle) accountTitle.textContent = t.footer.accountTitle;
+      footerNavs[1].querySelectorAll("a").forEach((link, index) => {
+        if (t.footer.accountLinks[index]) link.textContent = t.footer.accountLinks[index];
+      });
+    }
+  }
+
   setText("#testimonials h2", t.testimonialsTitle);
   if (t.testimonials) {
     const slides = Array.from(document.querySelectorAll("[data-testimonial-slide]"));
@@ -842,7 +1355,7 @@ function applyLocale(locale) {
   const privacyLink = document.querySelector('a[href="/privacidade"], a[href="/privacy"]');
   if (privacyLink) {
     privacyLink.setAttribute("href", locale === "en-us" ? "/privacy" : "/privacidade");
-    privacyLink.textContent = locale === "en-us" ? "Privacy policy" : "Politica de privacidade";
+    privacyLink.textContent = locale === "en-us" ? "Privacy policy" : "Política de privacidade";
   }
   const termsLink = document.querySelector('a[href="/termos"], a[href="/terms"]');
   if (termsLink) {
@@ -1172,6 +1685,178 @@ function setupSequencedWhatsAppChat(selector, cycleMs = 35000) {
   setInterval(runCycle, cycleMs);
 }
 
+function setupBalysChat() {
+  const stage = document.querySelector("[data-balys-stage]");
+  if (!stage) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const chips = [...stage.querySelectorAll("[data-balys-chip]")];
+  const userMsg = stage.querySelector("[data-balys-user]");
+  const botMsg = stage.querySelector("[data-balys-bot]");
+  const typing = stage.querySelector("[data-balys-typing]");
+  if (!chips.length || !userMsg || !botMsg || !typing) return;
+
+  stage.classList.add("js-run");
+
+  let caseIndex = 0;
+  let timers = [];
+  const schedule = (fn, at) => timers.push(setTimeout(fn, at));
+
+  function runCycle() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    chips.forEach((chip) => chip.classList.remove("is-active"));
+    userMsg.classList.remove("is-shown");
+    botMsg.classList.remove("is-shown");
+    typing.classList.remove("is-shown");
+
+    const current = balysCases[caseIndex % balysCases.length];
+    if (!current) return;
+    caseIndex += 1;
+    const chip = chips[current.chip] || chips[0];
+
+    schedule(() => chip.classList.add("is-active"), 500);
+    schedule(() => {
+      userMsg.textContent = current.user;
+      userMsg.classList.add("is-shown");
+    }, 1400);
+    schedule(() => typing.classList.add("is-shown"), 1900);
+    schedule(() => chip.classList.remove("is-active"), 2300);
+    schedule(() => {
+      typing.classList.remove("is-shown");
+      botMsg.textContent = current.bot;
+      botMsg.classList.add("is-shown");
+    }, 3400);
+  }
+
+  runCycle();
+  setInterval(runCycle, 9000);
+}
+
+function setupTrailProgress() {
+  const track = document.querySelector("[data-trail-track]");
+  const bar = document.querySelector("[data-trail-bar]");
+  const count = document.querySelector("[data-trail-count]");
+  if (!track || !bar || !count) return;
+  const nodes = [...track.querySelectorAll("[data-trail-node]")];
+  if (!nodes.length) return;
+
+  const showDone = (done) => {
+    bar.style.width = `${(done / nodes.length) * 100}%`;
+    count.textContent = `${done}/${nodes.length}`;
+  };
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    nodes.forEach((node) => node.classList.add("is-done"));
+    showDone(nodes.length);
+    return;
+  }
+
+  let timers = [];
+  function runCycle() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    nodes.forEach((node) => node.classList.remove("is-done"));
+    showDone(0);
+    nodes.forEach((node, index) => {
+      timers.push(setTimeout(() => {
+        node.classList.add("is-done");
+        showDone(index + 1);
+      }, 1200 + index * 1100));
+    });
+  }
+
+  runCycle();
+  setInterval(runCycle, 1200 + nodes.length * 1100 + 2600);
+}
+
+function setupMeetingNotes() {
+  const note = document.querySelector("[data-mnotes-note]");
+  const timer = document.querySelector("[data-mnotes-timer]");
+  if (!note) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const lines = [...note.querySelectorAll("li")];
+  if (!lines.length) return;
+
+  note.classList.add("js-run");
+
+  let timers = [];
+  function runCycle() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    lines.forEach((line) => line.classList.remove("is-shown"));
+    lines.forEach((line, index) => {
+      timers.push(setTimeout(() => line.classList.add("is-shown"), 900 + index * 1000));
+    });
+  }
+
+  runCycle();
+  setInterval(runCycle, 900 + lines.length * 1000 + 2800);
+
+  if (timer) {
+    let seconds = 42;
+    setInterval(() => {
+      seconds += 1;
+      const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+      const ss = String(seconds % 60).padStart(2, "0");
+      timer.textContent = `${mm}:${ss}`;
+    }, 1000);
+  }
+}
+
+function setupReviewReveal() {
+  const panel = document.querySelector("[data-review-panel]");
+  if (!panel) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const stats = [...panel.querySelectorAll("[data-review-stat]")];
+  const cards = [...panel.querySelectorAll("[data-review-card]")];
+  if (!stats.length || !cards.length) return;
+
+  panel.classList.add("js-reveal");
+  const statParts = (stat) => {
+    const raw = stat.getAttribute("data-review-stat") || "";
+    const digitIndex = raw.search(/\d/);
+    return {
+      prefix: digitIndex > 0 ? raw.slice(0, digitIndex) : "",
+      target: parseInt(raw.replace(/\D/g, ""), 10) || 0,
+    };
+  };
+  stats.forEach((stat) => { stat.textContent = `${statParts(stat).prefix}0`; });
+
+  let played = false;
+  function play() {
+    if (played) return;
+    played = true;
+
+    stats.forEach((stat) => {
+      const { prefix, target } = statParts(stat);
+      const start = performance.now();
+      const duration = 900;
+      function tick(now) {
+        const progress = Math.min((now - start) / duration, 1);
+        stat.textContent = `${prefix}${Math.round(target * progress)}`;
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+
+    cards.forEach((card, index) => {
+      setTimeout(() => card.classList.add("is-shown"), 700 + index * 450);
+    });
+  }
+
+  if (!("IntersectionObserver" in window)) {
+    play();
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      play();
+      observer.disconnect();
+    }
+  }, { threshold: 0.15 });
+  observer.observe(panel);
+}
+
 function setupHeroChat() {
   setupSequencedWhatsAppChat(".hero-chat-scroll", 35000);
   setupSequencedWhatsAppChat(".finance-chat-scroll", 12000);
@@ -1463,4 +2148,8 @@ setupLeadGate(locale);
 setupTestimonialSlider();
 setupHeroChat();
 setupSpaceBackground();
+setupBalysChat();
+setupTrailProgress();
+setupMeetingNotes();
+setupReviewReveal();
 recordLandingVisit(locale);

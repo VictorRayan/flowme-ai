@@ -21,7 +21,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260708-finance-phone" />
   </head>
   <body>
     <svg class="svg-sprite" aria-hidden="true" focusable="false">
@@ -101,6 +101,13 @@
         <path d="M46.864 15.643l-13.139.014c-1.731 0-3.139-1.408-3.139-3.139L30.6 0z" fill="#A1C2FA"/>
         <path d="M10.4 31.2v3.825h26V31.2zm0 7.65v3.825h20.475V38.85zm0 7.65v3.825h26V46.5z" fill="#F1F1F1"/>
       </symbol>
+      <symbol id="icon-gmail-color" viewBox="0 0 512 384">
+        <path d="M58.182 384h81.454V186.182L0 81.454v244.364C0 357.818 26.182 384 58.182 384z" fill="#4285F4"/>
+        <path d="M453.818 384h-81.454V186.182L512 81.454v244.364C512 357.818 485.818 384 453.818 384z" fill="#34A853"/>
+        <path d="M372.364 46.545v139.637L512 81.454V58.182c0-48-54.545-75.273-93.091-46.545z" fill="#FBBC04"/>
+        <path d="M139.636 186.182 256 273.455l116.364-87.273V46.545L256 133.818 139.636 46.545z" fill="#EA4335"/>
+        <path d="M0 81.454l139.636 104.728V46.545L93.091 11.637C54.545-17.091 0 10.182 0 58.182z" fill="#C5221F"/>
+      </symbol>
     </svg>
     <header class="site-header">
       <a class="brand" href="#top" aria-label="Flow Me">
@@ -108,6 +115,7 @@
         <span>Flow Me</span>
       </a>
       <nav class="nav" aria-label="Navegacao principal">
+        <a href="#financeiro">Financeiro</a>
         <a href="#testimonials">Depoimentos</a>
         <a href="#planos">Planos</a>
       </nav>
@@ -124,9 +132,8 @@
           <p class="eyebrow"><span></span>IA no WhatsApp para rotina, trabalho e vida real</p>
           <h1>Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em></h1>
           <p class="hero-text">
-            Seu assistente pessoal para centralizar WhatsApp, agenda, lembretes, notas,
-            financas, documentos e trabalho. Voce fala do seu jeito. O Flow Me registra,
-            organiza e lembra o proximo passo.
+            Centralize agenda, lembretes, notas, financas e trabalho no WhatsApp.
+            Voce fala. O Flow Me registra, organiza e lembra o proximo passo.
           </p>
           <div class="hero-actions">
             <a class="primary-cta" href="#planos">Comecar agora</a>
@@ -225,6 +232,45 @@
         </div>
       </section>
 
+      <section class="singularity-section" id="singularidade">
+        <div class="singularity-copy">
+          <p class="singularity-chip">Tudo em um so lugar</p>
+          <h2>Tudo em um lugar so. Seu agente organiza por voce.</h2>
+          <p>
+            Slack, Gmail, Drive, Docs, Sheets, agenda, reunioes e notas orbitam a mesma
+            singularidade. O Flow Me puxa tudo para o centro e devolve o proximo passo
+            organizado no seu WhatsApp.
+          </p>
+        </div>
+        <div class="singularity-stage" aria-label="Apps conectados a singularidade Flow Me">
+          <div class="singularity-lens"></div>
+          <div class="singularity-core-shell"></div>
+          <div class="singularity-disc"></div>
+          <div class="orbit-ring ring-one"></div>
+          <div class="orbit-ring ring-two"></div>
+          <div class="orbit-ring ring-three"></div>
+
+          <div class="singularity-node node-gmail"><span><svg><use href="#icon-gmail-color"></use></svg></span><b>Gmail</b></div>
+          <div class="singularity-node node-slack"><span><svg><use href="#icon-slack-color"></use></svg></span><b>Slack</b></div>
+          <div class="singularity-node node-drive"><span><svg><use href="#icon-drive-color"></use></svg></span><b>Drive</b></div>
+          <div class="singularity-node node-sheets"><span><svg><use href="#icon-sheets-color"></use></svg></span><b>Sheets</b></div>
+          <div class="singularity-node node-calendar"><span><svg><use href="#icon-calendar"></use></svg></span><b>Agenda</b></div>
+          <div class="singularity-node node-checklist"><span><svg><use href="#icon-check"></use></svg></span><b>Checklist</b></div>
+          <div class="singularity-node node-docs"><span><svg><use href="#icon-doc-color"></use></svg></span><b>Docs</b></div>
+          <div class="singularity-node node-files"><span><svg><use href="#icon-file"></use></svg></span><b>Arquivos</b></div>
+          <div class="singularity-node node-documents"><span><svg><use href="#icon-file"></use></svg></span><b>Documentos</b></div>
+          <div class="singularity-node node-bank"><span><svg><use href="#icon-wallet"></use></svg></span><b>Banco</b></div>
+          <div class="singularity-node node-meetings"><span><svg><use href="#icon-users"></use></svg></span><b>Reunioes</b></div>
+          <div class="singularity-node node-goals"><span><svg><use href="#icon-flag"></use></svg></span><b>Metas</b></div>
+          <div class="singularity-node node-notes"><span><svg><use href="#icon-doc"></use></svg></span><b>Notas</b></div>
+
+          <div class="singularity-core">
+            <img src="/brand/flowme-icon.png" alt="" />
+            <svg><use href="#icon-whatsapp"></use></svg>
+          </div>
+        </div>
+      </section>
+
       <section class="reminder-fold" id="lembretes">
         <div class="section-heading">
           <p class="eyebrow">Lembretes no WhatsApp</p>
@@ -270,27 +316,42 @@
               </div>
               <div class="notification-stack" data-reminder-notifications>
                 <article class="flow-notification">
-                  <img src="/brand/flowme-icon.png" alt="" />
+                  <span class="flow-notification-icon">
+                    <img src="/brand/flowme-icon.png" alt="" />
+                    <span class="notification-wa-badge" aria-label="WhatsApp">
+                      <svg viewBox="0 0 32 32"><use href="#icon-whatsapp"></use></svg>
+                    </span>
+                  </span>
                   <div>
-                    <span>Flow Me no WhatsApp</span>
+                    <span class="notification-app">Flow Me no WhatsApp</span>
                     <strong>Aniversario da namorada amanha</strong>
                     <p>Comprar presente hoje ate 18h e reservar o jantar.</p>
                   </div>
                   <time>agora</time>
                 </article>
                 <article class="flow-notification">
-                  <img src="/brand/flowme-icon.png" alt="" />
+                  <span class="flow-notification-icon">
+                    <img src="/brand/flowme-icon.png" alt="" />
+                    <span class="notification-wa-badge" aria-label="WhatsApp">
+                      <svg viewBox="0 0 32 32"><use href="#icon-whatsapp"></use></svg>
+                    </span>
+                  </span>
                   <div>
-                    <span>Flow Me no WhatsApp</span>
+                    <span class="notification-app">Flow Me no WhatsApp</span>
                     <strong>Cliente Felipe</strong>
                     <p>Enviar proposta revisada antes das 14h30.</p>
                   </div>
                   <time>12 min</time>
                 </article>
                 <article class="flow-notification">
-                  <img src="/brand/flowme-icon.png" alt="" />
+                  <span class="flow-notification-icon">
+                    <img src="/brand/flowme-icon.png" alt="" />
+                    <span class="notification-wa-badge" aria-label="WhatsApp">
+                      <svg viewBox="0 0 32 32"><use href="#icon-whatsapp"></use></svg>
+                    </span>
+                  </span>
                   <div>
-                    <span>Flow Me no WhatsApp</span>
+                    <span class="notification-app">Flow Me no WhatsApp</span>
                     <strong>Call de fechamento as 15h</strong>
                     <p>Revisar preco, risco e proximo passo.</p>
                   </div>
@@ -298,6 +359,155 @@
                 </article>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="agenda-sync" id="agenda">
+        <div class="agenda-shell">
+          <div class="agenda-copy">
+            <p class="eyebrow">Agenda Inteligente</p>
+            <h2>Nunca mais esqueca um compromisso.</h2>
+            <p>
+              Tenha lembretes e resumos diarios. Registre compromissos no WhatsApp falando
+              do seu jeito: o Flow Me entende e organiza sua rotina. Tudo sincronizado com
+              seu Google Agenda.
+            </p>
+            <div class="agenda-checks" aria-label="Beneficios da agenda inteligente">
+              <span><svg><use href="#icon-whatsapp"></use></svg><b>Consulte sua agenda pelo WhatsApp</b></span>
+              <span><svg><use href="#icon-check"></use></svg><b>Marque tarefas do dia como feitas</b></span>
+              <span><svg><use href="#icon-calendar"></use></svg><b>Sincronizado com o Google Agenda</b></span>
+            </div>
+          </div>
+          <div class="agenda-proof" aria-label="Compromissos sincronizados com o Google Agenda">
+            <div class="gcal-card">
+              <div class="gcal-header" aria-hidden="true">
+                <span class="gcal-menu"><i></i><i></i><i></i></span>
+                <span class="gcal-logo">31</span>
+                <strong>Google Agenda</strong>
+                <span class="gcal-avatar"></span>
+              </div>
+              <div class="gcal-notification">
+                <span class="gcal-notification-icon"><svg viewBox="0 0 32 32"><use href="#icon-whatsapp"></use></svg></span>
+                <div>
+                  <strong>Flow Me</strong>
+                  <p>Seus compromissos ja foram sincronizados com seu Google Agenda! 📅</p>
+                </div>
+                <time>agora</time>
+              </div>
+              <div class="gcal-week">
+                <div><span>SEG</span><b>28</b></div>
+                <div><span>TER</span><b>29</b></div>
+                <div><span>QUA</span><b>30</b></div>
+                <div class="is-today"><span>QUI</span><b>1</b></div>
+                <div><span>SEX</span><b>2</b></div>
+              </div>
+              <div class="gcal-grid">
+                <div class="gcal-slot"><span>09:00</span></div>
+                <article class="gcal-event ev-blue"><b>🦷 Dentista</b><span>09:00 - 10:00</span></article>
+                <div class="gcal-slot"><span>10:00</span></div>
+                <div class="gcal-slot"><span>11:00</span></div>
+                <article class="gcal-event ev-green"><b>📞 Call de vendas</b><span>11:00 - 12:00</span></article>
+                <div class="gcal-slot"><span>12:00</span></div>
+                <div class="gcal-slot"><span>13:00</span></div>
+                <div class="gcal-slot"><span>14:00</span></div>
+                <article class="gcal-event ev-purple"><b>🎬 Filmagem de anuncios</b><span>14:00 - 16:00</span></article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="finance-control" id="financeiro">
+        <div class="finance-shell">
+          <div class="finance-copy">
+            <p class="eyebrow">Controle Financeiro</p>
+            <h2>Anote seus gastos por audio ou texto.</h2>
+            <p>
+              Registre despesas e receitas pelo WhatsApp. O Flow Me entende sua fala,
+              categoriza tudo e mostra o resumo para voce decidir melhor.
+            </p>
+            <div class="finance-checks" aria-label="Beneficios do controle financeiro">
+              <span><svg><use href="#icon-whatsapp"></use></svg><b>Consulte qualquer gasto pelo WhatsApp</b></span>
+              <span><svg><use href="#icon-check"></use></svg><b>Gastos chegam categorizados</b></span>
+              <span><svg><use href="#icon-wallet"></use></svg><b>Resumo do dia direto para voce</b></span>
+            </div>
+          </div>
+          <div class="finance-proof" aria-label="Controle financeiro do Flow Me pelo WhatsApp">
+            <div class="iphone finance-iphone">
+              <div class="iphone-notch"></div>
+              <div class="iphone-screen">
+                <div class="iphone-status">
+                  <strong>17:13</strong>
+                  <span class="status-icons" aria-hidden="true">
+                    <span class="cell-bars"><i></i><i></i><i></i><i></i></span>
+                    <svg class="ios-wifi" viewBox="0 0 24 18">
+                      <path d="M2.4 5.6C8.1.6 15.9.6 21.6 5.6" />
+                      <path d="M6.6 9.7c3.3-2.8 7.5-2.8 10.8 0" />
+                      <path d="M10.2 13.5c1.1-.9 2.5-.9 3.6 0" />
+                    </svg>
+                    <span class="ios-battery"><i></i></span>
+                  </span>
+                </div>
+                <div class="wa-app-header">
+                  <span class="wa-back" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" /></svg>
+                  </span>
+                  <img src="/brand/flowme-icon.png" alt="" />
+                  <div>
+                    <strong>Flow Me <span class="wa-verified" aria-label="verificado">✓</span></strong>
+                    <small>online agora</small>
+                  </div>
+                  <span class="wa-blue-icon" aria-label="Video">
+                    <svg viewBox="0 0 24 24"><path d="M4.5 7.5h10v9h-10z" /><path d="m14.5 10.4 5-3.1v9.4l-5-3.1z" /></svg>
+                  </span>
+                  <span class="wa-blue-icon" aria-label="Ligacao">
+                    <svg viewBox="0 0 24 24"><path d="M7.3 4.8 9.6 7c.6.6.7 1.5.2 2.2l-1 1.5c1.1 2.1 2.7 3.7 4.8 4.8l1.5-1c.7-.5 1.6-.4 2.2.2l2.2 2.3c.5.5.6 1.3.2 1.9-.8 1.3-2 2-3.5 2C10.1 20.9 3.1 13.9 3.1 7.8c0-1.5.7-2.7 2-3.5.6-.4 1.4-.3 1.9.2z" /></svg>
+                  </span>
+                </div>
+                <div class="hero-chat-window">
+                  <div class="hero-chat-scroll finance-chat-scroll" aria-live="polite">
+                    <div class="hero-wa-bubble finance-message user">Paguei 62 reais no mercado<time>17:12</time></div>
+                    <div class="hero-wa-bubble finance-message bot">Anotado! R$ 62,00 registrado em Mercado.<time>17:12</time></div>
+                    <div class="hero-wa-bubble finance-message user">Quanto gastei de iFood este mes?<time>17:13</time></div>
+                    <div class="hero-wa-bubble finance-message bot">Voce gastou R$ 2.146,00 no iFood este mes em 7 pedidos. O maior dia foi sexta-feira.<time>17:13</time></div>
+                    <div class="hero-wa-bubble finance-summary-card">
+                      <div>
+                        <span>Hoje</span>
+                        <strong>R$ 2.146,00</strong>
+                      </div>
+                      <ul>
+                        <li><b>Pedidos no iFood</b><span>R$ 2.146,00</span></li>
+                        <li><b>Ticket medio</b><span>R$ 306,57</span></li>
+                        <li><b>Maior dia</b><span>Sexta-feira</span></li>
+                      </ul>
+                      <time>17:13</time>
+                    </div>
+                    <div class="hero-wa-typing"><i></i><i></i><i></i></div>
+                  </div>
+                </div>
+                <div class="iphone-compose">
+                  <span class="compose-plus">+</span>
+                  <div class="compose-input"><i></i><b>Mensagem</b><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M8.6 10h.1M15.3 10h.1M8.5 14c1.6 1.5 5.4 1.5 7 0" /></svg></div>
+                  <span class="compose-icon" aria-label="Camera"><svg viewBox="0 0 24 24"><path d="M7.5 8 9 5.8h6L16.5 8H20v11H4V8z" /><circle cx="12" cy="13.5" r="3.2" /></svg></span>
+                  <span class="compose-icon" aria-label="Audio"><svg viewBox="0 0 24 24"><path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3z" /><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3" /></svg></span>
+                </div>
+              </div>
+            </div>
+            <aside class="finance-chart-card" aria-label="Gastos do mes por categoria">
+              <div class="finance-chart-head">
+                <span>Gastos do mes</span>
+                <strong>R$ 4.874,40</strong>
+                <small>Julho, por categoria</small>
+              </div>
+              <ul class="finance-chart-bars">
+                <li><b>iFood</b><span class="chart-track"><i style="width:100%"></i></span><em>R$ 2.146,00</em></li>
+                <li><b>Mercado</b><span class="chart-track"><i style="width:46%"></i></span><em>R$ 986,40</em></li>
+                <li><b>Contas</b><span class="chart-track"><i style="width:41%"></i></span><em>R$ 890,00</em></li>
+                <li><b>Transporte</b><span class="chart-track"><i style="width:24%"></i></span><em>R$ 512,00</em></li>
+                <li><b>Lazer</b><span class="chart-track"><i style="width:16%"></i></span><em>R$ 340,00</em></li>
+              </ul>
+            </aside>
           </div>
         </div>
       </section>
@@ -520,6 +730,7 @@
           <nav class="footer-links" aria-label="Produto">
             <strong>Produto</strong>
             <a href="#top">WhatsApp</a>
+            <a href="#financeiro">Controle Financeiro</a>
             <a href="#testimonials">Depoimentos</a>
             <a href="#planos">Planos</a>
           </nav>
@@ -539,6 +750,6 @@
         </div>
       </footer>
     </main>
-    <script src="/landing.js"></script>
+    <script src="/landing.js?v=20260708-finance-phone"></script>
   </body>
 </html>

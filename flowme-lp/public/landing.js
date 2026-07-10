@@ -5,12 +5,12 @@ const copy = {
     title: "Flow Me | Personal assistant on WhatsApp",
     description:
       "Centralize WhatsApp, calendar, reminders, notes, finance, documents and work with your personal assistant on WhatsApp.",
-    nav: ["Testimonials", "Plans"],
+    nav: ["Finance", "Testimonials", "Plans"],
     headerCta: "Start now",
     eyebrow: "AI on WhatsApp for routine, work and real life",
     h1: 'Get into flow with <em>your personal assistant on WhatsApp.</em>',
     hero:
-      "Your personal assistant to centralize WhatsApp, calendar, reminders, notes, finance, documents and work. Speak your way. Flow Me records, organizes and reminds you of the next step.",
+      "Centralize calendar, reminders, notes, finance and work on WhatsApp. You speak. Flow Me records, organizes and reminds you of the next step.",
     reminder: {
       eyebrow: "WhatsApp reminders",
       title: "Never miss an important commitment again.",
@@ -47,6 +47,87 @@ const copy = {
     primary: "Start now",
     secondary: "See features",
     pills: ["Capture by voice", "Ask in seconds", "Organize in the dashboard"],
+    finance: {
+      eyebrow: "Financial Control",
+      title: "Log expenses by voice or text.",
+      text:
+        "Send expenses and income through WhatsApp. Flow Me understands natural language, categorizes everything and shows the summary you need to decide better.",
+      checks: [
+        "Ask about any expense on WhatsApp",
+        "Expenses arrive categorized",
+        "Daily summary sent to you",
+      ],
+      userMessages: [
+        "I paid US$ 12.40 at the grocery store",
+        "How much did I spend on iFood this month?",
+      ],
+      botMessages: [
+        "Done! US$ 12.40 logged under Groceries.",
+        "You spent US$ 429.20 on iFood this month across 7 orders. The highest day was Friday.",
+      ],
+      placeholder: "Message",
+      today: "Today",
+      balance: "US$ 429.20",
+      rows: [
+        ["iFood orders", "US$ 429.20"],
+        ["Average order", "US$ 61.31"],
+        ["Biggest day", "Friday"],
+      ],
+    },
+    financeChart: {
+      title: "This month's spending",
+      total: "US$ 974.88",
+      subtitle: "July, by category",
+      rows: [
+        ["iFood", "US$ 429.20"],
+        ["Groceries", "US$ 197.28"],
+        ["Bills", "US$ 178.00"],
+        ["Transport", "US$ 102.40"],
+        ["Leisure", "US$ 68.00"],
+      ],
+    },
+    singularity: {
+      chip: "Everything in one place",
+      title: "Everything in one place. Your agent organizes it for you.",
+      text:
+        "Slack, Gmail, Drive, Docs, Sheets, calendar, meetings and notes orbit the same singularity. Flow Me pulls everything to the center and returns the next organized step on your WhatsApp.",
+      nodes: [
+        "Gmail",
+        "Slack",
+        "Drive",
+        "Sheets",
+        "Calendar",
+        "Checklist",
+        "Docs",
+        "Files",
+        "Documents",
+        "Bank",
+        "Meetings",
+        "Goals",
+        "Notes",
+      ],
+    },
+    agenda: {
+      eyebrow: "Smart Calendar",
+      title: "Never miss an appointment again.",
+      text:
+        "Get reminders and daily summaries. Log appointments on WhatsApp in your own words: Flow Me understands and organizes your routine. Everything synced with your Google Calendar.",
+      checks: [
+        "Check your calendar on WhatsApp",
+        "Mark today's tasks as done",
+        "Synced with Google Calendar",
+      ],
+      appName: "Google Calendar",
+      notificationTitle: "Flow Me",
+      notificationBody: "Your appointments are already synced with your Google Calendar! 📅",
+      notificationTime: "now",
+      week: [["MON", "28"], ["TUE", "29"], ["WED", "30"], ["THU", "1"], ["FRI", "2"]],
+      events: [
+        ["🦷 Dentist", "09:00 - 10:00"],
+        ["📞 Sales call", "11:00 - 12:00"],
+        ["🎬 Ad shoot", "14:00 - 16:00"],
+      ],
+    },
     pricingEyebrow: "Special offer",
     pricingTitle: "One plan to centralize your life.",
     pricingText:
@@ -171,12 +252,12 @@ const copy = {
     title: "Flow Me | Assistente pessoal no WhatsApp",
     description:
       "Centralize WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho com seu assistente pessoal no WhatsApp.",
-    nav: ["Depoimentos", "Planos"],
+    nav: ["Financeiro", "Depoimentos", "Planos"],
     headerCta: "Comecar agora",
     eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
     h1: 'Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em>',
     hero:
-      "Seu assistente pessoal para centralizar WhatsApp, agenda, lembretes, notas, financas, documentos e trabalho. Voce fala do seu jeito. O Flow Me registra, organiza e lembra o proximo passo.",
+      "Centralize agenda, lembretes, notas, financas e trabalho no WhatsApp. Voce fala. O Flow Me registra, organiza e lembra o proximo passo.",
     reminder: {
       eyebrow: "Lembretes no WhatsApp",
       title: "Nunca mais esqueca um compromisso.",
@@ -213,6 +294,87 @@ const copy = {
     primary: "Comecar agora",
     secondary: "Ver funcionalidades",
     pills: ["Registre por audio", "Consulte em segundos", "Organize tudo no painel"],
+    finance: {
+      eyebrow: "Controle Financeiro",
+      title: "Anote seus gastos por audio ou texto.",
+      text:
+        "Registre despesas e receitas pelo WhatsApp. O Flow Me entende sua fala, categoriza tudo e mostra o resumo para voce decidir melhor.",
+      checks: [
+        "Consulte qualquer gasto pelo WhatsApp",
+        "Gastos chegam categorizados",
+        "Resumo do dia direto para voce",
+      ],
+      userMessages: [
+        "Paguei 62 reais no mercado",
+        "Quanto gastei de iFood este mes?",
+      ],
+      botMessages: [
+        "Anotado! R$ 62,00 registrado em Mercado.",
+        "Voce gastou R$ 2.146,00 no iFood este mes em 7 pedidos. O maior dia foi sexta-feira.",
+      ],
+      placeholder: "Mensagem",
+      today: "Hoje",
+      balance: "R$ 2.146,00",
+      rows: [
+        ["Pedidos no iFood", "R$ 2.146,00"],
+        ["Ticket medio", "R$ 306,57"],
+        ["Maior dia", "Sexta-feira"],
+      ],
+    },
+    financeChart: {
+      title: "Gastos do mes",
+      total: "R$ 4.874,40",
+      subtitle: "Julho, por categoria",
+      rows: [
+        ["iFood", "R$ 2.146,00"],
+        ["Mercado", "R$ 986,40"],
+        ["Contas", "R$ 890,00"],
+        ["Transporte", "R$ 512,00"],
+        ["Lazer", "R$ 340,00"],
+      ],
+    },
+    singularity: {
+      chip: "Tudo em um so lugar",
+      title: "Tudo em um lugar so. Seu agente organiza por voce.",
+      text:
+        "Slack, Gmail, Drive, Docs, Sheets, agenda, reunioes e notas orbitam a mesma singularidade. O Flow Me puxa tudo para o centro e devolve o proximo passo organizado no seu WhatsApp.",
+      nodes: [
+        "Gmail",
+        "Slack",
+        "Drive",
+        "Sheets",
+        "Agenda",
+        "Checklist",
+        "Docs",
+        "Arquivos",
+        "Documentos",
+        "Banco",
+        "Reunioes",
+        "Metas",
+        "Notas",
+      ],
+    },
+    agenda: {
+      eyebrow: "Agenda Inteligente",
+      title: "Nunca mais esqueca um compromisso.",
+      text:
+        "Tenha lembretes e resumos diarios. Registre compromissos no WhatsApp falando do seu jeito: o Flow Me entende e organiza sua rotina. Tudo sincronizado com seu Google Agenda.",
+      checks: [
+        "Consulte sua agenda pelo WhatsApp",
+        "Marque tarefas do dia como feitas",
+        "Sincronizado com o Google Agenda",
+      ],
+      appName: "Google Agenda",
+      notificationTitle: "Flow Me",
+      notificationBody: "Seus compromissos ja foram sincronizados com seu Google Agenda! 📅",
+      notificationTime: "agora",
+      week: [["SEG", "28"], ["TER", "29"], ["QUA", "30"], ["QUI", "1"], ["SEX", "2"]],
+      events: [
+        ["🦷 Dentista", "09:00 - 10:00"],
+        ["📞 Call de vendas", "11:00 - 12:00"],
+        ["🎬 Filmagem de anuncios", "14:00 - 16:00"],
+      ],
+    },
     pricingEyebrow: "Oferta especial",
     pricingTitle: "Um plano para centralizar sua vida.",
     pricingText:
@@ -350,7 +512,9 @@ function checkoutUrl(locale, lead) {
   url.searchParams.set("locale", apiLocale(locale));
   url.searchParams.set("source", locale === "en-us" ? "lp_en-us" : "lp_pt-br");
   if (lead?.lead_token) url.searchParams.set("lead_token", lead.lead_token);
+  if (lead?.name) url.searchParams.set("name", lead.name);
   if (lead?.email) url.searchParams.set("email", lead.email);
+  if (lead?.phone) url.searchParams.set("phone", lead.phone);
   if (lead?.interval) url.searchParams.set("interval", lead.interval);
   return url.toString();
 }
@@ -523,7 +687,7 @@ function applyLocale(locale) {
     document.querySelectorAll(".flow-notification").forEach((notification, index) => {
       const item = t.reminder.notifications[index];
       if (!item) return;
-      const app = notification.querySelector("span");
+      const app = notification.querySelector(".notification-app");
       const title = notification.querySelector("strong");
       const body = notification.querySelector("p");
       const time = notification.querySelector("time");
@@ -531,6 +695,74 @@ function applyLocale(locale) {
       if (title) title.textContent = item.title;
       if (body) body.textContent = item.body;
       if (time) time.textContent = item.time;
+    });
+  }
+
+  if (t.finance) {
+    setText(".finance-control .eyebrow", t.finance.eyebrow);
+    setText(".finance-control h2", t.finance.title);
+    setText(".finance-copy > p:not(.eyebrow)", t.finance.text);
+    setTexts(".finance-checks b", t.finance.checks);
+    setTexts(".finance-message.user", t.finance.userMessages);
+    setTexts(".finance-message.bot", t.finance.botMessages);
+    setText(".finance-iphone .compose-input b", t.finance.placeholder);
+    setText(".finance-summary-card > div:first-child span", t.finance.today);
+    setText(".finance-summary-card > div:first-child strong", t.finance.balance);
+    document.querySelectorAll(".finance-summary-card li").forEach((row, index) => {
+      const item = t.finance.rows[index];
+      if (!item) return;
+      const title = row.querySelector("b");
+      const value = row.querySelector("span");
+      if (title) title.textContent = item[0];
+      if (value) value.textContent = item[1];
+    });
+  }
+
+  if (t.financeChart) {
+    setText(".finance-chart-head span", t.financeChart.title);
+    setText(".finance-chart-head strong", t.financeChart.total);
+    setText(".finance-chart-head small", t.financeChart.subtitle);
+    document.querySelectorAll(".finance-chart-bars li").forEach((row, index) => {
+      const item = t.financeChart.rows[index];
+      if (!item) return;
+      const label = row.querySelector("b");
+      const value = row.querySelector("em");
+      if (label) label.textContent = item[0];
+      if (value) value.textContent = item[1];
+    });
+  }
+
+  if (t.singularity) {
+    setText(".singularity-chip", t.singularity.chip);
+    setText(".singularity-copy h2", t.singularity.title);
+    setText(".singularity-copy p:not(.singularity-chip)", t.singularity.text);
+    setTexts(".singularity-node b", t.singularity.nodes);
+  }
+
+  if (t.agenda) {
+    setText(".agenda-copy .eyebrow", t.agenda.eyebrow);
+    setText(".agenda-copy h2", t.agenda.title);
+    setText(".agenda-copy > p:not(.eyebrow)", t.agenda.text);
+    setTexts(".agenda-checks b", t.agenda.checks);
+    setText(".gcal-header strong", t.agenda.appName);
+    setText(".gcal-notification strong", t.agenda.notificationTitle);
+    setText(".gcal-notification p", t.agenda.notificationBody);
+    setText(".gcal-notification time", t.agenda.notificationTime);
+    document.querySelectorAll(".gcal-week > div").forEach((day, index) => {
+      const item = t.agenda.week[index];
+      if (!item) return;
+      const label = day.querySelector("span");
+      const num = day.querySelector("b");
+      if (label) label.textContent = item[0];
+      if (num) num.textContent = item[1];
+    });
+    document.querySelectorAll(".gcal-event").forEach((event, index) => {
+      const item = t.agenda.events[index];
+      if (!item) return;
+      const title = event.querySelector("b");
+      const time = event.querySelector("span");
+      if (title) title.textContent = item[0];
+      if (time) time.textContent = item[1];
     });
   }
 
@@ -632,6 +864,7 @@ function setupTestimonialSlider() {
   const dotsWrap = slider.querySelector("[data-testimonial-dots]");
   const prevButton = slider.querySelector("[data-testimonial-prev]");
   const nextButton = slider.querySelector("[data-testimonial-next]");
+  const stage = slider.querySelector("[data-testimonial-stage]");
   if (!slides.length || !dotsWrap) return;
 
   let index = 0;
@@ -661,6 +894,16 @@ function setupTestimonialSlider() {
       slide.setAttribute("aria-hidden", String(slideIndex !== index));
     });
     dots.forEach((dot, dotIndex) => dot.setAttribute("aria-current", String(dotIndex === index)));
+    syncStageHeight();
+  }
+
+  function syncStageHeight() {
+    if (!stage) return;
+    window.requestAnimationFrame(() => {
+      const active = slides[index];
+      const minimum = window.matchMedia("(max-width: 620px)").matches ? 430 : 340;
+      stage.style.height = `${Math.max(active.offsetHeight + 34, minimum)}px`;
+    });
   }
 
   function stop() {
@@ -682,6 +925,8 @@ function setupTestimonialSlider() {
     restart();
   });
   slider.addEventListener("mouseenter", stop);
+  window.addEventListener("resize", syncStageHeight);
+  window.addEventListener("load", syncStageHeight);
   slider.addEventListener("mouseleave", restart);
 
   goTo(0);
@@ -865,8 +1110,8 @@ function setupLeadGate(locale) {
   });
 }
 
-function setupHeroChat() {
-  const scroll = document.querySelector(".hero-chat-scroll");
+function setupSequencedWhatsAppChat(selector, cycleMs = 35000) {
+  const scroll = document.querySelector(selector);
   const typing = scroll?.querySelector(".hero-wa-typing");
   const bubbles = scroll ? [...scroll.querySelectorAll(".hero-wa-bubble")] : [];
   if (!scroll || !typing || !bubbles.length) return;
@@ -924,7 +1169,284 @@ function setupHeroChat() {
   }
 
   runCycle();
-  setInterval(runCycle, 35000);
+  setInterval(runCycle, cycleMs);
+}
+
+function setupHeroChat() {
+  setupSequencedWhatsAppChat(".hero-chat-scroll", 35000);
+  setupSequencedWhatsAppChat(".finance-chat-scroll", 12000);
+}
+
+function setupSpaceBackground() {
+  if (document.querySelector(".space-backdrop")) return;
+  const wrap = document.createElement("div");
+  wrap.className = "space-backdrop";
+  wrap.setAttribute("aria-hidden", "true");
+  const canvas = document.createElement("canvas");
+  wrap.appendChild(canvas);
+  document.body.prepend(wrap);
+
+  const context = canvas.getContext("2d", { alpha: true });
+  if (!context) return;
+
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+  let rows = 0;
+  let cols = 0;
+  let tick = 0;
+  let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let particles = [];
+  const pointer = { x: 0, y: 0, active: false };
+
+  const createParticles = () => {
+    particles = [];
+    const spacing = Math.max(20, Math.min(30, width / 54));
+    cols = Math.ceil(width / spacing) + 5;
+    rows = Math.ceil(height / spacing) + 5;
+    const offsetX = (width - (cols - 1) * spacing) / 2;
+    const offsetY = (height - (rows - 1) * spacing) / 2;
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const wave = Math.sin(col * 0.55) * 10 + Math.cos(row * 0.42) * 8;
+        const x = offsetX + col * spacing + Math.sin(row * 1.7 + col) * 5;
+        const y = offsetY + row * spacing + wave;
+        const colorBand = (row / Math.max(rows - 1, 1)) * 56 + (col / Math.max(cols - 1, 1)) * 34;
+        particles.push({
+          x,
+          y,
+          baseX: x,
+          baseY: y,
+          vx: 0,
+          vy: 0,
+          size: 0.7 + ((row * 17 + col * 13) % 10) / 12,
+          hue: 178 + colorBand,
+          row,
+          col,
+        });
+      }
+    }
+  };
+
+  const resize = () => {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pointer.x = width * 0.72;
+    pointer.y = height * 0.42;
+    createParticles();
+  };
+
+  const updatePointer = (event) => {
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    pointer.active = true;
+  };
+
+  const stopPointer = () => {
+    pointer.active = false;
+  };
+
+  const drawParticle = (particle) => {
+    const glow = pointer.active ? 0.78 : 0.54;
+    context.beginPath();
+    context.fillStyle = `hsla(${particle.hue}, 88%, 68%, ${glow})`;
+    context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+    context.fill();
+  };
+
+  const drawConnection = (particle, neighbor) => {
+    if (!neighbor) return;
+    const distanceX = particle.x - neighbor.x;
+    const distanceY = particle.y - neighbor.y;
+    const distance = Math.hypot(distanceX, distanceY);
+    if (distance > 46) return;
+    const alpha = Math.max(0, 1 - distance / 46) * 0.2;
+    context.beginPath();
+    context.strokeStyle = `hsla(${(particle.hue + neighbor.hue) / 2}, 88%, 66%, ${alpha})`;
+    context.lineWidth = 0.75;
+    context.moveTo(particle.x, particle.y);
+    context.lineTo(neighbor.x, neighbor.y);
+    context.stroke();
+  };
+
+  const drawSingularity = (radius) => {
+    const x = pointer.x;
+    const y = pointer.y;
+    const pulse = 1 + Math.sin(tick * 4.4) * 0.035;
+    const coreRadius = Math.max(18, Math.min(26, radius * 0.12)) * pulse;
+    const diskRadius = Math.max(62, Math.min(92, radius * 0.42)) * pulse;
+    const tilt = 0.34;
+
+    const halo = context.createRadialGradient(x, y, coreRadius * 0.2, x, y, diskRadius * 2.15);
+    halo.addColorStop(0, "rgba(2, 6, 23, 0.92)");
+    halo.addColorStop(0.18, "rgba(14, 21, 46, 0.68)");
+    halo.addColorStop(0.34, "rgba(94, 234, 212, 0.14)");
+    halo.addColorStop(0.58, "rgba(129, 140, 248, 0.10)");
+    halo.addColorStop(1, "rgba(3, 5, 12, 0)");
+    context.save();
+    context.globalCompositeOperation = "lighter";
+    context.fillStyle = halo;
+    context.fillRect(x - diskRadius * 2.15, y - diskRadius * 2.15, diskRadius * 4.3, diskRadius * 4.3);
+
+    context.translate(x, y);
+    context.rotate(Math.sin(tick * 0.9) * 0.08);
+
+    for (let ring = 0; ring < 4; ring += 1) {
+      const ringRadius = diskRadius * (0.72 + ring * 0.13);
+      const ringAlpha = 0.34 - ring * 0.055;
+      const start = tick * (0.9 + ring * 0.21) + ring * 1.15;
+      const end = start + Math.PI * (1.25 + ring * 0.12);
+      const gradient = context.createLinearGradient(-ringRadius, 0, ringRadius, 0);
+      gradient.addColorStop(0, `rgba(94, 234, 212, ${ringAlpha * 0.45})`);
+      gradient.addColorStop(0.46, `rgba(129, 140, 248, ${ringAlpha})`);
+      gradient.addColorStop(1, `rgba(244, 114, 182, ${ringAlpha * 0.62})`);
+      context.save();
+      context.rotate(ring % 2 === 0 ? -0.3 : 0.22);
+      context.scale(1, tilt + ring * 0.026);
+      context.beginPath();
+      context.strokeStyle = gradient;
+      context.lineWidth = 1.4 - ring * 0.12;
+      context.arc(0, 0, ringRadius, start, end);
+      context.stroke();
+      context.restore();
+    }
+
+    context.save();
+    context.rotate(-0.2);
+    context.scale(1.18, 0.32);
+    const diskGradient = context.createLinearGradient(-diskRadius, 0, diskRadius, 0);
+    diskGradient.addColorStop(0, "rgba(94, 234, 212, 0)");
+    diskGradient.addColorStop(0.22, "rgba(94, 234, 212, 0.42)");
+    diskGradient.addColorStop(0.52, "rgba(255, 255, 255, 0.58)");
+    diskGradient.addColorStop(0.76, "rgba(168, 85, 247, 0.46)");
+    diskGradient.addColorStop(1, "rgba(244, 114, 182, 0)");
+    context.beginPath();
+    context.strokeStyle = diskGradient;
+    context.lineWidth = 3.2;
+    context.arc(0, 0, diskRadius * 0.74, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+
+    context.globalCompositeOperation = "source-over";
+    const core = context.createRadialGradient(0, 0, 0, 0, 0, coreRadius * 1.65);
+    core.addColorStop(0, "rgba(0, 0, 0, 1)");
+    core.addColorStop(0.5, "rgba(1, 5, 16, 0.98)");
+    core.addColorStop(0.72, "rgba(15, 23, 42, 0.72)");
+    core.addColorStop(1, "rgba(94, 234, 212, 0)");
+    context.beginPath();
+    context.fillStyle = core;
+    context.arc(0, 0, coreRadius * 1.65, 0, Math.PI * 2);
+    context.fill();
+
+    context.beginPath();
+    context.strokeStyle = "rgba(226, 232, 240, 0.58)";
+    context.lineWidth = 0.8;
+    context.arc(0, 0, coreRadius * 1.04, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+  };
+
+  const render = () => {
+    tick += reducedMotion ? 0.002 : 0.008;
+    context.clearRect(0, 0, width, height);
+
+    const gradient = context.createRadialGradient(
+      width * 0.5,
+      height * 0.48,
+      0,
+      width * 0.5,
+      height * 0.48,
+      Math.max(width, height) * 0.78
+    );
+    gradient.addColorStop(0, "rgba(18, 24, 46, 0.72)");
+    gradient.addColorStop(0.45, "rgba(7, 10, 22, 0.72)");
+    gradient.addColorStop(1, "rgba(3, 5, 12, 0.98)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
+
+    const fieldRadius = Math.min(230, Math.max(150, width * 0.16));
+    const fieldRadiusSq = fieldRadius * fieldRadius;
+
+    for (const particle of particles) {
+      const ambientX = Math.sin(tick + particle.row * 0.27 + particle.col * 0.1) * 10;
+      const ambientY = Math.cos(tick * 0.84 + particle.col * 0.22) * 8;
+      let targetX = particle.baseX + ambientX;
+      let targetY = particle.baseY + ambientY;
+
+      const dx = particle.x - pointer.x;
+      const dy = particle.y - pointer.y;
+      const distanceSq = dx * dx + dy * dy;
+
+      if (distanceSq < fieldRadiusSq) {
+        const distance = Math.max(Math.sqrt(distanceSq), 1);
+        const force = (1 - distance / fieldRadius) ** 2;
+        const angle = Math.atan2(dy, dx);
+        const orbit = angle + Math.PI * 0.5;
+        const eventHorizon = Math.max(34, fieldRadius * 0.16);
+        const inward = distance < eventHorizon ? -distance * 0.34 : -fieldRadius * 0.46;
+        const orbital = 68 + Math.sin(tick * 1.6 + particle.row * 0.22 + particle.col * 0.14) * 10;
+        const shear = Math.max(0, 1 - Math.abs(distance - eventHorizon * 1.45) / (fieldRadius * 0.62));
+        targetX += Math.cos(angle) * force * inward + Math.cos(orbit) * force * orbital + Math.cos(angle) * shear * 10;
+        targetY += Math.sin(angle) * force * inward + Math.sin(orbit) * force * orbital + Math.sin(angle) * shear * 10;
+      }
+
+      particle.vx += (targetX - particle.x) * 0.045;
+      particle.vy += (targetY - particle.y) * 0.045;
+      particle.vx *= reducedMotion ? 0.68 : 0.86;
+      particle.vy *= reducedMotion ? 0.68 : 0.86;
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+    }
+
+    context.save();
+    context.globalCompositeOperation = "lighter";
+
+    for (const particle of particles) {
+      const index = particle.row * cols + particle.col;
+      drawConnection(particle, particles[index + 1]);
+      drawConnection(particle, particles[index + cols]);
+    }
+
+    for (const particle of particles) {
+      drawParticle(particle);
+    }
+
+    const pointerGlow = context.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, fieldRadius * 1.1);
+    pointerGlow.addColorStop(0, pointer.active ? "rgba(94, 234, 212, 0.22)" : "rgba(129, 140, 248, 0.08)");
+    pointerGlow.addColorStop(0.48, pointer.active ? "rgba(129, 140, 248, 0.12)" : "rgba(129, 140, 248, 0.04)");
+    pointerGlow.addColorStop(1, "rgba(3, 5, 12, 0)");
+    context.fillStyle = pointerGlow;
+    context.fillRect(pointer.x - fieldRadius * 1.1, pointer.y - fieldRadius * 1.1, fieldRadius * 2.2, fieldRadius * 2.2);
+    drawSingularity(fieldRadius);
+    context.restore();
+
+    const veil = context.createLinearGradient(0, 0, 0, height);
+    veil.addColorStop(0, "rgba(3, 5, 12, 0.16)");
+    veil.addColorStop(0.48, "rgba(3, 5, 12, 0.34)");
+    veil.addColorStop(1, "rgba(3, 5, 12, 0.78)");
+    context.fillStyle = veil;
+    context.fillRect(0, 0, width, height);
+
+    window.requestAnimationFrame(render);
+  };
+
+  window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
+    reducedMotion = event.matches;
+  });
+  window.addEventListener("resize", resize);
+  window.addEventListener("pointermove", updatePointer, { passive: true });
+  window.addEventListener("pointerdown", updatePointer, { passive: true });
+  window.addEventListener("pointerleave", stopPointer);
+
+  resize();
+  render();
 }
 
 function recordLandingVisit(locale) {
@@ -940,4 +1462,5 @@ applyLocale(locale);
 setupLeadGate(locale);
 setupTestimonialSlider();
 setupHeroChat();
+setupSpaceBackground();
 recordLandingVisit(locale);

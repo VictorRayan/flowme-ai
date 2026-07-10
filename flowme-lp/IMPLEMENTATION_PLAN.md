@@ -108,10 +108,13 @@ Capture product proof for:
 Primary checkout target:
 
 ```txt
-https://app.flow-me.online/app/checkout
+https://app.flow-me.online/checkout
 ```
 
-If the user is not authenticated, the app should handle login and return to checkout.
+The public checkout receives the signed lead token and captured contact fields
+from the LP by query string so the buyer does not repeat name, email or WhatsApp
+after unlocking the price. Payment authorization still depends on the signed
+lead token and backend lead lookup.
 
 ## Validation
 
@@ -245,6 +248,23 @@ centralizes WhatsApp, agenda, reminders, notes, finance, documents and work.
   WhatsApp and notes.
 - [x] Run Flesch-Kincaid style readability audit and pair it with concrete copy
   checks.
+
+## Current LP Iteration: Hero, Reminders, Finance And Testimonials
+
+Specification: `specs/2026-07-08-hero-finance-testimonial-fixes.md`
+
+Goal: make the first fold more compact and concrete, clarify Flow Me as the
+WhatsApp assistant, add financial-control proof, and fix testimonial controls
+when quotes are long.
+
+- [x] Shorten the hero support copy without losing the WhatsApp assistant
+  promise.
+- [x] Reduce hero height so the proof ticker is visible at 100% zoom on desktop.
+- [x] Add a small WhatsApp badge to the Flow Me notification icon.
+- [x] Add `Controle Financeiro` as a product proof section.
+- [x] Keep testimonial carousel controls outside the active card and large
+  enough for touch.
+- [x] QA at 390x844, 768x1024, 1024x768 and 1440x900.
 
 ## Current Execution Plan: Flow Me Landing Refresh
 

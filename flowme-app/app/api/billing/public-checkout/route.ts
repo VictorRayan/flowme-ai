@@ -98,6 +98,8 @@ export async function POST(req: NextRequest) {
   const checkoutSource = text(body.source, 120) || text(lead.source, 120);
   const customerName = method === 'pix' ? text(body.customer_name, 160) : text(lead.name, 160) || tokenPayload.email.split('@')[0];
   const metaExternalId = text(body.meta_external_id, 120) || text(lead.meta_external_id, 120) || text(lead.visitor_id, 120);
+  const metaFbp = text(body.meta_fbp, 200);
+  const metaFbc = text(body.meta_fbc, 200);
   const { data: session, error: sessionError } = await admin.from('public_checkout_sessions').insert({
     lead_id: lead.id,
     meta_external_id: metaExternalId,
@@ -115,7 +117,12 @@ export async function POST(req: NextRequest) {
     amount_cents: price.amount_cents,
     status: 'created',
     source: checkoutSource,
-    metadata: { source: checkoutSource, public_checkout: true },
+    metadata: {
+      source: checkoutSource,
+      public_checkout: true,
+      ...(metaFbp ? { meta_fbp: metaFbp } : {}),
+      ...(metaFbc ? { meta_fbc: metaFbc } : {}),
+    },
   }).select('id').single();
   if (sessionError || !session) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to initialize public checkout', 500);
 

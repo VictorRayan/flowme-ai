@@ -202,6 +202,7 @@ function PublicCheckoutContent() {
   const [publicToken, setPublicToken] = React.useState(params.get('token') || '');
   const [verifiedEmail, setVerifiedEmail] = React.useState(displayEmail);
   const [paid, setPaid] = React.useState(false);
+  const [attemptId, setAttemptId] = React.useState('');
   const [offerRemainingSeconds, setOfferRemainingSeconds] = React.useState(CHECKOUT_OFFER_DURATION_SECONDS);
 
   // ── Meta Pixel tracking params forwarded from the LP via URL ──────────────
@@ -320,7 +321,9 @@ function PublicCheckoutContent() {
     const selectedPrice = plan?.prices.find(p => p.interval === interval);
     if (!selectedPrice) return;
     const value = selectedPrice.amount_cents / 100;
-    const eventId = generateEventId('purchase');
+    // Deterministic id so this browser Purchase deduplicates against the
+    // server-side Purchase fired from the payment webhook (same checkout session).
+    const eventId = attemptId ? `purchase_${attemptId}` : generateEventId('purchase');
     const fbp = urlFbp || readCookie('_fbp');
     const fbc = urlFbc || readCookie('_fbc');
 
@@ -379,12 +382,15 @@ function PublicCheckoutContent() {
         payment_method: selectedMethod,
         source: params.get('source') || undefined,
         meta_external_id: externalId || undefined,
+        meta_fbp: (urlFbp || readCookie('_fbp')) || undefined,
+        meta_fbc: (urlFbc || readCookie('_fbc')) || undefined,
         ...(paymentMethodId ? { payment_method_id: paymentMethodId } : {}),
         ...(selectedMethod === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
       }),
     });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error?.message || copy.paymentStartError);
+    if (payload.attempt_id) setAttemptId(String(payload.attempt_id));
     const selectedPrice = plan?.prices.find(p => p.interval === interval);
     const eventId = generateEventId('payment_info');
     fbq('track', 'AddPaymentInfo', {

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 const PIXEL_ID = process.env.META_PIXEL_ID;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+const TEST_EVENT_CODE = process.env.META_TEST_EVENT_CODE;
 
 const CAPI_ENDPOINT = `https://graph.facebook.com/v19.0/${PIXEL_ID}/events`;
 
@@ -75,14 +76,25 @@ export async function sendMetaEvent(
     } : {}),
   }];
 
+  const requestBody: Record<string, unknown> = { data };
+  if (TEST_EVENT_CODE) requestBody.test_event_code = TEST_EVENT_CODE;
+
   const res = await fetch(`${CAPI_ENDPOINT}?access_token=${ACCESS_TOKEN}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data }),
+    body: JSON.stringify(requestBody),
   });
 
-  if (!res.ok && process.env.NODE_ENV !== 'production') {
-    const body = await res.text();
-    console.warn('[meta/capi] CAPI error', res.status, body);
+  // Always surface delivery failures — the response body carries Meta's error
+  // detail and fbtrace_id but never echoes the access token, so it is safe to log.
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '');
+    console.error(`[meta/capi] ${payload.event_name} (${payload.event_id}) rejected: HTTP ${res.status} ${errorBody}`);
+    return;
+  }
+
+  if (process.env.META_CAPI_DEBUG === '1') {
+    const okBody = await res.json().catch(() => null);
+    console.log(`[meta/capi] ${payload.event_name} (${payload.event_id}) accepted`, okBody);
   }
 }

@@ -1636,17 +1636,11 @@ function setupLeadGate(locale) {
       // ── Meta Pixel: Lead event ─────────────────────────────────────────────
       if (typeof fbq === "function") {
         var leadEventId = "lead_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-        var checkoutEventId = "checkout_" + Date.now() + "_" + Math.random().toString(36).slice(2);
         fbq("track", "Lead", {
           content_name: "Flow Me Pro",
           currency: "BRL",
           content_category: "Subscription",
         }, { eventID: leadEventId });
-        fbq("track", "InitiateCheckout", {
-          content_name: "Flow Me Pro",
-          currency: "BRL",
-          content_category: "Subscription",
-        }, { eventID: checkoutEventId });
 
         // Mirror to Conversions API (server-side) for iOS 14+ / ad blocker coverage
         var fbp = typeof window.__FM_FBP === "function" ? window.__FM_FBP() : "";
@@ -1666,15 +1660,6 @@ function setupLeadGate(locale) {
           body: JSON.stringify({
             event_name: "Lead",
             event_id: leadEventId,
-            ...metaUserData,
-          }),
-        }).catch(function() {});
-        fetch(marketingApiBase + "/api/meta/event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event_name: "InitiateCheckout",
-            event_id: checkoutEventId,
             ...metaUserData,
           }),
         }).catch(function() {});

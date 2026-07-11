@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { computeEntitlementsFromSubscription } from '@/lib/billing/entitlements';
 import { getStripeClient, stripeSubscriptionToRow } from '@/lib/billing/stripe-adapter';
+import { sendPublicCheckoutPurchase } from '@/lib/meta/purchase';
 import { recordBillingAdminAlert, resolvePaymentFailureAdminAlerts } from '@/lib/billing/admin-alerts';
 import {
   clearBillingFailureNotifications,
@@ -254,6 +255,8 @@ export async function POST(req: NextRequest) {
             currency: invoice.currency.toUpperCase(), amount_cents: invoice.amount_paid, occurred_at: new Date(event.created * 1000).toISOString(),
           }, { onConflict: 'provider,provider_event_id,kind' });
         }
+        void sendPublicCheckoutPurchase(admin, context.publicSessionId)
+          .catch(err => console.error('[meta/capi] stripe purchase dispatch failed', err));
       } else if (context.userId) {
         await updateStripeAttempt(admin, context.attemptId, { status: 'paid', paid_at: new Date().toISOString() });
         await clearBillingFailureNotifications(admin, context.userId);

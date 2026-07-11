@@ -17,6 +17,8 @@ describe('Meta Conversions API', () => {
       META_ACCESS_TOKEN: 'token-123',
       NODE_ENV: 'test',
     };
+    delete process.env.META_TEST_EVENT_CODE;
+    delete process.env.META_CAPI_DEBUG;
     global.fetch = fetchMock;
   });
 
@@ -68,5 +70,55 @@ describe('Meta Conversions API', () => {
       client_ip_address: '203.0.113.10',
       client_user_agent: 'Mozilla/5.0',
     });
+    expect(body).not.toHaveProperty('test_event_code');
+  });
+
+  it('includes test_event_code when META_TEST_EVENT_CODE is set', async () => {
+    process.env.META_TEST_EVENT_CODE = 'TEST44787';
+    fetchMock.mockResolvedValue({ ok: true });
+    const { sendMetaEvent } = await import('@/lib/meta/conversions-api');
+
+    await sendMetaEvent({
+      event_name: 'Lead',
+      event_id: 'lead-1',
+      event_source_url: 'https://flow-me.online/',
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body).test_event_code).toBe('TEST44787');
+  });
+
+  it('logs a delivery failure when Meta rejects the event', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":{"message":"Invalid parameter","fbtrace_id":"abc"}}',
+    });
+    const { sendMetaEvent } = await import('@/lib/meta/conversions-api');
+
+    await sendMetaEvent({
+      event_name: 'Purchase',
+      event_id: 'purchase-err',
+      event_source_url: 'https://app.flow-me.online/checkout',
+    });
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0][0]).toContain('HTTP 400');
+    errorSpy.mockRestore();
+  });
+
+  it('skips the request when credentials are missing', async () => {
+    delete process.env.META_PIXEL_ID;
+    delete process.env.META_ACCESS_TOKEN;
+    const { sendMetaEvent } = await import('@/lib/meta/conversions-api');
+
+    await sendMetaEvent({
+      event_name: 'Lead',
+      event_id: 'lead-2',
+      event_source_url: 'https://flow-me.online/',
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

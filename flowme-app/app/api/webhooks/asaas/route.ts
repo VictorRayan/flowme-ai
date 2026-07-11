@@ -4,6 +4,7 @@ import { computeEntitlementsFromSubscription } from '@/lib/billing/entitlements'
 import { asaasPeriodEnd, normalizeAsaasEvent, verifyAsaasWebhookToken } from '@/lib/billing/providers/asaas-events';
 import { recordBillingAdminAlert } from '@/lib/billing/admin-alerts';
 import { clearBillingFailureNotifications, createBillingNotification } from '@/lib/billing/notifications';
+import { sendPublicCheckoutPurchase } from '@/lib/meta/purchase';
 
 type CheckoutAttempt = {
   id: string;
@@ -133,6 +134,10 @@ export async function POST(req: NextRequest) {
           amount_cents: event.type === 'PAYMENT_RECEIVED' ? event.amountCents : -event.amountCents,
           occurred_at: event.occurredAt,
         }, { onConflict: 'provider,provider_event_id,kind' });
+      }
+      if (event.type === 'PAYMENT_RECEIVED' && event.attemptStatus === 'paid') {
+        void sendPublicCheckoutPurchase(admin, publicSession.id)
+          .catch(err => console.error('[meta/capi] asaas purchase dispatch failed', err));
       }
     }
 

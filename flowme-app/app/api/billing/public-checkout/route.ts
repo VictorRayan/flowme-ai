@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const admin = getSupabaseAdmin();
   const { data: lead, error: leadError } = await admin.from('marketing_leads')
-    .select('id,email,name,phone,phone_e164,locale,source')
+    .select('id,email,name,phone,phone_e164,locale,source,meta_external_id,visitor_id')
     .eq('id', tokenPayload.id)
     .maybeSingle();
   if (leadError) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to load lead', 500);
@@ -97,8 +97,10 @@ export async function POST(req: NextRequest) {
 
   const checkoutSource = text(body.source, 120) || text(lead.source, 120);
   const customerName = method === 'pix' ? text(body.customer_name, 160) : text(lead.name, 160) || tokenPayload.email.split('@')[0];
+  const metaExternalId = text(body.meta_external_id, 120) || text(lead.meta_external_id, 120) || text(lead.visitor_id, 120);
   const { data: session, error: sessionError } = await admin.from('public_checkout_sessions').insert({
     lead_id: lead.id,
+    meta_external_id: metaExternalId,
     email: tokenPayload.email,
     customer_name: customerName,
     phone: text(lead.phone, 40),

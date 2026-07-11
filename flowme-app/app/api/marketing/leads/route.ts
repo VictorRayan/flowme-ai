@@ -59,8 +59,11 @@ export async function POST(req: NextRequest) {
 
   const bodyMetadata = typeof body.metadata === 'object' && body.metadata !== null && !Array.isArray(body.metadata) ? body.metadata : {};
   const metadata = { ...bodyMetadata, billing_interval: billingInterval };
+  const visitorId = text(body.visitor_id, 120);
+  const metaExternalId = text(body.meta_external_id, 120) || visitorId;
   const { data, error } = await getSupabaseAdmin().from('marketing_leads').insert({
-    visitor_id: text(body.visitor_id, 120),
+    visitor_id: visitorId,
+    meta_external_id: metaExternalId,
     session_id: text(body.session_id, 120),
     locale,
     name,

@@ -925,6 +925,7 @@ function baseMarketingPayload(locale) {
     path: window.location.pathname,
     source: locale === "en-us" ? "landing_en-us" : "landing_pt-br",
     visitor_id: visitorId(),
+    meta_external_id: visitorId(),
     session_id: sessionId(),
     referrer: document.referrer || "",
     ...utmPayload(),

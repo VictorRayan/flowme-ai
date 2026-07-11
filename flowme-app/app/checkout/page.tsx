@@ -378,6 +378,7 @@ function PublicCheckoutContent() {
         locale,
         payment_method: selectedMethod,
         source: params.get('source') || undefined,
+        meta_external_id: externalId || undefined,
         ...(paymentMethodId ? { payment_method_id: paymentMethodId } : {}),
         ...(selectedMethod === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
       }),

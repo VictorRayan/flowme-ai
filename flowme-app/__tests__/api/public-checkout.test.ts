@@ -37,16 +37,26 @@ function chain(singleData: unknown = null) {
 }
 
 describe('public checkout', () => {
+  let insertedCheckout: Record<string, unknown> | null;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    insertedCheckout = null;
     process.env.PUBLIC_CHECKOUT_TOKEN_SECRET = 'test-public-token-secret';
     const publicSessions = [chain(null), chain({ id: 'public-1' }), chain(null)];
     mockFrom.mockImplementation((table: string) => {
-      if (table === 'marketing_leads') return chain({ id: 'lead-1', email: 'buyer@example.com', name: 'Buyer', phone: '(11) 99999-9999', phone_e164: '+5511999999999', locale: 'pt-BR', source: 'lp_pt-br' });
+      if (table === 'marketing_leads') return chain({ id: 'lead-1', email: 'buyer@example.com', name: 'Buyer', phone: '(11) 99999-9999', phone_e164: '+5511999999999', locale: 'pt-BR', source: 'lp_pt-br', visitor_id: 'visitor-1', meta_external_id: 'visitor-1' });
       if (table === 'billing_payment_method_routes') return chain({ provider: 'stripe', currency: 'BRL' });
       if (table === 'subscription_prices') return chain({ id: 'price-row-1', provider_price_id: 'price_annual', currency: 'BRL', amount_cents: 47880 });
       if (table === 'subscription_plan_localizations') return chain({ name: 'Flow Me Pro', description: 'Flow Me Pro subscription' });
-      if (table === 'public_checkout_sessions') return publicSessions.shift() || chain(null);
+      if (table === 'public_checkout_sessions') {
+        const next = publicSessions.shift() || chain(null);
+        next.insert.mockImplementation((payload: Record<string, unknown>) => {
+          insertedCheckout = payload;
+          return next;
+        });
+        return next;
+      }
       if (table === 'user_subscriptions') return chain(null);
       if (table === 'user_entitlements') return chain(null);
       return chain(null);
@@ -79,6 +89,10 @@ describe('public checkout', () => {
       userId: null,
       publicCheckoutSessionId: 'public-1',
       userEmail: 'buyer@example.com',
+    }));
+    expect(insertedCheckout).toEqual(expect.objectContaining({
+      lead_id: 'lead-1',
+      meta_external_id: 'visitor-1',
     }));
   });
 

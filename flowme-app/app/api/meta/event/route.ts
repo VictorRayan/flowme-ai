@@ -59,6 +59,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       event_name,
       event_id: String(body.event_id ?? ''),
       event_source_url: String(body.event_source_url ?? 'https://app.flow-me.online/checkout'),
+      external_id: body.external_id ? String(body.external_id) : undefined,
+      name: body.name ? String(body.name) : undefined,
       email: body.email ? String(body.email) : undefined,
       phone: body.phone ? String(body.phone) : undefined,
       fbp: body.fbp ? String(body.fbp) : undefined,

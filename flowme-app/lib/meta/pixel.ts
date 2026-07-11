@@ -27,6 +27,14 @@ export function readCookie(name: string): string {
   return m ? decodeURIComponent(m[1]) : '';
 }
 
+export function writeCookie(name: string, value: string, domain?: string): void {
+  if (typeof document === 'undefined' || !value) return;
+  const maxAge = 90 * 24 * 60 * 60;
+  const secure = window.location.protocol === 'https:' ? '; secure' : '';
+  const cookieDomain = domain ? `; domain=${domain}` : '';
+  document.cookie = `${name}=${encodeURIComponent(value)}${cookieDomain}; path=/; max-age=${maxAge}; samesite=lax${secure}`;
+}
+
 /**
  * Builds the _fbc value from a fbclid query parameter.
  * Format: fb.1.<creation_time_ms>.<fbclid>

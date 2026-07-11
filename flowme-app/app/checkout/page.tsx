@@ -27,7 +27,7 @@ import {
   formatCheckoutCountdown,
   type CheckoutLocale,
 } from '@/lib/billing/checkout-ui';
-import { fbq, generateEventId, readCookie, fbcFromFbclid } from '@/lib/meta/pixel';
+import { fbq, generateEventId, readCookie, writeCookie, fbcFromFbclid } from '@/lib/meta/pixel';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -188,6 +188,7 @@ function PublicCheckoutContent() {
   const capturedName = queryText(params.get('name'), 160);
   const displayEmail = queryText(params.get('email'), 240);
   const capturedPhone = queryText(params.get('phone'), 40);
+  const forwardedExternalId = queryText(params.get('external_id'), 160);
   const [plan, setPlan] = React.useState<Plan | null>(null);
   const [pixAvailable, setPixAvailable] = React.useState(false);
   const [marketLoaded, setMarketLoaded] = React.useState(false);
@@ -209,6 +210,14 @@ function PublicCheckoutContent() {
   const urlFbp = params.get('_fbp') || '';
   const rawFbclid = params.get('fbclid') || params.get('_fbclid') || '';
   const urlFbc = params.get('_fbc') || (rawFbclid ? fbcFromFbclid(rawFbclid) : '');
+  const externalId = React.useMemo(() => {
+    if (typeof window === 'undefined') return forwardedExternalId;
+    if (forwardedExternalId) {
+      window.localStorage.setItem('flowme_meta_external_id', forwardedExternalId);
+      return forwardedExternalId;
+    }
+    return trackingId(window.localStorage, 'flowme_meta_external_id');
+  }, [forwardedExternalId]);
 
   React.useEffect(() => {
     const storedExpiry = Number(sessionStorage.getItem(CHECKOUT_OFFER_EXPIRY_KEY));
@@ -239,26 +248,34 @@ function PublicCheckoutContent() {
     const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
     if (!pixelId) return;
 
-    // Write cookies BEFORE init so the Pixel picks them up automatically.
-    // Use domain=.flow-me.online so both subdomains share the same cookie.
-    const COOKIE_MAX_AGE = 90 * 24 * 60 * 60; // 90 days (Meta's default for _fbp)
-    const ROOT_DOMAIN = '.flow-me.online';
-
-    if (urlFbp && !readCookie('_fbp')) {
-      document.cookie = `_fbp=${encodeURIComponent(urlFbp)}; domain=${ROOT_DOMAIN}; path=/; max-age=${COOKIE_MAX_AGE}; secure; samesite=lax`;
-    }
-    if (urlFbc && !readCookie('_fbc')) {
-      document.cookie = `_fbc=${encodeURIComponent(urlFbc)}; domain=${ROOT_DOMAIN}; path=/; max-age=${COOKIE_MAX_AGE}; secure; samesite=lax`;
-    }
+    const rootDomain = window.location.hostname.endsWith('flow-me.online') ? '.flow-me.online' : undefined;
+    if (urlFbp && readCookie('_fbp') !== urlFbp) writeCookie('_fbp', urlFbp, rootDomain);
+    if (urlFbc && readCookie('_fbc') !== urlFbc) writeCookie('_fbc', urlFbc, rootDomain);
 
     // Now init — Pixel reads _fbp/_fbc from document.cookie automatically.
-    fbq('init', pixelId);
+    const eventId = generateEventId('checkout');
+    fbq('init', pixelId, { external_id: externalId });
     fbq('track', 'PageView');
     fbq('track', 'InitiateCheckout', {
       content_name: 'Flow Me Pro',
       currency: 'BRL',
       content_category: 'Subscription',
-    });
+    }, { eventID: eventId });
+    fetch('/api/meta/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_name: 'InitiateCheckout',
+        event_id: eventId,
+        event_source_url: window.location.href,
+        external_id: externalId || undefined,
+        name: capturedName || undefined,
+        email: displayEmail || undefined,
+        phone: capturedPhone || undefined,
+        fbp: urlFbp || readCookie('_fbp') || undefined,
+        fbc: urlFbc || readCookie('_fbc') || undefined,
+      }),
+    }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -324,6 +341,8 @@ function PublicCheckoutContent() {
         event_name: 'Purchase',
         event_id: eventId,
         event_source_url: typeof window !== 'undefined' ? window.location.href : 'https://app.flow-me.online/checkout',
+        external_id: externalId || undefined,
+        name: capturedName || name || undefined,
         email: verifiedEmail || displayEmail || undefined,
         phone: capturedPhone || undefined,
         fbp: fbp || undefined,
@@ -365,6 +384,32 @@ function PublicCheckoutContent() {
     });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error?.message || copy.paymentStartError);
+    const selectedPrice = plan?.prices.find(p => p.interval === interval);
+    const eventId = generateEventId('payment_info');
+    fbq('track', 'AddPaymentInfo', {
+      value: selectedPrice ? selectedPrice.amount_cents / 100 : undefined,
+      currency: 'BRL',
+      content_name: 'Flow Me Pro',
+      content_category: 'Subscription',
+      payment_method: selectedMethod,
+    }, { eventID: eventId });
+    fetch('/api/meta/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_name: 'AddPaymentInfo',
+        event_id: eventId,
+        event_source_url: window.location.href,
+        external_id: externalId || undefined,
+        name: capturedName || name || undefined,
+        email: verifiedEmail || displayEmail || undefined,
+        phone: capturedPhone || undefined,
+        fbp: urlFbp || readCookie('_fbp') || undefined,
+        fbc: urlFbc || readCookie('_fbc') || undefined,
+        value: selectedPrice ? selectedPrice.amount_cents / 100 : undefined,
+        currency: 'BRL',
+      }),
+    }).catch(() => {});
     return payload as CheckoutResponse;
   };
 

@@ -21,6 +21,8 @@ export interface MetaEventPayload {
   event_name: MetaEventName;
   event_id: string;
   event_source_url: string;
+  external_id?: string;
+  name?: string;
   email?: string;
   phone?: string;
   /** Raw _fbp cookie value from the browser */
@@ -45,6 +47,12 @@ export async function sendMetaEvent(
   }
 
   const user_data: Record<string, string> = {};
+  if (payload.external_id) user_data.external_id = sha256(payload.external_id);
+  if (payload.name) {
+    const parts = payload.name.trim().split(/\s+/).filter(Boolean);
+    if (parts[0]) user_data.fn = sha256(parts[0]);
+    if (parts.length > 1) user_data.ln = sha256(parts.slice(1).join(' '));
+  }
   if (payload.email) user_data.em = sha256(payload.email);
   if (payload.phone) user_data.ph = sha256(payload.phone.replace(/\D/g, ''));
   if (payload.fbp) user_data.fbp = payload.fbp;

@@ -843,6 +843,7 @@ function checkoutUrl(locale, lead) {
   if (lead?.email) url.searchParams.set("email", lead.email);
   if (lead?.phone) url.searchParams.set("phone", lead.phone);
   if (lead?.interval) url.searchParams.set("interval", lead.interval);
+  url.searchParams.set("external_id", lead?.visitor_id || visitorId());
 
   // ── Meta cross-domain tracking params ──────────────────────────────────────
   // Pass _fbp and _fbc to the checkout so it can write them as first-party
@@ -871,10 +872,12 @@ function readStoredLead(locale) {
 
 function visitorId() {
   const key = "flowme_lp_visitor_id";
+  if (window.__FM_EXTERNAL_ID) return window.__FM_EXTERNAL_ID;
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
   const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   window.localStorage.setItem(key, id);
+  window.__FM_EXTERNAL_ID = id;
   return id;
 }
 
@@ -1622,6 +1625,7 @@ function setupLeadGate(locale) {
         ...payload,
         lead_id: result.lead_id,
         lead_token: result.lead_token,
+        visitor_id: visitorId(),
         locale,
         capturedAt: new Date().toISOString(),
       };
@@ -1631,6 +1635,7 @@ function setupLeadGate(locale) {
       // ── Meta Pixel: Lead event ─────────────────────────────────────────────
       if (typeof fbq === "function") {
         var leadEventId = "lead_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+        var checkoutEventId = "checkout_" + Date.now() + "_" + Math.random().toString(36).slice(2);
         fbq("track", "Lead", {
           content_name: "Flow Me Pro",
           currency: "BRL",
@@ -1640,22 +1645,36 @@ function setupLeadGate(locale) {
           content_name: "Flow Me Pro",
           currency: "BRL",
           content_category: "Subscription",
-        });
+        }, { eventID: checkoutEventId });
 
         // Mirror to Conversions API (server-side) for iOS 14+ / ad blocker coverage
         var fbp = typeof window.__FM_FBP === "function" ? window.__FM_FBP() : "";
         var fbc = typeof window.__FM_FBC === "function" ? window.__FM_FBC() : "";
+        var metaUserData = {
+          event_source_url: window.location.href,
+          external_id: lead.visitor_id,
+          name: payload.name || "",
+          email: payload.email || "",
+          phone: payload.phone || "",
+          fbp: fbp || undefined,
+          fbc: fbc || undefined,
+        };
         fetch(marketingApiBase + "/api/meta/event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             event_name: "Lead",
             event_id: leadEventId,
-            event_source_url: window.location.href,
-            email: payload.email || "",
-            phone: payload.phone || "",
-            fbp: fbp || undefined,
-            fbc: fbc || undefined,
+            ...metaUserData,
+          }),
+        }).catch(function() {});
+        fetch(marketingApiBase + "/api/meta/event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event_name: "InitiateCheckout",
+            event_id: checkoutEventId,
+            ...metaUserData,
           }),
         }).catch(function() {});
       }

@@ -37,21 +37,41 @@
       // Capture fbclid if the visitor arrived via a Meta ad
       var __fm_params = new URLSearchParams(window.location.search);
       var __fm_fbclid = __fm_params.get('fbclid') || '';
+      var __fm_cookie_domain = window.location.hostname.endsWith('flow-me.online') ? '; domain=.flow-me.online' : '';
+      var __fm_cookie_max_age = 90 * 24 * 60 * 60;
+      var __fm_external_id_key = 'flowme_lp_visitor_id';
+      var __fm_external_id = window.localStorage.getItem(__fm_external_id_key);
+      if (!__fm_external_id) {
+        __fm_external_id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+        window.localStorage.setItem(__fm_external_id_key, __fm_external_id);
+      }
+      function __fm_read_cookie(name) {
+        var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+        return m ? decodeURIComponent(m[1]) : '';
+      }
+      function __fm_write_cookie(name, value) {
+        document.cookie = name + '=' + encodeURIComponent(value) + __fm_cookie_domain + '; path=/; max-age=' + __fm_cookie_max_age + '; samesite=lax' + (window.location.protocol === 'https:' ? '; secure' : '');
+      }
+      var __fm_fbp = __fm_read_cookie('_fbp');
+      if (!__fm_fbp) {
+        __fm_fbp = 'fb.1.' + Date.now() + '.' + Math.floor(Math.random() * 10000000000000000);
+      }
+      __fm_write_cookie('_fbp', __fm_fbp);
+      var __fm_fbc = __fm_read_cookie('_fbc') || (__fm_fbclid ? 'fb.1.' + Date.now() + '.' + __fm_fbclid : '');
+      if (__fm_fbc) __fm_write_cookie('_fbc', __fm_fbc);
 
-      fbq('init', '1344847183738689');
+      fbq('init', '1344847183738689', { external_id: __fm_external_id });
       fbq('track', 'PageView');
 
       // Helpers used by landing.js to forward tracking params to the checkout URL
       window.__FM_FBP = function() {
-        var m = document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : '';
+        return __fm_read_cookie('_fbp') || __fm_fbp;
       };
       window.__FM_FBC = function() {
-        var m = document.cookie.match(/(?:^|;\s*)_fbc=([^;]+)/);
-        if (m) return decodeURIComponent(m[1]);
-        return __fm_fbclid ? 'fb.1.' + Date.now() + '.' + __fm_fbclid : '';
+        return __fm_read_cookie('_fbc') || __fm_fbc;
       };
       window.__FM_FBCLID = __fm_fbclid;
+      window.__FM_EXTERNAL_ID = __fm_external_id;
     </script>
     <noscript>
       <img height="1" width="1" style="display:none"

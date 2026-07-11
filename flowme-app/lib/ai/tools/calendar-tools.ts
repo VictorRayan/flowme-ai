@@ -76,6 +76,25 @@ function renderAccountOptions(accounts: GoogleAccount[]): string {
   return accounts.map(account => account.name).join(', ');
 }
 
+function calendarConnectionError(action: string, error?: unknown): string {
+  if (!error) {
+    return 'Google Calendar connection needs connection. Ask the user to open Settings, connect Google Calendar, and then retry.';
+  }
+
+  const err = error as {
+    response?: { data?: { error?: { code?: number | string; message?: string } } };
+    errors?: Array<{ message?: string }>;
+    code?: number | string;
+    message?: string;
+  };
+  const googleMsg = err.response?.data?.error?.message || err.errors?.[0]?.message || err.message;
+  const errCode = err.response?.data?.error?.code || err.code;
+  if (errCode === 401 || errCode === 403 || /insufficient authentication scopes|insufficient permission|permission_denied|scope|consent|unauthoriz|refresh/i.test(String(googleMsg || ''))) {
+    return 'Google Calendar connection needs reconnect. Ask the user to open Settings, reconnect Google Calendar, and then retry.';
+  }
+  return errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || `Failed to ${action}`);
+}
+
 const GOOGLE_EVENT_ID_RE = /^[A-Za-z0-9_@.]+$/;
 
 function invalidGoogleEventIdError(eventId: string): string {
@@ -156,7 +175,7 @@ async function resolveGoogleAccount(
 ): Promise<{ ok: true; account: GoogleAccount } | { ok: false; error: string }> {
   const accounts = await listGoogleAccounts(context);
   if (accounts.length === 0) {
-    return { ok: false, error: 'No active Google account connected.' };
+    return { ok: false, error: calendarConnectionError('use calendar') };
   }
 
   const wanted = normalizeAccountLabel(accountNickname);
@@ -219,7 +238,7 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
       ? null
       : await listGoogleAccounts(context);
     if (!args.account_nickname && (!accounts || accounts.length === 0)) {
-      return { ok: false, error: 'No active Google account connected.' };
+      return { ok: false, error: calendarConnectionError('list events') };
     }
 
     const selectedAccount = args.account_nickname
@@ -294,9 +313,8 @@ ASK THE USER FIRST IF: they ask about "next week" / "Friday" with ambiguous boun
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
       const errCode = e?.response?.data?.error?.code || e?.code;
-      const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to list events');
       console.error('[calendar.list_events] Google API error:', { errCode, googleMsg, startIso, endIso, query: args.query });
-      return { ok: false, error: detailedError };
+      return { ok: false, error: calendarConnectionError('list events', e) };
     }
   }
 });
@@ -369,9 +387,8 @@ ASK THE USER FIRST IF: time is ambiguous, the user explicitly named someone but 
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
       const errCode = e?.response?.data?.error?.code || e?.code;
-      const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to create event');
       console.error('[calendar.create_event] Google API error:', { errCode, googleMsg, normalized });
-      return { ok: false, error: detailedError };
+      return { ok: false, error: calendarConnectionError('create event', e) };
     }
   }
 });
@@ -437,7 +454,7 @@ RETURNS human-readable evidence only: titles, scheduled times, outcomes, reasons
       ? null
       : await listGoogleAccounts(context);
     if (!args.account_nickname && (!accounts || accounts.length === 0)) {
-      return { ok: false, error: 'No active Google account connected.' };
+      return { ok: false, error: calendarConnectionError('list execution history') };
     }
     const selectedAccount = args.account_nickname
       ? await resolveGoogleAccount(context, args.account_nickname, false)
@@ -585,9 +602,8 @@ ASK THE USER FIRST IF: the target event is ambiguous (multiple matches in list_e
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
       const errCode = e?.response?.data?.error?.code || e?.code;
-      const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to update event');
       console.error('[calendar.update_event] Google API error:', { errCode, googleMsg, event_id: args.event_id });
-      return { ok: false, error: detailedError };
+      return { ok: false, error: calendarConnectionError('update event', e) };
     }
   }
 });
@@ -644,9 +660,8 @@ ALWAYS ASK THE USER FIRST IF: the cancellation has invitees, the event is recurr
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
       const errCode = e?.response?.data?.error?.code || e?.code;
-      const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to delete event');
       console.error('[calendar.delete_event] Google API error:', { errCode, googleMsg, event_id: args.event_id });
-      return { ok: false, error: detailedError };
+      return { ok: false, error: calendarConnectionError('delete event', e) };
     }
   }
 });
@@ -719,7 +734,7 @@ ALWAYS ASK FIRST IF: more than 1 event, recurring events involved, or the user's
       } catch (e: any) {
         const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;
         const errCode = e?.response?.data?.error?.code || e?.code;
-        const detailedError = errCode && googleMsg ? `Google API ${errCode}: ${googleMsg}` : (googleMsg || 'Failed to delete event');
+        const detailedError = calendarConnectionError('delete event', e);
         console.error('[calendar.delete_events_batch] one event failed:', { event_id, errCode, googleMsg });
         return { event_id, status: 'failed' as const, error: detailedError };
       }

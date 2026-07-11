@@ -452,7 +452,7 @@ describe('Drive connector tools', () => {
     expect(result.receipt).toMatchObject({ title: 'URL doc', matched_by: 'url' });
   });
 
-  it('creates a new Google Doc with initial content', async () => {
+  it('creates a new Google Doc with formatted content instead of raw Markdown', async () => {
     mockDocsDocumentsCreate.mockResolvedValueOnce({ data: { documentId: 'doc-new' } });
     mockDocsDocumentsBatchUpdate.mockResolvedValueOnce({ data: {} });
 
@@ -466,24 +466,36 @@ describe('Drive connector tools', () => {
     const result = await connectorsCreateDocTool.call({
       connector_id: 'conn-docs',
       title: 'Plano financeiro',
-      content: 'Resumo\n\nEste documento foi criado pelo Balys.',
+      content: '# Resumo\n\nEste documento foi criado pelo **Balys**.\n\n- Item um\n- Item dois',
     }, context);
 
     expect(result.ok).toBe(true);
     expect(mockDocsDocumentsCreate).toHaveBeenCalledWith({ requestBody: { title: 'Plano financeiro' } });
-    expect(mockDocsDocumentsBatchUpdate).toHaveBeenCalledWith({
-      documentId: 'doc-new',
-      requestBody: {
-        requests: [
-          {
-            insertText: {
-              location: { index: 1 },
-              text: 'Resumo\n\nEste documento foi criado pelo Balys.\n',
-            },
-          },
-        ],
+    const batch = mockDocsDocumentsBatchUpdate.mock.calls[0][0];
+    expect(batch.documentId).toBe('doc-new');
+    expect(batch.requestBody.requests[0]).toEqual({
+      insertText: {
+        location: { index: 1 },
+        text: 'Resumo\n\nEste documento foi criado pelo Balys.\n\nItem um\nItem dois\n',
       },
     });
+    expect(batch.requestBody.requests).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        updateParagraphStyle: expect.objectContaining({
+          paragraphStyle: { namedStyleType: 'TITLE' },
+        }),
+      }),
+      expect.objectContaining({
+        updateTextStyle: expect.objectContaining({
+          textStyle: { bold: true },
+        }),
+      }),
+      expect.objectContaining({
+        createParagraphBullets: expect.objectContaining({
+          bulletPreset: 'BULLET_DISC_CIRCLE_SQUARE',
+        }),
+      }),
+    ]));
     expect(result.receipt).toMatchObject({
       title: 'Plano financeiro',
       document_id: 'doc-new',

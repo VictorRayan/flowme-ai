@@ -180,6 +180,7 @@ type DestructiveDialog =
   | { kind: 'deleteThread'; threadId: string; title: string; step: 1 | 2 }
   | { kind: 'clearThread'; threadId: string; title: string; step: 1 | 2 }
   | null;
+type ConnectorCtaAction = CommandAction | 'calendar';
 interface Thread {
   id: string;
   title: string;
@@ -268,8 +269,9 @@ function imageAttachmentFileName(att: Attachment): string {
   return `${raw}.${extension}`;
 }
 
-function actionIcon(action: CommandAction, size = 16): React.ReactElement | undefined {
+function actionIcon(action: ConnectorCtaAction, size = 16): React.ReactElement | undefined {
   const iconSx = { fontSize: `${size}px !important` };
+  if (action === 'calendar') return <EventIcon sx={{ ...iconSx, color: '#60a5fa' }} />;
   if (action === 'gmail') return <GmailBrandIcon sx={iconSx} />;
   if (action === 'drive') return <GoogleDriveBrandIcon sx={iconSx} />;
   if (action === 'docs') return <GoogleDocsBrandIcon sx={iconSx} />;
@@ -365,10 +367,12 @@ function suggestionActionMeta(suggestion: SuggestionPrompt, lang: 'en' | 'pt') {
   };
 }
 
-function connectorCtaFromText(text: string, lang: 'en' | 'pt'): { action: CommandAction; title: string; body: string; href: string } | null {
+function connectorCtaFromText(text: string, lang: 'en' | 'pt'): { action: ConnectorCtaAction; title: string; body: string; href: string } | null {
   if (!/connectors?|conectores?|connect account|reconnect account|needs connection|precisa ser renovada|conex[aã]o/i.test(text)) return null;
   const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const action: CommandAction = /\bgmail|email/.test(normalized)
+  const action: ConnectorCtaAction = /\bcalendar|calendario|agenda/.test(normalized)
+    ? 'calendar'
+    : /\bgmail|email/.test(normalized)
     ? 'gmail'
     : /\bsheets|planilha|spreadsheet/.test(normalized)
       ? 'sheets'
@@ -379,7 +383,8 @@ function connectorCtaFromText(text: string, lang: 'en' | 'pt'): { action: Comman
           : /\bslack/.test(normalized)
             ? 'slack'
             : 'drive';
-  const label = action === 'gmail' ? 'Gmail'
+  const label = action === 'calendar' ? 'Google Calendar'
+    : action === 'gmail' ? 'Gmail'
     : action === 'sheets' ? 'Google Sheets'
     : action === 'docs' ? 'Google Docs'
     : action === 'slack' ? 'Slack'
@@ -390,7 +395,9 @@ function connectorCtaFromText(text: string, lang: 'en' | 'pt'): { action: Comman
     body: lang === 'pt'
       ? 'Conecte a fonte e volte para continuar esta conversa.'
       : 'Connect the source and come back to continue this chat.',
-    href: `/app/connectors?return_to=${encodeURIComponent('/app/ai')}&source=balys_chat&preferred=${encodeURIComponent(action)}`,
+    href: action === 'calendar'
+      ? '/app/settings'
+      : `/app/connectors?return_to=${encodeURIComponent('/app/ai')}&source=balys_chat&preferred=${encodeURIComponent(action)}`,
   };
 }
 

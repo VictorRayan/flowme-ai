@@ -121,6 +121,114 @@ function googleWorkspaceError(service: 'Google Drive' | 'Google Docs' | 'Google 
   return `${service}: ${raw}`;
 }
 
+type GoogleDocsBatchRequest = Record<string, unknown>;
+
+function stripInlineMarkdown(
+  line: string,
+  absoluteLineStart: number,
+): { text: string; boldRanges: Array<{ start: number; end: number }> } {
+  let text = '';
+  const boldRanges: Array<{ start: number; end: number }> = [];
+  let cursor = 0;
+
+  while (cursor < line.length) {
+    const open = line.indexOf('**', cursor);
+    if (open === -1) {
+      text += line.slice(cursor);
+      break;
+    }
+
+    const close = line.indexOf('**', open + 2);
+    if (close === -1) {
+      text += line.slice(cursor);
+      break;
+    }
+
+    text += line.slice(cursor, open);
+    const boldStart = text.length;
+    const boldText = line.slice(open + 2, close);
+    text += boldText;
+    if (boldText.trim()) {
+      boldRanges.push({
+        start: absoluteLineStart + boldStart,
+        end: absoluteLineStart + boldStart + boldText.length,
+      });
+    }
+    cursor = close + 2;
+  }
+
+  return { text, boldRanges };
+}
+
+function googleDocRequestsFromMarkdown(content: string): { text: string; requests: GoogleDocsBatchRequest[] } {
+  const rawLines = content.trimEnd().split(/\r?\n/);
+  const requests: GoogleDocsBatchRequest[] = [];
+  const renderedLines: string[] = [];
+  let index = 1;
+
+  for (const rawLine of rawLines) {
+    let line = rawLine.replace(/\t/g, '  ').trimEnd();
+    let namedStyleType: 'TITLE' | 'HEADING_1' | 'HEADING_2' | null = null;
+    let isBullet = false;
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+
+    if (heading) {
+      namedStyleType = heading[1].length === 1 ? 'TITLE' : heading[1].length === 2 ? 'HEADING_1' : 'HEADING_2';
+      line = heading[2].trim();
+    } else if (unordered || ordered) {
+      isBullet = true;
+      line = (unordered?.[1] || ordered?.[1] || '').trim();
+    }
+
+    const lineStart = index;
+    const inline = stripInlineMarkdown(line, lineStart);
+    renderedLines.push(inline.text);
+
+    const lineEnd = lineStart + inline.text.length;
+    const paragraphEnd = lineEnd + 1;
+
+    if (namedStyleType && inline.text.trim()) {
+      requests.push({
+        updateParagraphStyle: {
+          range: { startIndex: lineStart, endIndex: paragraphEnd },
+          paragraphStyle: { namedStyleType },
+          fields: 'namedStyleType',
+        },
+      });
+    }
+
+    if (isBullet && inline.text.trim()) {
+      requests.push({
+        createParagraphBullets: {
+          range: { startIndex: lineStart, endIndex: paragraphEnd },
+          bulletPreset: 'BULLET_DISC_CIRCLE_SQUARE',
+        },
+      });
+    }
+
+    for (const range of inline.boldRanges) {
+      requests.push({
+        updateTextStyle: {
+          range: { startIndex: range.start, endIndex: range.end },
+          textStyle: { bold: true },
+          fields: 'bold',
+        },
+      });
+    }
+
+    index = paragraphEnd;
+  }
+
+  const text = `${renderedLines.join('\n')}\n`;
+  return {
+    text: text.trim() ? text : '\n',
+    requests,
+  };
+}
+
 function extractGoogleFileId(value: string | null | undefined, allowRawId = false): string | undefined {
   const text = (value || '').trim();
   if (!text) return undefined;
@@ -907,7 +1015,7 @@ HOW IT WORKS:
 CONTRACT:
 - connector_id: required. Get from connectors.list, match by name.
 - title: user-facing document title. Do not use a URL or ID.
-- content: plain text initial body. Use clear headings and paragraphs; Google Docs will receive it as editable text.
+- content: polished initial body. Markdown-style headings, bullets, numbered lists, and **bold** are accepted and converted into native Google Docs formatting.
 - This creates a new document. For edits to an existing document, use connectors.docs_agent.
 - Never expose document_id to the user; it is only for internal follow-up.
 
@@ -930,6 +1038,7 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
       const docs = google.docs({ version: 'v1', auth });
       const title = args.title.trim();
       const content = args.content.trimEnd();
+      const formatted = googleDocRequestsFromMarkdown(content);
       const createRes = await docs.documents.create({ requestBody: { title } });
       const documentId = createRes.data.documentId;
       if (!documentId) return { ok: false, error: 'Google Docs did not return a document id.' };
@@ -941,9 +1050,10 @@ RETURNS receipt: { title, document_id, webViewLink, character_count, status }.`,
             {
               insertText: {
                 location: { index: 1 },
-                text: content.endsWith('\n') ? content : `${content}\n`,
+                text: formatted.text,
               },
             },
+            ...formatted.requests,
           ],
         },
       });

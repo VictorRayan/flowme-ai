@@ -27,6 +27,7 @@ import {
   formatCheckoutCountdown,
   type CheckoutLocale,
 } from '@/lib/billing/checkout-ui';
+import { fbq, generateEventId, readCookie, fbcFromFbclid } from '@/lib/meta/pixel';
 
 type Interval = 'monthly' | 'annual';
 type Method = 'pix' | 'card';
@@ -202,6 +203,13 @@ function PublicCheckoutContent() {
   const [paid, setPaid] = React.useState(false);
   const [offerRemainingSeconds, setOfferRemainingSeconds] = React.useState(CHECKOUT_OFFER_DURATION_SECONDS);
 
+  // ── Meta Pixel tracking params forwarded from the LP via URL ──────────────
+  // The LP sets _fbp and _fbc on the redirect URL so the Pixel on this domain
+  // uses the same visitor identity, enabling cross-domain purchase attribution.
+  const urlFbp = params.get('_fbp') || '';
+  const rawFbclid = params.get('fbclid') || params.get('_fbclid') || '';
+  const urlFbc = params.get('_fbc') || (rawFbclid ? fbcFromFbclid(rawFbclid) : '');
+
   React.useEffect(() => {
     const storedExpiry = Number(sessionStorage.getItem(CHECKOUT_OFFER_EXPIRY_KEY));
     const expiresAt = Number.isFinite(storedExpiry) && storedExpiry > 0 ? storedExpiry : Date.now() + CHECKOUT_OFFER_DURATION_SECONDS * 1000;
@@ -218,6 +226,42 @@ function PublicCheckoutContent() {
     sessionStorage.setItem(key, '1');
     recordCheckoutVisit(locale, params.get('source')).catch(() => {});
   }, [locale, params]);
+
+  // ── Meta Pixel: InitiateCheckout (fires once when page mounts) ────────────
+  // Cross-domain identity preservation:
+  //   The LP (flow-me.online) passes _fbp and _fbc as URL params.
+  //   We WRITE those values as first-party cookies on .flow-me.online BEFORE
+  //   fbq('init') runs, so the Pixel reads the same identity it set on the LP.
+  //   Note: fbq('init') does NOT accept fbp/fbc as arguments — the Pixel only
+  //   reads them from document.cookie.  Source:
+  //   https://developers.facebook.com/docs/meta-pixel/advanced/advanced-matching
+  React.useEffect(() => {
+    const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+    if (!pixelId) return;
+
+    // Write cookies BEFORE init so the Pixel picks them up automatically.
+    // Use domain=.flow-me.online so both subdomains share the same cookie.
+    const COOKIE_MAX_AGE = 90 * 24 * 60 * 60; // 90 days (Meta's default for _fbp)
+    const ROOT_DOMAIN = '.flow-me.online';
+
+    if (urlFbp && !readCookie('_fbp')) {
+      document.cookie = `_fbp=${encodeURIComponent(urlFbp)}; domain=${ROOT_DOMAIN}; path=/; max-age=${COOKIE_MAX_AGE}; secure; samesite=lax`;
+    }
+    if (urlFbc && !readCookie('_fbc')) {
+      document.cookie = `_fbc=${encodeURIComponent(urlFbc)}; domain=${ROOT_DOMAIN}; path=/; max-age=${COOKIE_MAX_AGE}; secure; samesite=lax`;
+    }
+
+    // Now init — Pixel reads _fbp/_fbc from document.cookie automatically.
+    fbq('init', pixelId);
+    fbq('track', 'PageView');
+    fbq('track', 'InitiateCheckout', {
+      content_name: 'Flow Me Pro',
+      currency: 'BRL',
+      content_category: 'Subscription',
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   React.useEffect(() => {
     fetch('/api/billing/market', { cache: 'no-store' })
@@ -250,6 +294,46 @@ function PublicCheckoutContent() {
     const timer = window.setInterval(() => void poll(), 3000);
     return () => window.clearInterval(timer);
   }, [paid, publicToken]);
+
+  // ── Meta Pixel: Purchase (fires when payment is confirmed) ────────────────
+  // Dispatched both client-side (Pixel) and server-side (Conversions API).
+  // The same event_id on both legs lets Meta deduplicate and count only once.
+  React.useEffect(() => {
+    if (!paid) return;
+    const selectedPrice = plan?.prices.find(p => p.interval === interval);
+    if (!selectedPrice) return;
+    const value = selectedPrice.amount_cents / 100;
+    const eventId = generateEventId('purchase');
+    const fbp = urlFbp || readCookie('_fbp');
+    const fbc = urlFbc || readCookie('_fbc');
+
+    // 1. Client-side Pixel event
+    fbq('track', 'Purchase', {
+      value,
+      currency: 'BRL',
+      content_name: 'Flow Me Pro',
+      content_ids: ['flowme_pro'],
+      content_type: 'product',
+    }, { eventID: eventId });
+
+    // 2. Server-side Conversions API (fire-and-forget)
+    fetch('/api/meta/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_name: 'Purchase',
+        event_id: eventId,
+        event_source_url: typeof window !== 'undefined' ? window.location.href : 'https://app.flow-me.online/checkout',
+        email: verifiedEmail || displayEmail || undefined,
+        phone: capturedPhone || undefined,
+        fbp: fbp || undefined,
+        fbc: fbc || undefined,
+        value,
+        currency: 'BRL',
+      }),
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paid]);
 
   const canUsePix = pixAvailable && checkoutPixAllowedForInterval(interval);
 

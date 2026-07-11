@@ -22,6 +22,42 @@
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
     />
     <link rel="stylesheet" href="/styles.css?v=20260709-locale-cache" />
+
+    <!-- Meta Pixel — cross-domain tracking for flow-me.online → app.flow-me.online -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window,document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+
+      // Capture fbclid if the visitor arrived via a Meta ad
+      var __fm_params = new URLSearchParams(window.location.search);
+      var __fm_fbclid = __fm_params.get('fbclid') || '';
+
+      fbq('init', '1344847183738689');
+      fbq('track', 'PageView');
+
+      // Helpers used by landing.js to forward tracking params to the checkout URL
+      window.__FM_FBP = function() {
+        var m = document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
+      };
+      window.__FM_FBC = function() {
+        var m = document.cookie.match(/(?:^|;\s*)_fbc=([^;]+)/);
+        if (m) return decodeURIComponent(m[1]);
+        return __fm_fbclid ? 'fb.1.' + Date.now() + '.' + __fm_fbclid : '';
+      };
+      window.__FM_FBCLID = __fm_fbclid;
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none"
+        src="https://www.facebook.com/tr?id=1344847183738689&ev=PageView&noscript=1"/>
+    </noscript>
+
   </head>
   <body>
     <svg class="svg-sprite" aria-hidden="true" focusable="false">

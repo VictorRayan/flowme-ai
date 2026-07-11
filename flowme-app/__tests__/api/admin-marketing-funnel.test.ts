@@ -31,7 +31,9 @@ const mockAdmin = {
       { id: 'a1', user_id: 'u1', locale: 'pt-BR', payment_method: 'pix', status: 'paid', amount_cents: 47880, provider: 'asaas', provider_payment_id: 'pay_1', metadata: {}, created_at: '2026-06-28T10:06:00Z' },
       { id: 'a2', user_id: 'u2', locale: 'en-US', payment_method: 'card', status: 'failed', amount_cents: 790, provider: 'stripe', provider_payment_id: null, metadata: { provider_error_message: 'card declined' }, created_at: '2026-06-28T10:07:00Z' },
     ]);
-    if (table === 'public_checkout_sessions') return query([]);
+    if (table === 'public_checkout_sessions') return query([
+      { id: 'p1', email: 'lead@example.com', locale: 'pt-BR', payment_method: 'pix', status: 'awaiting_payment', amount_cents: 47880, currency: 'BRL', provider: 'asaas', provider_payment_id: 'pay_public_1', metadata: {}, created_at: '2026-06-28T10:09:00Z', paid_at: null },
+    ]);
     if (table === 'billing_revenue_events') return query([{ kind: 'payment_received', amount_cents: 47880, occurred_at: '2026-06-28T10:08:00Z' }]);
     if (table === 'user_entitlements') return query([{ user_id: 'u1', has_pro: true }, { user_id: 'u2', has_pro: false }]);
     if (table === 'onboarding_events') return query([
@@ -62,12 +64,13 @@ describe('GET /api/admin/marketing-funnel', () => {
       mql_annual: 1,
       checkout_visits: 1,
       sales: 1,
-      pix_issued: 1,
+      pix_issued: 2,
       pix_paid: 1,
       revenue_cents: 47880,
     }));
     expect(body.funnel['en-US'].card_attempts).toBe(1);
     expect(body.card_attempts[0].error_message).toBe('card declined');
+    expect(body.payment_attempts[0]).toEqual(expect.objectContaining({ id: 'p1', payment_method: 'pix', email: 'lead@example.com', status: 'awaiting_payment' }));
     expect(body.registered_users).toEqual({ total: 2, free: 1, paid: 1 });
     expect(body.onboarding.started).toBe(1);
     expect(body.onboarding.logs[0].last_step_key).toBe('whatsapp');

@@ -9,7 +9,11 @@ export function requestClientIp(headers: Headers): string | null {
     ?.split(',')
     .map(value => value.trim())
     .filter(Boolean);
-  return normalizeIp(forwarded?.at(-1) || headers.get('x-real-ip'));
+  for (const value of forwarded || []) {
+    const ip = normalizeIp(value);
+    if (ip && isPublicIp(ip)) return ip;
+  }
+  return normalizeIp(headers.get('x-real-ip'));
 }
 
 export function normalizeIp(value: string | null | undefined): string | null {

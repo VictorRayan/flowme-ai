@@ -34,6 +34,7 @@ type CheckoutAttemptRow = {
   paid_at?: string | null;
   updated_at?: string | null;
 };
+type CheckoutRowWithKind = CheckoutAttemptRow & { __kind: 'authenticated' | 'public' };
 
 const LOCALES: Locale[] = ['pt-BR', 'en-US'];
 
@@ -140,17 +141,26 @@ export async function GET(req: NextRequest) {
       else bucket.mql_unknown_interval += 1;
     }
 
-    const cardAttempts: Array<{
+    const paymentAttempts: Array<{
       id: string;
+      kind: 'authenticated' | 'public';
+      user_id: string | null;
+      email: string | null;
       locale: Locale;
+      payment_method: string;
       status: string;
       provider: string;
       amount_cents: number;
+      currency: string;
       error_message: string | null;
       created_at: string;
+      paid_at: string | null;
     }> = [];
 
-    const checkoutRows: CheckoutAttemptRow[] = [...(attempts.data || []), ...(publicSessions.data || [])] as CheckoutAttemptRow[];
+    const checkoutRows: CheckoutRowWithKind[] = [
+      ...((attempts.data || []) as CheckoutAttemptRow[]).map(row => ({ ...row, __kind: 'authenticated' as const })),
+      ...((publicSessions.data || []) as CheckoutAttemptRow[]).map(row => ({ ...row, __kind: 'public' as const })),
+    ];
     for (const attempt of checkoutRows) {
       const locale = localeOf(attempt.locale);
       const bucket = funnel[locale];
@@ -168,17 +178,23 @@ export async function GET(req: NextRequest) {
       if (method === 'card') {
         bucket.card_attempts += 1;
         if (paidStatus) bucket.card_paid += 1;
-        const metadata = (attempt.metadata || {}) as Record<string, unknown>;
-        cardAttempts.push({
-          id: attempt.id,
-          locale,
-          status,
-          provider: attempt.provider,
-          amount_cents: Number(attempt.amount_cents || 0),
-          error_message: typeof metadata.provider_error_message === 'string' ? metadata.provider_error_message : null,
-          created_at: attempt.created_at,
-        });
       }
+      const metadata = (attempt.metadata || {}) as Record<string, unknown>;
+      paymentAttempts.push({
+        id: attempt.id,
+        kind: attempt.__kind,
+        user_id: attempt.user_id || null,
+        email: attempt.email || null,
+        locale,
+        payment_method: method,
+        status,
+        provider: attempt.provider,
+        amount_cents: Number(attempt.amount_cents || 0),
+        currency: attempt.currency,
+        error_message: typeof metadata.provider_error_message === 'string' ? metadata.provider_error_message : null,
+        created_at: attempt.created_at,
+        paid_at: attempt.paid_at || null,
+      });
     }
 
     const revenueByKind = { payment_received: 0, refund: 0, chargeback: 0 };
@@ -245,7 +261,8 @@ export async function GET(req: NextRequest) {
       start_date: range.start_date,
       end_date: range.end_date,
       funnel,
-      card_attempts: cardAttempts.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 100),
+      card_attempts: paymentAttempts.filter(item => item.payment_method === 'card').sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 100),
+      payment_attempts: paymentAttempts.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 150),
       revenue: {
         gross_cents: revenueByKind.payment_received,
         refunds_cents: revenueByKind.refund,

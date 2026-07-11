@@ -25,6 +25,7 @@ type FunnelData = {
   end_date: string;
   funnel: Record<Locale, FunnelBucket>;
   card_attempts: Array<{ id: string; locale: Locale; status: string; provider: string; amount_cents: number; error_message: string | null; created_at: string }>;
+  payment_attempts?: Array<{ id: string; kind: 'authenticated' | 'public'; user_id: string | null; email: string | null; locale: Locale; payment_method: string; status: string; provider: string; amount_cents: number; currency: string; error_message: string | null; created_at: string; paid_at: string | null }>;
   revenue: { gross_cents: number; refunds_cents: number; chargebacks_cents: number; net_cents: number };
   registered_users: { total: number; free: number; paid: number };
   active_users: { by_hour: Array<{ period: string; users: number }>; by_day: Array<{ period: string; users: number }> };
@@ -170,17 +171,19 @@ export default function MarketingFunnelAdminPage() {
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 1, minWidth: 0 }}>
-        <Typography variant="h6" fontWeight={900}>Tentativas de cartão</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Resultado e mensagem retornada pelo provider quando houver falha registrada no backend.</Typography>
+        <Typography variant="h6" fontWeight={900}>Pagamentos emitidos/tentados</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Pix gerados e tentativas de cartão, incluindo checkout público da LP.</Typography>
         <Stack spacing={1.2}>
-          {data.card_attempts.length === 0 && <Typography color="text.secondary">Nenhuma tentativa de cartão no período.</Typography>}
-          {data.card_attempts.map(item => (
-            <Box key={item.id} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '110px 110px 120px 1fr' }, gap: 1, alignItems: 'center', py: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+          {(data.payment_attempts || data.card_attempts).length === 0 && <Typography color="text.secondary">Nenhum pagamento emitido/tentado no período.</Typography>}
+          {(data.payment_attempts || data.card_attempts.map(item => ({ ...item, kind: 'authenticated' as const, user_id: null, email: null, payment_method: 'card', currency: 'BRL', paid_at: null }))).map(item => (
+            <Box key={item.id} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '90px 90px 110px 120px minmax(160px, 1fr) minmax(160px, 1fr)' }, gap: 1, alignItems: 'center', py: 1, borderTop: '1px solid', borderColor: 'divider' }}>
               <Chip size="small" label={item.locale} />
+              <Chip size="small" label={item.payment_method === 'pix' ? 'Pix' : 'Cartão'} color={item.payment_method === 'pix' ? 'info' : 'default'} />
               <Chip size="small" label={item.status} color={item.status === 'paid' ? 'success' : item.status === 'failed' ? 'error' : 'default'} />
               <Typography variant="body2">{money(item.amount_cents, item.locale)}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.email || item.user_id || item.kind}</Typography>
               <Typography variant="body2" color={item.error_message ? 'error.light' : 'text.secondary'}>
-                {item.error_message || 'Sem erro registrado'}
+                {item.error_message || new Date(item.created_at).toLocaleString('pt-BR')}
               </Typography>
             </Box>
           ))}

@@ -1,8 +1,9 @@
 import { IpCountryResolver, isPublicIp, normalizeIp, requestClientIp } from '@/lib/billing/ip-country';
 
 describe('IP country resolution', () => {
-  it('uses the right-most proxy-appended address', () => {
-    expect(requestClientIp(new Headers({ 'x-forwarded-for': '1.1.1.1, 8.8.8.8' }))).toBe('8.8.8.8');
+  it('uses the first public client address from proxy forwarding', () => {
+    expect(requestClientIp(new Headers({ 'x-forwarded-for': '1.1.1.1, 8.8.8.8' }))).toBe('1.1.1.1');
+    expect(requestClientIp(new Headers({ 'x-forwarded-for': '10.0.0.1, 200.160.2.3, 172.16.0.1' }))).toBe('200.160.2.3');
     expect(requestClientIp(new Headers({ 'x-real-ip': '200.160.2.3' }))).toBe('200.160.2.3');
   });
 

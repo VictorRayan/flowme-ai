@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/billing/market/route';
 import { resolveRequestCountry } from '@/lib/billing/ip-country';
 
-jest.mock('@/lib/api/auth', () => ({ requireAuth: jest.fn().mockResolvedValue({ user: { id: 'user-1' }, supabase: {} }) }));
 jest.mock('@/lib/billing/ip-country', () => ({ resolveRequestCountry: jest.fn() }));
 
 const mockResolve = resolveRequestCountry as jest.MockedFunction<typeof resolveRequestCountry>;

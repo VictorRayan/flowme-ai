@@ -6,7 +6,7 @@ const copy = {
     description:
       "Centralize WhatsApp, calendar, reminders, notes, finance, documents and work with your personal assistant on WhatsApp.",
     nav: ["Finance", "AI", "Day trail", "Notes", "Review", "Testimonials", "Plans"],
-    headerCta: "Start now",
+    headerCta: "Buy now",
     eyebrow: "AI on WhatsApp for routine, work and real life",
     h1: 'Get into flow with <em>your personal assistant on WhatsApp.</em>',
     hero:
@@ -422,7 +422,7 @@ const copy = {
     description:
       "Centralize WhatsApp, agenda, lembretes, notas, finanças, documentos e trabalho com seu assistente pessoal no WhatsApp.",
     nav: ["Financeiro", "IA", "Trilha", "Notas", "Revisão", "Depoimentos", "Planos"],
-    headerCta: "Começar agora",
+    headerCta: "Comprar agora",
     eyebrow: "IA no WhatsApp para rotina, trabalho e vida real",
     h1: 'Entre em flow com <em>seu assistente pessoal no seu WhatsApp.</em>',
     hero:

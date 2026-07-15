@@ -45,6 +45,7 @@ type Plan = {
 type PixCheckout = { kind: 'pix_qr_code'; qrCodeBase64: string; copyPasteCode: string; expiresAt: string };
 type CardCheckout = { kind: 'stripe_card_subscription'; confirmationClientSecret: string | null };
 type CheckoutResponse = { attempt_id: string; public_checkout_token: string; email: string; checkout: PixCheckout | CardCheckout };
+type DirectCheckoutDetails = { email: string; name: string };
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -121,23 +122,28 @@ function CardPaymentForm({
   createCheckout,
   onPending,
   initialName,
+  initialEmail,
+  requireEmail,
 }: {
   locale: CheckoutLocale;
   disabled: boolean;
-  createCheckout: (paymentMethodId: string) => Promise<CheckoutResponse>;
+  createCheckout: (paymentMethodId: string, details: DirectCheckoutDetails) => Promise<CheckoutResponse>;
   onPending: (token: string, email: string) => void;
   initialName: string;
+  initialEmail: string;
+  requireEmail: boolean;
 }) {
   const copy = checkoutCopy(locale);
   const stripe = useStripe();
   const elements = useElements();
   const [cardholderName, setCardholderName] = React.useState(initialName);
+  const [email, setEmail] = React.useState(initialEmail);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const submit = async () => {
     const cardNumber = elements?.getElement(CardNumberElement);
-    if (!stripe || !cardNumber || !cardholderName.trim()) return;
+    if (!stripe || !cardNumber || !cardholderName.trim() || (requireEmail && !email.trim())) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -149,7 +155,7 @@ function CardPaymentForm({
       if (paymentMethod.error || !paymentMethod.paymentMethod) {
         throw new Error(checkoutCardErrorMessage(paymentMethod.error?.decline_code, locale, paymentMethod.error?.code));
       }
-      const response = await createCheckout(paymentMethod.paymentMethod.id);
+      const response = await createCheckout(paymentMethod.paymentMethod.id, { email: email.trim(), name: cardholderName.trim() });
       if (response.checkout.kind !== 'stripe_card_subscription') throw new Error(copy.paymentStartError);
       if (response.checkout.confirmationClientSecret) {
         const confirmation = await stripe.confirmCardPayment(response.checkout.confirmationClientSecret);
@@ -165,6 +171,7 @@ function CardPaymentForm({
 
   return (
     <Stack spacing={2.2} data-clarity-mask="True">
+      {requireEmail && <TextField label={locale === 'en-US' ? 'Email for access' : 'Email para liberar o acesso'} type="email" value={email} onChange={event => setEmail(event.target.value)} fullWidth disabled={submitting || disabled} />}
       <TextField label={copy.cardholderName} value={cardholderName} onChange={event => setCardholderName(event.target.value)} fullWidth disabled={submitting || disabled} />
       <CardField label={copy.cardNumber}><CardNumberElement options={cardNumberElementOptions} /></CardField>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
@@ -173,7 +180,7 @@ function CardPaymentForm({
       </Box>
       <Typography variant="caption" color="text.secondary">{copy.cardReady}</Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      <Button variant="contained" color="success" size="large" disabled={disabled || submitting || !stripe || !cardholderName.trim()} onClick={() => void submit()} sx={{ minHeight: 54, fontWeight: 900 }}>
+      <Button variant="contained" color="success" size="large" disabled={disabled || submitting || !stripe || !cardholderName.trim() || (requireEmail && !email.trim())} onClick={() => void submit()} sx={{ minHeight: 54, fontWeight: 900 }}>
         {submitting ? <><CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />{copy.processingCard}</> : copy.subscribe}
       </Button>
     </Stack>
@@ -185,6 +192,7 @@ function PublicCheckoutContent() {
   const locale = localeFromQuery(params.get('locale'));
   const copy = checkoutCopy(locale);
   const leadToken = params.get('lead_token') || '';
+  const directCheckout = params.get('direct_checkout') === '1';
   const capturedName = queryText(params.get('name'), 160);
   const displayEmail = queryText(params.get('email'), 240);
   const capturedPhone = queryText(params.get('phone'), 40);
@@ -195,6 +203,7 @@ function PublicCheckoutContent() {
   const [interval, setInterval] = React.useState<Interval>(params.get('interval') === 'monthly' ? 'monthly' : 'annual');
   const [method, setMethod] = React.useState<Method>('card');
   const [name, setName] = React.useState(capturedName);
+  const [email, setEmail] = React.useState(displayEmail);
   const [taxId, setTaxId] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [loadingPix, setLoadingPix] = React.useState(false);
@@ -270,8 +279,8 @@ function PublicCheckoutContent() {
         event_id: eventId,
         event_source_url: window.location.href,
         external_id: externalId || undefined,
-        name: capturedName || undefined,
-        email: displayEmail || undefined,
+        name: capturedName || name || undefined,
+        email: email || displayEmail || undefined,
         phone: capturedPhone || undefined,
         fbp: urlFbp || readCookie('_fbp') || undefined,
         fbc: urlFbc || readCookie('_fbc') || undefined,
@@ -346,7 +355,7 @@ function PublicCheckoutContent() {
         event_source_url: typeof window !== 'undefined' ? window.location.href : 'https://app.flow-me.online/checkout',
         external_id: externalId || undefined,
         name: capturedName || name || undefined,
-        email: verifiedEmail || displayEmail || undefined,
+        email: verifiedEmail || email || displayEmail || undefined,
         phone: capturedPhone || undefined,
         fbp: fbp || undefined,
         fbc: fbc || undefined,
@@ -365,8 +374,11 @@ function PublicCheckoutContent() {
     setPixCheckout(null);
   }, [canUsePix, method]);
 
-  const requestCheckout = async (selectedMethod: Method, paymentMethodId?: string): Promise<CheckoutResponse> => {
-    if (!leadToken) throw new Error(locale === 'en-US' ? 'Open this checkout from the Flow Me offer page.' : 'Abra este checkout pela página de oferta do Flow Me.');
+  const requestCheckout = async (selectedMethod: Method, paymentMethodId?: string, directDetails?: DirectCheckoutDetails): Promise<CheckoutResponse> => {
+    const checkoutEmail = directDetails?.email || email || displayEmail;
+    const checkoutName = directDetails?.name || name || capturedName;
+    if (!leadToken && !directCheckout) throw new Error(locale === 'en-US' ? 'Open this checkout from the Flow Me offer page.' : 'Abra este checkout pela página de oferta do Flow Me.');
+    if (!leadToken && !checkoutEmail.trim()) throw new Error(locale === 'en-US' ? 'Enter your email to release access.' : 'Informe seu email para liberar o acesso.');
     if (selectedMethod === 'pix' && !checkoutPixAllowedForInterval(interval)) {
       throw new Error(checkoutPixAnnualOnlyMessage(locale));
     }
@@ -376,6 +388,9 @@ function PublicCheckoutContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lead_token: leadToken,
+        direct_checkout: directCheckout,
+        customer_email: checkoutEmail.trim(),
+        customer_name: checkoutName.trim(),
         plan_code: 'pro',
         interval,
         locale,
@@ -385,7 +400,7 @@ function PublicCheckoutContent() {
         meta_fbp: (urlFbp || readCookie('_fbp')) || undefined,
         meta_fbc: (urlFbc || readCookie('_fbc')) || undefined,
         ...(paymentMethodId ? { payment_method_id: paymentMethodId } : {}),
-        ...(selectedMethod === 'pix' ? { customer_name: name, cpf_cnpj: taxId } : {}),
+        ...(selectedMethod === 'pix' ? { customer_name: checkoutName.trim(), cpf_cnpj: taxId } : {}),
       }),
     });
     const payload = await response.json();
@@ -409,7 +424,7 @@ function PublicCheckoutContent() {
         event_source_url: window.location.href,
         external_id: externalId || undefined,
         name: capturedName || name || undefined,
-        email: verifiedEmail || displayEmail || undefined,
+        email: verifiedEmail || email || displayEmail || undefined,
         phone: capturedPhone || undefined,
         fbp: urlFbp || readCookie('_fbp') || undefined,
         fbc: urlFbc || readCookie('_fbc') || undefined,
@@ -442,7 +457,7 @@ function PublicCheckoutContent() {
   const selectedPrice = plan.prices.find(price => price.interval === interval);
   const monthlyEquivalent = interval === 'annual' && selectedPrice ? Math.round(selectedPrice.amount_cents / 12) : selectedPrice?.amount_cents || 0;
   const claimHref = `/login?claim_token=${encodeURIComponent(publicToken)}${verifiedEmail ? `&email=${encodeURIComponent(verifiedEmail)}` : ''}`;
-  const contactSummary = [verifiedEmail || displayEmail, capturedPhone].filter(Boolean).join(' · ');
+  const contactSummary = [verifiedEmail || email || displayEmail, capturedPhone].filter(Boolean).join(' · ');
 
   return (
     <Box sx={{ minHeight: '100vh', overflowX: 'hidden', background: 'radial-gradient(circle at 15% 10%, rgba(249,115,22,.18), transparent 30%), radial-gradient(circle at 85% 85%, rgba(34,197,94,.10), transparent 28%), #0d0f14' }}>
@@ -495,13 +510,13 @@ function PublicCheckoutContent() {
 
                   <Box sx={{ display: method !== 'card' ? 'none' : 'block' }}>
                     <Elements stripe={stripePromise} options={{ locale: locale === 'pt-BR' ? 'pt-BR' : 'en' }}>
-                      <CardPaymentForm locale={locale} disabled={!selectedPrice} initialName={capturedName} createCheckout={paymentMethodId => requestCheckout('card', paymentMethodId)} onPending={(token, email) => { setPublicToken(token); setVerifiedEmail(email); }} />
+                      <CardPaymentForm locale={locale} disabled={!selectedPrice} initialName={capturedName || name} initialEmail={email || displayEmail} requireEmail={!leadToken} createCheckout={(paymentMethodId, details) => requestCheckout('card', paymentMethodId, details)} onPending={(token, checkoutEmail) => { setPublicToken(token); setVerifiedEmail(checkoutEmail); setEmail(checkoutEmail); }} />
                     </Elements>
                   </Box>
 
                   {method === 'pix' && canUsePix && (pixCheckout
                     ? <Stack spacing={2.5} alignItems="center" data-clarity-mask="True"><Typography variant="h5" fontWeight={900}>{copy.pixHeading}</Typography><Box component="img" src={`data:image/png;base64,${pixCheckout.qrCodeBase64}`} alt="QR Code Pix" sx={{ width: 240, maxWidth: '100%', borderRadius: 2, bgcolor: 'white', p: 1 }} /><TextField value={pixCheckout.copyPasteCode} fullWidth multiline maxRows={3} InputProps={{ readOnly: true }} /><Button startIcon={<ContentCopyRoundedIcon />} onClick={() => void navigator.clipboard.writeText(pixCheckout.copyPasteCode)}>{copy.copyPix}</Button><Alert severity="info">{copy.pixConfirmation}</Alert></Stack>
-                    : <Stack spacing={2} data-clarity-mask="True"><TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} />{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" size="large" disabled={loadingPix || !selectedPrice || !name.trim() || !taxId.trim()} onClick={() => void startPix()} sx={{ minHeight: 54, fontWeight: 900 }}>{loadingPix ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button></Stack>)}
+                    : <Stack spacing={2} data-clarity-mask="True">{!leadToken && <TextField label={locale === 'en-US' ? 'Email for access' : 'Email para liberar o acesso'} type="email" value={email} onChange={event => setEmail(event.target.value)} fullWidth />}<TextField label={copy.fullName} value={name} onChange={event => setName(event.target.value)} fullWidth /><TextField label={copy.taxId} value={taxId} onChange={event => setTaxId(event.target.value)} fullWidth helperText={copy.taxIdHelp} />{error && <Alert severity="error">{error}</Alert>}<Button variant="contained" color="success" size="large" disabled={loadingPix || !selectedPrice || !name.trim() || !taxId.trim() || (!leadToken && !email.trim())} onClick={() => void startPix()} sx={{ minHeight: 54, fontWeight: 900 }}>{loadingPix ? <CircularProgress size={22} color="inherit" /> : plan.checkout_cta}</Button></Stack>)}
                   {error && method === 'card' && <Alert severity="error">{error}</Alert>}
                   <Stack direction="row" spacing={1} justifyContent="center" alignItems="center"><LockRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary">{copy.protectedPayment}</Typography></Stack>
                 </>

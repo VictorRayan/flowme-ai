@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import Script from 'next/script';
+import GoogleAnalytics from '@/components/GoogleAnalytics';
 import ThemeRegistry from '@/components/ThemeRegistry';
 
 const inter = Inter({
@@ -52,16 +53,49 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID || 'xkzkqxbqku';
+  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || 'G-942EZBWS43';
   return (
     <html lang="en" style={{ colorScheme: 'dark' }}>
       <body className={`${inter.variable} ${plusJakarta.variable} ${inter.className}`}>
         <ThemeRegistry>{children}</ThemeRegistry>
+        <GoogleAnalytics measurementId={gaMeasurementId} />
         <Script id="microsoft-clarity" strategy="afterInteractive">{`
-          (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-          })(window, document, "clarity", "script", "${clarityProjectId}");
+          (function(w,d,i){
+            w.clarity=w.clarity||function(){(w.clarity.q=w.clarity.q||[]).push(arguments)};
+            function cookie(name){
+              var match=d.cookie.match(new RegExp('(?:^|;\\\\s*)'+name+'=([^;]+)'));
+              return match ? decodeURIComponent(match[1]) : '';
+            }
+            function identity(){
+              try {
+                var params=new URLSearchParams(w.location.search);
+                var externalId=params.get('external_id') || w.localStorage.getItem('flowme_meta_external_id') || '';
+                if (externalId) w.localStorage.setItem('flowme_meta_external_id', externalId);
+                return externalId || cookie('_fbp') || w.localStorage.getItem('flowme_clarity_anon_id') || '';
+              } catch (_) {
+                return cookie('_fbp') || '';
+              }
+            }
+            function identify(){
+              var id=identity();
+              if (!id) {
+                id=(w.crypto && w.crypto.randomUUID ? w.crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2));
+                try { w.localStorage.setItem('flowme_clarity_anon_id', id); } catch (_) {}
+              }
+              w.clarity('identify', id);
+            }
+            function load(){
+              if(w.__FM_CLARITY_LOADED__) return;
+              w.__FM_CLARITY_LOADED__=true;
+              identify();
+              var s=d.createElement('script');
+              s.async=true;
+              s.src='https://www.clarity.ms/tag/'+i;
+              d.head.appendChild(s);
+            }
+            if('requestIdleCallback' in w) w.requestIdleCallback(load,{timeout:2500});
+            else w.setTimeout(load,1600);
+          })(window, document, "${clarityProjectId}");
         `}</Script>
         {pixelId && (
           <Script id="meta-pixel" strategy="afterInteractive">{`

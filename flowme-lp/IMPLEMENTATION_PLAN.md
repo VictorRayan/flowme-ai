@@ -125,6 +125,49 @@ lead token and backend lead lookup.
 - [ ] Compose config validates.
 - [ ] Production CI builds/publishes `flowme-lp` image.
 
+## Current Performance Plan: Clarity, LCP and INP
+
+Specification: `specs/2026-07-15-performance-clarity-cache.md`
+
+Goal: reduce paid-traffic LCP/INP risk and improve Clarity session continuity without changing the commercial page narrative.
+
+- [x] Enable gzip for LP text assets in Nginx.
+- [x] Keep HTML/legal routes revalidated while caching static assets long-term.
+- [x] Bump LP CSS/JS cache-bust query to `20260715-perf`.
+- [x] Delay Microsoft Clarity loading until idle on LP and app.
+- [x] Identify Clarity with non-PII visitor/external ids where available.
+- [x] Defer non-critical LP animations after first paint/idle.
+- [x] Throttle and pause the global canvas background.
+- [ ] Validate production headers after CI deploy.
+- [ ] Compare Clarity LCP/INP after at least 100 pageviews; the current 2-pageview sample is not enough.
+
+## Current Conversion Test: Temporary Direct Checkout
+
+Specification: `specs/2026-07-15-temporary-direct-checkout.md`
+
+Goal: test the low-ticket impulse-purchase thesis by showing prices immediately and sending buyers straight to checkout.
+
+- [x] Keep the LP pricing table visible on initial page load.
+- [x] Disable LP lead capture as a required gate.
+- [x] Preserve existing lead form code for rollback.
+- [x] Send plan CTAs to public checkout with direct-checkout tracking params.
+- [x] Allow public checkout to collect email when no signed lead token exists.
+- [x] Allow backend public checkout sessions with `lead_id` null for direct buyers.
+- [ ] Compare paid traffic conversion against the gated-price baseline.
+
+## Current Analytics Plan: GA4 LP + Checkout
+
+Specification: `specs/2026-07-15-google-analytics-subdomain-tracking.md`
+
+Goal: measure the buyer journey from the static LP to checkout across `flow-me.online` and `app.flow-me.online`.
+
+- [x] Install GA4 tag on the static LP.
+- [x] Install GA4 tag in the authenticated app and checkout.
+- [x] Use the same measurement ID on both surfaces.
+- [x] Configure production cookie domain for the shared root domain.
+- [x] Configure linker domains for LP and app subdomain.
+- [ ] Verify GA4 Realtime/DebugView after deployment.
+
 ## Landing Execution Doctrine
 
 This LP inherits the implementation method from `../flowme-app/AGENTS.md`, adapted to a static site:

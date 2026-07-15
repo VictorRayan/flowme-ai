@@ -280,6 +280,8 @@ const copy = {
     phonePlaceholder: "+1 (555) 000-0000",
     unlock: "See prices now",
     guarantee: "Claim offer",
+    monthlyCta: "Subscribe monthly",
+    annualCta: "Subscribe annual",
     sending: "Sending...",
     invalidName: "Enter your name.",
     invalidEmail: "Enter a valid email.",
@@ -696,6 +698,8 @@ const copy = {
     phonePlaceholder: "(11) 99999-9999",
     unlock: "Ver preços agora",
     guarantee: "Garantir oferta",
+    monthlyCta: "Assinar mensal",
+    annualCta: "Assinar anual",
     sending: "Enviando...",
     invalidName: "Informe seu nome.",
     invalidEmail: "Informe um email valido.",
@@ -838,6 +842,7 @@ function checkoutUrl(locale, lead) {
   const url = new URL(`${marketingApiBase}/checkout`);
   url.searchParams.set("locale", apiLocale(locale));
   url.searchParams.set("source", locale === "en-us" ? "lp_en-us" : "lp_pt-br");
+  if (lead?.direct_checkout) url.searchParams.set("direct_checkout", "1");
   if (lead?.lead_token) url.searchParams.set("lead_token", lead.lead_token);
   if (lead?.name) url.searchParams.set("name", lead.name);
   if (lead?.email) url.searchParams.set("email", lead.email);
@@ -1271,6 +1276,12 @@ function applyLocale(locale) {
   document.querySelector('input[name="phone"]')?.setAttribute("placeholder", t.phonePlaceholder);
   setText(".lead-form button", t.unlock);
   document.querySelectorAll("[data-plan-button]").forEach((button) => {
+    if (document.querySelector("[data-price-card]")?.getAttribute("data-direct-checkout") === "true") {
+      const interval = button.getAttribute("data-interval") || "annual";
+      button.textContent = interval === "monthly" ? t.monthlyCta : t.annualCta;
+      button.classList.add("is-guarantee");
+      return;
+    }
     button.textContent = `🔒 ${t.unlock}`;
   });
   if (t.heroChat) {
@@ -1477,6 +1488,7 @@ function setupLeadGate(locale) {
   const intervalInput = form?.querySelector('input[name="interval"]');
   const planButtons = document.querySelectorAll("[data-plan-button]");
   const planTabs = document.querySelectorAll("[data-plan-tab]");
+  const directCheckout = priceCard?.getAttribute("data-direct-checkout") === "true";
   let activeLead = readStoredLead(locale);
 
   function selectInterval(interval) {
@@ -1491,7 +1503,11 @@ function setupLeadGate(locale) {
   }
 
   function selectedLead() {
-    return { ...(activeLead || {}), interval: intervalInput?.value || activeLead?.interval || "annual" };
+    return {
+      ...(activeLead || {}),
+      interval: intervalInput?.value || activeLead?.interval || "annual",
+      ...(directCheckout ? { direct_checkout: true, visitor_id: visitorId() } : {}),
+    };
   }
 
   function refreshActiveLead() {
@@ -1502,6 +1518,10 @@ function setupLeadGate(locale) {
   }
 
   function goToCheckout() {
+    if (directCheckout) {
+      window.location.assign(checkoutUrl(locale, selectedLead()));
+      return true;
+    }
     const lead = refreshActiveLead();
     if (!lead?.lead_token) return false;
     window.location.assign(checkoutUrl(locale, selectedLead()));
@@ -1509,6 +1529,11 @@ function setupLeadGate(locale) {
   }
 
   function openModal(interval) {
+    if (directCheckout) {
+      selectInterval(interval);
+      goToCheckout();
+      return;
+    }
     selectInterval(interval);
     showFieldErrors({});
     formFeedback("", "");
@@ -1528,7 +1553,7 @@ function setupLeadGate(locale) {
   }
 
   function revealPrices(lead) {
-    if (!lead?.lead_token) {
+    if (!directCheckout && !lead?.lead_token) {
       formFeedback(copy[locale].submitError, "error");
       return false;
     }
@@ -1536,7 +1561,10 @@ function setupLeadGate(locale) {
     priceCard?.classList.add("is-unlocked");
     document.querySelectorAll("[data-plan-card]").forEach((card) => card.classList.add("is-unlocked"));
     planButtons.forEach((button) => {
-      button.textContent = copy[locale].guarantee;
+      const interval = button.getAttribute("data-interval") || "annual";
+      button.textContent = directCheckout
+        ? (interval === "monthly" ? copy[locale].monthlyCta : copy[locale].annualCta)
+        : copy[locale].guarantee;
       button.classList.add("is-guarantee");
     });
     closeModal();
@@ -1544,7 +1572,9 @@ function setupLeadGate(locale) {
   }
 
   selectInterval(activeLead?.interval || intervalInput?.value || "annual");
-  if (window.localStorage.getItem(storageKey) === "true" && activeLead?.lead_token) {
+  if (directCheckout) {
+    revealPrices(selectedLead());
+  } else if (window.localStorage.getItem(storageKey) === "true" && activeLead?.lead_token) {
     revealPrices(activeLead);
   } else if (window.localStorage.getItem(storageKey) === "true" && !activeLead?.lead_token) {
     window.localStorage.removeItem(storageKey);
@@ -1934,13 +1964,16 @@ function setupSpaceBackground() {
   let rows = 0;
   let cols = 0;
   let tick = 0;
+  let lastRender = 0;
+  let animationFrame = 0;
   let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let particles = [];
   const pointer = { x: 0, y: 0, active: false };
 
   const createParticles = () => {
     particles = [];
-    const spacing = Math.max(20, Math.min(30, width / 54));
+    const compactViewport = width < 720;
+    const spacing = compactViewport ? Math.max(34, Math.min(44, width / 11)) : Math.max(28, Math.min(38, width / 42));
     cols = Math.ceil(width / spacing) + 5;
     rows = Math.ceil(height / spacing) + 5;
     const offsetX = (width - (cols - 1) * spacing) / 2;
@@ -1969,9 +2002,9 @@ function setupSpaceBackground() {
   };
 
   const resize = () => {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
     width = window.innerWidth;
     height = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, width < 720 ? 1.25 : 1.5);
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
     canvas.style.width = `${width}px`;
@@ -2092,7 +2125,12 @@ function setupSpaceBackground() {
     context.restore();
   };
 
-  const render = () => {
+  const render = (now = 0) => {
+    animationFrame = window.requestAnimationFrame(render);
+    if (document.hidden) return;
+    if (now - lastRender < (reducedMotion ? 80 : 33)) return;
+    lastRender = now;
+
     tick += reducedMotion ? 0.002 : 0.008;
     context.clearRect(0, 0, width, height);
 
@@ -2173,11 +2211,17 @@ function setupSpaceBackground() {
     context.fillStyle = veil;
     context.fillRect(0, 0, width, height);
 
-    window.requestAnimationFrame(render);
   };
 
   window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
     reducedMotion = event.matches;
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && animationFrame) window.cancelAnimationFrame(animationFrame);
+    if (!document.hidden) {
+      lastRender = 0;
+      animationFrame = window.requestAnimationFrame(render);
+    }
   });
   window.addEventListener("resize", resize);
   window.addEventListener("pointermove", updatePointer, { passive: true });
@@ -2185,7 +2229,7 @@ function setupSpaceBackground() {
   window.addEventListener("pointerleave", stopPointer);
 
   resize();
-  render();
+  animationFrame = window.requestAnimationFrame(render);
 }
 
 function recordLandingVisit(locale) {
@@ -2196,14 +2240,25 @@ function recordLandingVisit(locale) {
   }).catch(() => {});
 }
 
+function scheduleNonCritical(callback, timeout = 1200) {
+  const run = () => {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(callback, { timeout });
+      return;
+    }
+    window.setTimeout(callback, Math.min(timeout, 1600));
+  };
+  window.requestAnimationFrame(() => window.setTimeout(run, 0));
+}
+
 const locale = getLocale();
 applyLocale(locale);
 setupLeadGate(locale);
-setupTestimonialSlider();
-setupHeroChat();
-setupSpaceBackground();
-setupBalysChat();
-setupTrailProgress();
-setupMeetingNotes();
-setupReviewReveal();
+scheduleNonCritical(setupHeroChat, 900);
+scheduleNonCritical(setupSpaceBackground, 1800);
+scheduleNonCritical(setupTestimonialSlider, 2200);
+scheduleNonCritical(setupBalysChat, 2200);
+scheduleNonCritical(setupTrailProgress, 2200);
+scheduleNonCritical(setupMeetingNotes, 2200);
+scheduleNonCritical(setupReviewReveal, 2200);
 recordLandingVisit(locale);

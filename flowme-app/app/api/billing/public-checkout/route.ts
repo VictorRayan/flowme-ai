@@ -23,13 +23,19 @@ function text(value: unknown, limit: number) {
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const leadToken = text(body.lead_token, 2000);
-  const tokenPayload = verifySignedMarketingToken(leadToken, 'lead');
-  if (!tokenPayload) return apiError(ErrorCode.UNAUTHORIZED, 'Lead token is invalid or expired', 401);
+  const directCheckout = body.direct_checkout === true;
+  const tokenPayload = leadToken ? verifySignedMarketingToken(leadToken, 'lead') : null;
+  if (leadToken && !tokenPayload) return apiError(ErrorCode.UNAUTHORIZED, 'Lead token is invalid or expired', 401);
+  if (!directCheckout && !tokenPayload) return apiError(ErrorCode.UNAUTHORIZED, 'Lead token is invalid or expired', 401);
 
   const interval = normalizeBillingInterval(body.interval || 'annual');
   const method = paymentMethod(body.payment_method || 'card');
   const planCode = text(body.plan_code, 80) || 'pro';
   const locale = normalizeCatalogLocale(body.locale);
+  const directEmail = text(body.customer_email, 240).toLowerCase();
+  if (directCheckout && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(directEmail)) {
+    return apiError(ErrorCode.VALIDATION_ERROR, locale === 'en-US' ? 'Email is required for checkout' : 'Email é obrigatório para concluir o checkout', 400);
+  }
   if (!interval) return apiError(ErrorCode.VALIDATION_ERROR, 'interval must be monthly or annual', 400);
   if (!method) return apiError(ErrorCode.VALIDATION_ERROR, 'payment_method is invalid', 400);
   if (method === 'pix' && !checkoutPixAllowedForInterval(interval)) {
@@ -48,14 +54,19 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = getSupabaseAdmin();
-  const { data: lead, error: leadError } = await admin.from('marketing_leads')
-    .select('id,email,name,phone,phone_e164,locale,source,meta_external_id,visitor_id')
-    .eq('id', tokenPayload.id)
-    .maybeSingle();
-  if (leadError) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to load lead', 500);
-  if (!lead || String(lead.email).trim().toLowerCase() !== tokenPayload.email) {
-    return apiError(ErrorCode.UNAUTHORIZED, 'Lead token does not match checkout email', 401);
+  let lead: { id: string; email: string; name: string | null; phone: string | null; phone_e164: string | null; locale: string; source: string | null; meta_external_id: string | null; visitor_id: string | null } | null = null;
+  if (tokenPayload) {
+    const { data: loadedLead, error: leadError } = await admin.from('marketing_leads')
+      .select('id,email,name,phone,phone_e164,locale,source,meta_external_id,visitor_id')
+      .eq('id', tokenPayload.id)
+      .maybeSingle();
+    if (leadError) return apiError(ErrorCode.SUPABASE_ERROR, 'Unable to load lead', 500);
+    if (!loadedLead || String(loadedLead.email).trim().toLowerCase() !== tokenPayload.email) {
+      return apiError(ErrorCode.UNAUTHORIZED, 'Lead token does not match checkout email', 401);
+    }
+    lead = loadedLead;
   }
+  const checkoutEmail = tokenPayload?.email || directEmail;
 
   const { data: route, error: routeError } = await admin.from('billing_payment_method_routes')
     .select('provider,currency')
@@ -88,25 +99,27 @@ export async function POST(req: NextRequest) {
 
   const { data: previousSession } = await admin.from('public_checkout_sessions')
     .select('provider_customer_id')
-    .eq('email', tokenPayload.email)
+    .eq('email', checkoutEmail)
     .eq('provider', provider)
     .not('provider_customer_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const checkoutSource = text(body.source, 120) || text(lead.source, 120);
-  const customerName = method === 'pix' ? text(body.customer_name, 160) : text(lead.name, 160) || tokenPayload.email.split('@')[0];
-  const metaExternalId = text(body.meta_external_id, 120) || text(lead.meta_external_id, 120) || text(lead.visitor_id, 120);
+  const checkoutSource = text(body.source, 120) || text(lead?.source, 120) || 'direct_checkout';
+  const customerName = method === 'pix'
+    ? text(body.customer_name, 160)
+    : text(body.customer_name, 160) || text(lead?.name, 160) || checkoutEmail.split('@')[0];
+  const metaExternalId = text(body.meta_external_id, 120) || text(lead?.meta_external_id, 120) || text(lead?.visitor_id, 120);
   const metaFbp = text(body.meta_fbp, 200);
   const metaFbc = text(body.meta_fbc, 200);
   const { data: session, error: sessionError } = await admin.from('public_checkout_sessions').insert({
-    lead_id: lead.id,
+    lead_id: lead?.id || null,
     meta_external_id: metaExternalId,
-    email: tokenPayload.email,
+    email: checkoutEmail,
     customer_name: customerName,
-    phone: text(lead.phone, 40),
-    phone_e164: text(lead.phone_e164, 40),
+    phone: text(lead?.phone, 40),
+    phone_e164: text(lead?.phone_e164, 40),
     plan_code: planCode,
     price_id: price.id,
     provider,
@@ -120,6 +133,7 @@ export async function POST(req: NextRequest) {
     metadata: {
       source: checkoutSource,
       public_checkout: true,
+      ...(directCheckout && !lead ? { direct_checkout: true } : {}),
       ...(metaFbp ? { meta_fbp: metaFbp } : {}),
       ...(metaFbc ? { meta_fbc: metaFbc } : {}),
     },
@@ -132,7 +146,7 @@ export async function POST(req: NextRequest) {
       attemptId: session.id,
       userId: null,
       publicCheckoutSessionId: session.id,
-      userEmail: tokenPayload.email,
+      userEmail: checkoutEmail,
       customerName,
       customerTaxId: method === 'pix' ? text(body.cpf_cnpj, 40) : null,
       existingCustomerId: previousSession?.provider_customer_id || null,
@@ -161,8 +175,8 @@ export async function POST(req: NextRequest) {
 
     return apiSuccess({
       attempt_id: session.id,
-      public_checkout_token: createSignedMarketingToken({ kind: 'public_checkout', id: session.id, email: tokenPayload.email }),
-      email: tokenPayload.email,
+      public_checkout_token: createSignedMarketingToken({ kind: 'public_checkout', id: session.id, email: checkoutEmail }),
+      email: checkoutEmail,
       checkout: result,
     });
   } catch (gatewayError) {
@@ -173,6 +187,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         source: checkoutSource,
         public_checkout: true,
+        ...(directCheckout && !lead ? { direct_checkout: true } : {}),
         provider_error_message: providerErrorMessage,
         provider_error_code: providerErrorCode,
       },

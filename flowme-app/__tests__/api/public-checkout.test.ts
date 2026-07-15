@@ -96,6 +96,39 @@ describe('public checkout', () => {
     }));
   });
 
+  it('creates a direct public checkout without a lead token when email is provided', async () => {
+    const response = await POST_PUBLIC_CHECKOUT(new NextRequest('http://localhost/api/billing/public-checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        direct_checkout: true,
+        customer_email: 'direct@example.com',
+        customer_name: 'Direct Buyer',
+        interval: 'annual',
+        payment_method: 'card',
+        payment_method_id: 'pm_card_1',
+        locale: 'pt-BR',
+        source: 'lp_pt-br',
+        meta_external_id: 'visitor-direct',
+      }),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.email).toBe('direct@example.com');
+    expect(body.public_checkout_token).toEqual(expect.any(String));
+    expect(mockCreateCheckout).toHaveBeenCalledWith(expect.objectContaining({
+      userEmail: 'direct@example.com',
+      customerName: 'Direct Buyer',
+    }));
+    expect(insertedCheckout).toEqual(expect.objectContaining({
+      lead_id: null,
+      email: 'direct@example.com',
+      customer_name: 'Direct Buyer',
+      meta_external_id: 'visitor-direct',
+      metadata: expect.objectContaining({ direct_checkout: true }),
+    }));
+  });
+
   it('rejects Pix on the monthly plan before creating a public checkout session', async () => {
     const leadToken = createSignedMarketingToken({ kind: 'lead', id: 'lead-1', email: 'buyer@example.com' });
     const response = await POST_PUBLIC_CHECKOUT(new NextRequest('http://localhost/api/billing/public-checkout', {

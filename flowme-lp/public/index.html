@@ -19,9 +19,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260709-locale-cache" />
+    <link rel="stylesheet" href="/styles.css?v=20260715-perf" />
+
+    <!-- Google Analytics — shared LP/app measurement for flow-me.online subdomains -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-942EZBWS43"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', 'G-942EZBWS43', {
+        cookie_domain: window.location.hostname.endsWith('flow-me.online') ? 'flow-me.online' : 'auto',
+        linker: {
+          domains: ['flow-me.online', 'app.flow-me.online']
+        }
+      });
+    </script>
 
     <!-- Meta Pixel — cross-domain tracking for flow-me.online → app.flow-me.online -->
     <script>
@@ -78,13 +92,22 @@
         src="https://www.facebook.com/tr?id=1344847183738689&ev=PageView&noscript=1"/>
     </noscript>
 
-    <!-- Microsoft Clarity — landing analytics and session replay -->
+    <!-- Microsoft Clarity — delayed until idle so first paint stays responsive -->
     <script type="text/javascript">
-      (function(c,l,a,r,i,t,y){
-        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-      })(window, document, "clarity", "script", "xkzkqxbqku");
+      (function(w,d,i){
+        w.clarity=w.clarity||function(){(w.clarity.q=w.clarity.q||[]).push(arguments)};
+        if(w.__FM_EXTERNAL_ID) w.clarity("identify", w.__FM_EXTERNAL_ID);
+        function load(){
+          if(w.__FM_CLARITY_LOADED__) return;
+          w.__FM_CLARITY_LOADED__=true;
+          var s=d.createElement("script");
+          s.async=true;
+          s.src="https://www.clarity.ms/tag/"+i;
+          d.head.appendChild(s);
+        }
+        if("requestIdleCallback" in w) w.requestIdleCallback(load,{timeout:2500});
+        else w.setTimeout(load,1600);
+      })(window, document, "xkzkqxbqku");
     </script>
 
   </head>
@@ -859,14 +882,14 @@
           <span class="pricing-urgency-icon" aria-hidden="true">⚡</span>
           <p><b>Isso não é mais coisa do futuro.</b> <span>Quem não colocar IA na rotina vai ficar para trás: hoje, ser 2x mais produtivo não é vantagem, é sobrevivência.</span></p>
         </div>
-        <div class="price-card" data-price-card>
+        <div class="price-card is-unlocked" data-price-card data-direct-checkout="true">
           <div class="price-locked" data-price-locked>
             <div class="mobile-plan-tabs" role="tablist" aria-label="Selecionar plano">
               <button type="button" data-plan-tab data-interval="monthly" role="tab">Mensal <small>Flexível</small></button>
               <button type="button" data-plan-tab data-interval="annual" role="tab" aria-selected="true">Anual <small>Mais vendido</small></button>
             </div>
             <div class="pricing-plans">
-              <article class="locked-plan-card" data-plan-card data-interval="monthly">
+              <article class="locked-plan-card is-unlocked" data-plan-card data-interval="monthly">
                 <em class="plan-badge discount-pill">Flexível</em>
                 <h3>Mensal</h3>
                 <p>Flow Me Pro completo, sem compromisso anual. Ideal para testar com rotina real.</p>
@@ -887,10 +910,10 @@
                   <li class="excluded locked-saving">Economia de R$240 no ano</li>
                   <li class="excluded">Melhor preço para operar a rotina inteira</li>
                 </ul>
-                <button class="price-lock-button" type="button" data-plan-button data-interval="monthly">🔒 Ver preços agora</button>
+                <button class="price-lock-button is-guarantee" type="button" data-plan-button data-interval="monthly">Assinar mensal</button>
               </article>
 
-              <article class="locked-plan-card featured is-selected" data-plan-card data-interval="annual">
+              <article class="locked-plan-card featured is-selected is-unlocked" data-plan-card data-interval="annual">
                 <div class="plan-ribbon">Mais vendido</div>
                 <em class="plan-badge discount-pill">33% OFF</em>
                 <h3>Anual</h3>
@@ -912,7 +935,7 @@
                   <li class="locked-saving">Economia de R$240 no ano</li>
                   <li>Melhor preço para operar a rotina inteira</li>
                 </ul>
-                <button class="price-lock-button" type="button" data-plan-button data-interval="annual">🔒 Ver preços agora</button>
+                <button class="price-lock-button is-guarantee" type="button" data-plan-button data-interval="annual">Assinar anual</button>
               </article>
             </div>
           </div>
@@ -1051,6 +1074,6 @@
         </div>
       </footer>
     </main>
-    <script src="/landing.js?v=20260709-locale-cache"></script>
+    <script src="/landing.js?v=20260715-perf"></script>
   </body>
 </html>

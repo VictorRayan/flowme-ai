@@ -15,7 +15,7 @@ type GoogleAnalyticsProps = {
   measurementId: string;
 };
 
-const linkerDomains = ['flow-me.online', 'app.flow-me.online'];
+const linkerDomains = ['flow-me.online', 'www.flow-me.online', 'app.flow-me.online'];
 
 export default function GoogleAnalytics({ measurementId }: GoogleAnalyticsProps) {
   const pathname = usePathname();

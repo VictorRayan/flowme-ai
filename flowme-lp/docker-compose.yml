@@ -9,7 +9,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=flowme-proxy
-      - traefik.http.routers.flowme-lp.rule=Host(`${FLOWME_LP_DOMAIN}`)
+      - traefik.http.routers.flowme-lp.rule=Host(`${FLOWME_LP_DOMAIN}`) || Host(`www.${FLOWME_LP_DOMAIN}`)
       - traefik.http.routers.flowme-lp.entrypoints=websecure
       - traefik.http.routers.flowme-lp.tls=true
       - traefik.http.routers.flowme-lp.tls.certresolver=letsencrypt

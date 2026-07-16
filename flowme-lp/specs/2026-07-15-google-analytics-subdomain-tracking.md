@@ -8,6 +8,7 @@ Install the Google Analytics 4 tag on both the static landing page and the
 authenticated app/checkout so paid traffic can be analyzed across:
 
 - `flow-me.online`
+- `www.flow-me.online`
 - `app.flow-me.online`
 
 ## Surface
@@ -26,12 +27,14 @@ checkout experiment.
 - Use the same GA4 measurement ID on LP and app: `G-942EZBWS43`.
 - Configure the cookie domain as `flow-me.online` only on production
   subdomains; fall back to `auto` locally.
-- Configure linker domains for `flow-me.online` and `app.flow-me.online`.
+- Configure linker domains for `flow-me.online`, `www.flow-me.online` and `app.flow-me.online`.
+- Route `www.flow-me.online` to the LP service so Google tag verification can detect the tag when Google tests the `www` hostname.
 - In the Next.js app, track initial pageview plus client route changes.
 
 ## Acceptance criteria
 
 - LP loads the Google tag asynchronously.
+- `www.flow-me.online` serves the LP instead of Traefik 404.
 - App loads Google tag after hydration/interaction through Next.js Script.
 - Checkout pages under `app.flow-me.online/checkout` are tagged.
 - No lead-capture or checkout behavior changes.

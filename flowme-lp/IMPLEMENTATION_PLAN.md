@@ -159,13 +159,14 @@ Goal: test the low-ticket impulse-purchase thesis by showing prices immediately 
 
 Specification: `specs/2026-07-15-google-analytics-subdomain-tracking.md`
 
-Goal: measure the buyer journey from the static LP to checkout across `flow-me.online` and `app.flow-me.online`.
+Goal: measure the buyer journey from the static LP to checkout across `flow-me.online`, `www.flow-me.online` and `app.flow-me.online`.
 
 - [x] Install GA4 tag on the static LP.
 - [x] Install GA4 tag in the authenticated app and checkout.
 - [x] Use the same measurement ID on both surfaces.
 - [x] Configure production cookie domain for the shared root domain.
 - [x] Configure linker domains for LP and app subdomain.
+- [x] Route `www.flow-me.online` to the LP so Google tag verification can detect the tag on the `www` hostname.
 - [ ] Verify GA4 Realtime/DebugView after deployment.
 
 ## Landing Execution Doctrine

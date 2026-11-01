@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { ilikeAny } from '@/lib/api/safe-filters';
 
 /**
  * GET /api/documents
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`filename.ilike.%${search}%,summary.ilike.%${search}%,content_text.ilike.%${search}%`);
+      query = query.or(ilikeAny(['filename', 'summary', 'content_text'], search));
     }
     if (tag) query = query.contains('tags', [tag]);
     if (status) query = query.eq('processing_status', status);

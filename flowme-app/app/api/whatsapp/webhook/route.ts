@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
+import { getSupabaseAdmin } from '@/lib/api/admin';
 import { handleWhatsAppMessage, WhatsAppIncomingMessage } from '@/lib/whatsapp/balys-runner';
 
-const WEBHOOK_SECRET = process.env.EVOLUTION_WEBHOOK_SECRET;
+function authorized(request: NextRequest): boolean {
+  const expected = process.env.EVOLUTION_WEBHOOK_SECRET;
+  const provided = request.headers.get('x-flowme-webhook-secret');
+  if (!expected || !provided) return false;
+  const expectedBytes = Buffer.from(expected);
+  const providedBytes = Buffer.from(provided);
+  return expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes);
+}
 
 /**
  * Evolution API calls this endpoint on every incoming message.
- * We return 200 immediately and run Balys asynchronously so Evolution
- * doesn't time out and retry.
+ * Authenticated events are claimed by provider message ID before processing.
  */
 export async function POST(request: NextRequest) {
-  // Verify the shared secret Evolution sends as ?secret= in the URL
-  if (WEBHOOK_SECRET) {
-    const incomingSecret = request.nextUrl.searchParams.get('secret') ?? '';
-    if (incomingSecret !== WEBHOOK_SECRET) {
-      return NextResponse.json({ ok: false }, { status: 401 });
-    }
-  }
+  if (!authorized(request)) return NextResponse.json({ ok: false }, { status: 401 });
 
   let body: any;
   try {
@@ -36,15 +38,18 @@ export async function POST(request: NextRequest) {
   const data = body?.data;
   if (!data) return NextResponse.json({ ok: true, ignored: true });
 
-  const fromMe: boolean   = data?.key?.fromMe ?? false;
-  const senderJid: string = data?.key?.remoteJid ?? '';
-  const messageId: string = data?.key?.id ?? '';
-  const messageType: string = data?.messageType ?? 'conversation';
-  const pushName: string  = data?.pushName ?? '';
+  const fromMe = data?.key?.fromMe === true;
+  const senderJid = typeof data?.key?.remoteJid === 'string' ? data.key.remoteJid : '';
+  const messageId = typeof data?.key?.id === 'string' ? data.key.id : '';
+  const messageType = typeof data?.messageType === 'string' ? data.messageType : 'conversation';
+  const pushName = typeof data?.pushName === 'string' ? data.pushName : '';
 
   // Ignore messages sent by the instance itself and group messages
   if (fromMe || !senderJid || senderJid.endsWith('@g.us')) {
     return NextResponse.json({ ok: true, ignored: true });
+  }
+  if (!messageId || messageId.length > 255) {
+    return NextResponse.json({ ok: false, error: 'invalid message id' }, { status: 400 });
   }
 
   // Extract text from the different message types Evolution sends
@@ -89,10 +94,25 @@ export async function POST(request: NextRequest) {
     pushName,
   };
 
-  // Fire-and-forget: respond 200 immediately, process in background
-  void handleWhatsAppMessage(incoming).catch((e) =>
-    console.error('[whatsapp-webhook] handleWhatsAppMessage threw:', e),
-  );
+  try {
+    const admin = getSupabaseAdmin();
+    const { data: claim, error } = await admin.rpc('claim_inbound_message', {
+      p_source: 'evolution', p_sender_id: senderJid, p_message_id: messageId,
+    });
+    if (error) throw error;
+    if (claim === 'processed') return NextResponse.json({ ok: true, duplicate: true });
+    if (claim === 'in_progress') return NextResponse.json({ ok: false, retry: true }, { status: 503 });
+    if (claim !== 'claimed') throw new Error('Invalid inbound claim status');
+
+    await handleWhatsAppMessage(incoming);
+    const { error: markError } = await admin.from('inbound_message_events')
+      .update({ processed_at: new Date().toISOString() })
+      .eq('source', 'evolution').eq('sender_id', senderJid).eq('message_id', messageId);
+    if (markError) throw markError;
+  } catch (error) {
+    console.error('[whatsapp-webhook] processing failed:', error);
+    return NextResponse.json({ ok: false, retry: true }, { status: 503 });
+  }
 
   return NextResponse.json({ ok: true });
 }

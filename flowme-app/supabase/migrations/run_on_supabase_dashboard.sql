@@ -495,20 +495,38 @@ CREATE INDEX IF NOT EXISTS idx_action_plan_goal_links_goal
 ALTER TABLE public.action_plan_goal_links ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own action plan goal links" ON public.action_plan_goal_links;
-CREATE POLICY "Users can view their own action plan goal links"
-  ON public.action_plan_goal_links FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS action_plan_goal_links_owner_read ON public.action_plan_goal_links;
+CREATE POLICY action_plan_goal_links_owner_read
+  ON public.action_plan_goal_links FOR SELECT TO authenticated USING (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.action_plans p WHERE p.id = action_plan_goal_links.action_plan_id AND p.user_id = action_plan_goal_links.user_id)
+    AND EXISTS (SELECT 1 FROM public.smart_goals g WHERE g.id = action_plan_goal_links.goal_id AND g.user_id = action_plan_goal_links.user_id)
+  );
 
 DROP POLICY IF EXISTS "Users can insert their own action plan goal links" ON public.action_plan_goal_links;
-CREATE POLICY "Users can insert their own action plan goal links"
-  ON public.action_plan_goal_links FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS action_plan_goal_links_owner_insert ON public.action_plan_goal_links;
+CREATE POLICY action_plan_goal_links_owner_insert
+  ON public.action_plan_goal_links FOR INSERT TO authenticated WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.action_plans p WHERE p.id = action_plan_goal_links.action_plan_id AND p.user_id = action_plan_goal_links.user_id)
+    AND EXISTS (SELECT 1 FROM public.smart_goals g WHERE g.id = action_plan_goal_links.goal_id AND g.user_id = action_plan_goal_links.user_id)
+  );
 
 DROP POLICY IF EXISTS "Users can update their own action plan goal links" ON public.action_plan_goal_links;
-CREATE POLICY "Users can update their own action plan goal links"
-  ON public.action_plan_goal_links FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS action_plan_goal_links_owner_update ON public.action_plan_goal_links;
+CREATE POLICY action_plan_goal_links_owner_update
+  ON public.action_plan_goal_links FOR UPDATE TO authenticated
+  USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.action_plans p WHERE p.id = action_plan_goal_links.action_plan_id AND p.user_id = action_plan_goal_links.user_id)
+    AND EXISTS (SELECT 1 FROM public.smart_goals g WHERE g.id = action_plan_goal_links.goal_id AND g.user_id = action_plan_goal_links.user_id)
+  );
 
 DROP POLICY IF EXISTS "Users can delete their own action plan goal links" ON public.action_plan_goal_links;
-CREATE POLICY "Users can delete their own action plan goal links"
-  ON public.action_plan_goal_links FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS action_plan_goal_links_owner_delete ON public.action_plan_goal_links;
+CREATE POLICY action_plan_goal_links_owner_delete
+  ON public.action_plan_goal_links FOR DELETE TO authenticated USING (user_id = (SELECT auth.uid()));
 
 ALTER TABLE public.microactivities
   ADD COLUMN IF NOT EXISTS duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes >= 0),

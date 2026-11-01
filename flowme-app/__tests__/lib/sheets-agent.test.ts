@@ -134,4 +134,22 @@ describe('runSheetsAgent', () => {
     expect(result.summary).toContain('Finance 2026');
     expect(result.insights?.[0]?.evidence).toContain('Month | Spend');
   });
+
+  it('does not execute model-suggested writes in analyze mode', async () => {
+    mockCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({
+        plan: 'Update the sheet',
+        operations: [{ type: 'values_clear', range: 'Budget!A1:B10' }],
+        summary: 'No changes',
+      }) } }],
+    });
+
+    const result = await runSheetsAgent({
+      spreadsheetId: 'sheet-1', linkedAccountId: 'linked-1',
+      supabase: makeSupabase(), task: 'Analyze my spreadsheet', mode: 'analyze',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.changes).toEqual([]);
+  });
 });

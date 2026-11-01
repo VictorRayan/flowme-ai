@@ -8,6 +8,9 @@ import { verifySignedMarketingToken } from '@/lib/marketing/signed-token';
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireAuth(req);
+    if (!user.email || !user.email_confirmed_at) {
+      return apiError(ErrorCode.UNAUTHORIZED, 'Verified email is required to claim checkout', 403);
+    }
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const token = typeof body.token === 'string' ? body.token : '';
     const payload = verifySignedMarketingToken(token, 'public_checkout');

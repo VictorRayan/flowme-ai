@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { Tool, ToolContext } from './tools/Tool';
-import { getToolByName } from './tools/registry';
+import { untrustedToolResult } from './untrusted-content';
+import { isToolActionAuthorized } from './tool-authorization';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 export type AgentProgressEvent =
@@ -281,7 +282,7 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
   };
 
   const executeToolCall = async (toolName: string, parsedArgs: any, callId: string): Promise<void> => {
-    const tool = getToolByName(toolName);
+    const tool = options.tools.find(candidate => candidate.name === toolName);
     if (!tool) {
       messages.push({
         role: 'tool',
@@ -293,6 +294,30 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
       return;
     }
 
+    const sheetsReadOnlyRequest = tool.name === 'connectors.sheets_agent'
+      && /\b(sheet|sheets|spreadsheet|planilha|planilhas)\b/i.test(latestUserText)
+      && !isToolActionAuthorized(tool, latestUserText);
+    if (!options.context.user?.id || (!isToolActionAuthorized(tool, latestUserText) && !sheetsReadOnlyRequest)) {
+      messages.push({
+        role: 'tool', tool_call_id: callId, name: toolName,
+        content: JSON.stringify({ ok: false, error: 'This action requires a request from the signed-in user.' }),
+      });
+      emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: false, error: 'action not authorized' });
+      return;
+    }
+
+    const validated = tool.inputSchema.safeParse(parsedArgs);
+    if (!validated.success) {
+      messages.push({
+        role: 'tool', tool_call_id: callId, name: toolName,
+        content: JSON.stringify({ ok: false, error: 'Invalid tool arguments.' }),
+      });
+      emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: false, error: 'invalid arguments' });
+      return;
+    }
+
+    parsedArgs = validated.data;
+    if (sheetsReadOnlyRequest) parsedArgs = { ...parsedArgs, mode: 'analyze', task: latestUserText };
     emit({ type: 'tool_call_start', tool: toolName, args: parsedArgs, call_id: callId });
 
     let status: 'success' | 'error' = 'success';
@@ -313,7 +338,7 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
           role: 'tool',
           tool_call_id: callId,
           name: toolName,
-          content: JSON.stringify({ ok: true, receipt: receiptJson, data: result.data })
+          content: untrustedToolResult({ ok: true, receipt: receiptJson, data: result.data })
         });
         emit({ type: 'tool_call_end', tool: toolName, call_id: callId, ok: true, receipt: receiptJson });
       } else {
@@ -423,7 +448,7 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
       for (const rawToolCall of message.tool_calls) {
         if (rawToolCall.type !== 'function') continue;
         const toolCall = rawToolCall as Extract<typeof rawToolCall, { type: 'function' }>;
-        const tool = getToolByName(toolCall.function.name);
+        const tool = options.tools.find(candidate => candidate.name === toolCall.function.name);
 
         if (!tool) {
           messages.push({
@@ -450,8 +475,6 @@ export async function runBalysAgentLoop(options: AgentLoopOptions) {
           continue;
         }
 
-        // Log raw args to diagnose model wrapping issues
-        console.log(`[agent-loop] tool=${toolCall.function.name} raw_args=${JSON.stringify(parsedArgs)}`);
 
         // Auto-unwrap: some models (Gemini) wrap flat args inside a single nested object.
         // If the top-level has exactly one key whose value is an object containing the

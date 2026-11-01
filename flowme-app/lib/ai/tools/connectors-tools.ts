@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineFeatureTool, ToolContext, type Tool } from './Tool';
 import { searchEmails, createDraft, readEmailMessage, GmailMessageSummary } from '@/lib/google/google-gmail';
+import { runOutboundOnce } from '@/lib/ai/outbound-idempotency';
 import { google } from 'googleapis';
 import { getValidGoogleToken } from '@/lib/google/google-auth';
 import { runSheetsAgent } from '@/lib/ai/agents/sheets-agent';
@@ -1401,7 +1402,10 @@ ASK THE USER FIRST IF: recipients are ambiguous or unverified, the email is sens
     const accountId = await getGoogleAccountId(context);
     if (!accountId) return { ok: false, error: 'No active Google account connected.' };
     try {
-      const draft = await createDraft(accountId, args.to, args.subject, args.body, context);
+      const draft = await runOutboundOnce(
+        context, 'gmail', { accountId, to: args.to, subject: args.subject, body: args.body },
+        () => createDraft(accountId, args.to, args.subject, args.body, context),
+      );
       return { ok: true, receipt: { draft_id: draft.id, message_id: draft.messageId, status: 'draft_created' } };
     } catch (e: any) {
       const googleMsg = e?.response?.data?.error?.message || e?.errors?.[0]?.message || e?.message;

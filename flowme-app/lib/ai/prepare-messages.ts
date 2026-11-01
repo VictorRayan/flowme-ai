@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { cleanUntrustedText } from './untrusted-content';
 
 function debugLog(line: string): void {
   try {
@@ -191,8 +192,8 @@ export async function prepareMessagesWithAttachments(messages: IncomingMessage[]
         if (text) inlineParts.push(text);
       } else if (att.type === 'file') {
         const text = decodeFileText(att);
-        if (text) inlineParts.push(`[File: ${att.name}]\n${text}`);
-        else inlineParts.push(`[File: ${att.name}]`);
+        if (text) inlineParts.push(`[Untrusted file: ${cleanUntrustedText(att.name)}]\nUNTRUSTED_FILE_DATA_BEGIN\n${cleanUntrustedText(text)}\nUNTRUSTED_FILE_DATA_END`);
+        else inlineParts.push(`[File: ${cleanUntrustedText(att.name)}]`);
       } else if (att.type === 'image') {
         remainingAttachments.push(att);
       }

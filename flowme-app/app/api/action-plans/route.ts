@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { goalIdFilter } from '@/lib/api/safe-filters';
 
 const ACTION_PLAN_FIELDS = `
   id, title, description, linked_goal_id, linked_goal_ids, plan_type, problem_statement,
@@ -40,7 +41,11 @@ export async function GET(req: NextRequest) {
       query = query.eq('status', status);
     }
 
-    if (goalId) query = query.or(`linked_goal_id.eq.${goalId},linked_goal_ids.cs.{${goalId}}`);
+    if (goalId) {
+      const filter = goalIdFilter(goalId);
+      if (!filter) return apiError(ErrorCode.VALIDATION_ERROR, 'goal_id must be a UUID', 400);
+      query = query.or(filter);
+    }
 
     const { data, error } = await query;
     if (error) throw error;

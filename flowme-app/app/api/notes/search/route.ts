@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiError, ErrorCode } from '@/lib/api/errors';
+import { ilikeAny } from '@/lib/api/safe-filters';
 
 // GET /api/notes/search?q=... — full-text search over notes for the command palette
 export async function GET(request: NextRequest) {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
       .limit(30);
 
     if (q) {
-      query = query.or(`title.ilike.%${q}%,content_text.ilike.%${q}%`);
+      query = query.or(ilikeAny(['title', 'content_text'], q));
     }
 
     const { data, error } = await query;

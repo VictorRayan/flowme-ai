@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'file field is required (multipart/form-data)');
     }
+    if (file.size > 50 * 1024 * 1024) {
+      return apiError(ErrorCode.VALIDATION_ERROR, 'File exceeds 50 MB limit', 413);
+    }
 
     // Read file content
     const arrayBuffer = await file.arrayBuffer();
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest) {
     }
 
     // AI processing (async — don't block the response)
-    processDocumentAsync(supabase, doc.id, file.name, buffer, file.type || 'application/octet-stream');
+    processDocumentAsync(supabase, user.id, doc.id, file.name, buffer, file.type || 'application/octet-stream');
 
     return NextResponse.json({ ok: true, document: doc }, { status: 201 });
   } catch (err: any) {
@@ -108,6 +111,7 @@ export async function POST(req: NextRequest) {
  */
 async function processDocumentAsync(
   supabase: any,
+  userId: string,
   docId: string,
   filename: string,
   buffer: Buffer,
@@ -115,14 +119,14 @@ async function processDocumentAsync(
 ) {
   try {
     // Mark as processing
-    await supabase.from('documents').update({ processing_status: 'processing' }).eq('id', docId);
+    await supabase.from('documents').update({ processing_status: 'processing' }).eq('id', docId).eq('user_id', userId);
 
     if (!isTextProcessable(mimeType)) {
       // Can't extract text from binary formats yet
       await supabase.from('documents').update({
         processing_status: 'skipped',
         processing_error: `Binary format "${mimeType}" not yet supported for AI processing`,
-      }).eq('id', docId);
+      }).eq('id', docId).eq('user_id', userId);
       return;
     }
 
@@ -131,7 +135,7 @@ async function processDocumentAsync(
       await supabase.from('documents').update({
         processing_status: 'skipped',
         processing_error: 'No text content could be extracted',
-      }).eq('id', docId);
+      }).eq('id', docId).eq('user_id', userId);
       return;
     }
 
@@ -150,13 +154,13 @@ async function processDocumentAsync(
       tags: analysis.tags,
       processing_status: 'completed',
       processed_at: new Date().toISOString(),
-    }).eq('id', docId);
+    }).eq('id', docId).eq('user_id', userId);
 
   } catch (err: any) {
     console.error(`[document-processor] Failed for doc ${docId}:`, err.message);
     await supabase.from('documents').update({
       processing_status: 'failed',
       processing_error: err.message || 'Unknown processing error',
-    }).eq('id', docId);
+    }).eq('id', docId).eq('user_id', userId);
   }
 }

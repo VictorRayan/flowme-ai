@@ -2,11 +2,12 @@ import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/webhooks/asaas/route';
 
 const mockFrom = jest.fn();
+const mockClaimEvent = jest.fn();
 const mockRecordAlert = jest.fn();
 const mockClearNotifications = jest.fn();
 const mockCreateNotification = jest.fn();
 
-jest.mock('@/lib/api/admin', () => ({ getSupabaseAdmin: jest.fn(() => ({ from: mockFrom })) }));
+jest.mock('@/lib/api/admin', () => ({ getSupabaseAdmin: jest.fn(() => ({ from: mockFrom, rpc: mockClaimEvent })) }));
 jest.mock('@/lib/billing/admin-alerts', () => ({ recordBillingAdminAlert: (...args: unknown[]) => mockRecordAlert(...args) }));
 jest.mock('@/lib/billing/notifications', () => ({
   clearBillingFailureNotifications: (...args: unknown[]) => mockClearNotifications(...args),
@@ -34,8 +35,10 @@ describe('POST /api/webhooks/asaas', () => {
   const entitlements = chain();
 
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-21T12:00:00Z'));
     jest.clearAllMocks();
     events.insert.mockResolvedValue({ data: null, error: null });
+    mockClaimEvent.mockResolvedValue({ data: true, error: null });
     events.maybeSingle.mockResolvedValue({ data: null, error: null });
     process.env = { ...oldEnv, ASAAS_WEBHOOK_TOKEN: 'webhook-secret' };
     mockClearNotifications.mockResolvedValue(undefined);
@@ -49,6 +52,7 @@ describe('POST /api/webhooks/asaas', () => {
     });
   });
 
+  afterEach(() => { jest.useRealTimers(); });
   afterAll(() => { process.env = oldEnv; });
 
   it('rejects an invalid webhook token', async () => {
@@ -77,8 +81,7 @@ describe('POST /api/webhooks/asaas', () => {
   });
 
   it('acknowledges an already processed duplicate without repeating effects', async () => {
-    events.insert.mockResolvedValue({ error: { code: '23505' } });
-    events.maybeSingle.mockResolvedValue({ data: { processed_at: '2026-06-21T12:01:00Z', processing_started_at: '2026-06-21T12:00:00Z' }, error: null });
+    mockClaimEvent.mockResolvedValue({ data: false, error: null });
     const response = await POST(new NextRequest('http://localhost/api/webhooks/asaas', {
       method: 'POST',
       headers: { 'asaas-access-token': 'webhook-secret' },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineFeatureTool, type Tool, type ToolContext } from './Tool';
 import { getValidSlackClient } from '@/lib/slack/slack-auth';
+import { runOutboundOnce } from '@/lib/ai/outbound-idempotency';
 import {
   searchMessages,
   listConversations,
@@ -47,11 +48,12 @@ async function getSlackAccountId(context: ToolContext): Promise<string | null> {
 async function withSlackClient<T>(
   context: ToolContext,
   run: (client: import('@slack/web-api').WebClient) => Promise<T>,
+  noRetries = false,
 ): Promise<{ ok: true; receipt: T } | { ok: false; error: string }> {
   const linkedAccountId = await getSlackAccountId(context);
   if (!linkedAccountId) return { ok: false, error: NOT_CONNECTED_ERROR };
   try {
-    const client = await getValidSlackClient(linkedAccountId, { supabase: context.supabase, user: context.user });
+    const client = await getValidSlackClient(linkedAccountId, { supabase: context.supabase, user: context.user }, noRetries);
     const receipt = await run(client);
     return { ok: true, receipt };
   } catch (err) {
@@ -178,7 +180,10 @@ CONTRACT:
     if (!args.confirmed) {
       return { ok: false, error: 'Refusing to send: confirmed=false. Ask the user to confirm the message before retrying.' };
     }
-    return withSlackClient(context, (client) => postMessage(client, args.channel, args.text, args.thread_ts));
+    return withSlackClient(context, (client) => runOutboundOnce(
+      context, 'slack', { channel: args.channel, text: args.text, thread_ts: args.thread_ts || null },
+      () => postMessage(client, args.channel, args.text, args.thread_ts),
+    ), true);
   },
 });
 

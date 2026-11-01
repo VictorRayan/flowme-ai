@@ -417,6 +417,9 @@ export async function POST(request: NextRequest) {
         const thinkingForPersistence: any[] = [];
         const generatedAttachments: ThreadAttachmentMeta[] = [];
         const rawThreadIdHeader = request.headers.get('x-thread-id');
+        const rawRequestId = request.headers.get('x-request-id');
+        const requestIdForTools = rawRequestId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawRequestId)
+          ? rawRequestId : crypto.randomUUID();
         const threadIdForTools = rawThreadIdHeader || 'default-thread';
         // Only persist when we have a real thread id (UUID-shaped) and the user is authenticated.
         const isRealThreadId = Boolean(rawThreadIdHeader && /^[0-9a-fA-F-]{16,}$/.test(rawThreadIdHeader));
@@ -445,6 +448,7 @@ export async function POST(request: NextRequest) {
                 nowIso: typeof clientNowIso === 'string' ? clientNowIso : new Date().toISOString(),
                 timezone: requestedTimezone,
                 threadId: threadIdForTools,
+                requestId: requestIdForTools,
                 preferredConnectorType: preferredConnectorType(effectiveConnectorIntent, messages),
                 userLocation: userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lon === 'number'
                   ? { lat: userLocation.lat, lon: userLocation.lon, name: userLocation.name }

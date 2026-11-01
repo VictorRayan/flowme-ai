@@ -37,6 +37,9 @@ jest.mock('@/lib/slack/slack-auth', () => ({
     chat: { postMessage: mockPost },
   })),
 }));
+jest.mock('@/lib/ai/outbound-idempotency', () => ({
+  runOutboundOnce: jest.fn((_context, _provider, _payload, send) => send()),
+}));
 
 function makeContext(connectorRow: any, accountRow: any = null) {
   return {

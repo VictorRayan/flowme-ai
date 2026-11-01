@@ -985,6 +985,7 @@ Rules:
         headers: {
           'Content-Type': 'application/json',
           'x-thread-id': activeThreadId || '',
+          'x-request-id': crypto.randomUUID(),
         },
         body: JSON.stringify({
           messages: newMessages,

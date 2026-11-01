@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { randomBytes } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { apiError, ErrorCode } from './errors';
 
@@ -30,11 +31,14 @@ async function hashApiKey(key: string): Promise<string> {
 
 export function generateApiKey(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let key = 'fm_';
-  for (let i = 0; i < 48; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  let suffix = '';
+  while (suffix.length < 48) {
+    for (const byte of randomBytes(48)) {
+      if (byte < 248) suffix += chars[byte % chars.length];
+      if (suffix.length === 48) break;
+    }
   }
-  return key;
+  return `fm_${suffix}`;
 }
 
 export async function requireApiKeyAuth(

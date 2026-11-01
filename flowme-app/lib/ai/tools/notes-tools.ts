@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ilikeAny } from '@/lib/api/safe-filters';
 import { defineTool } from './Tool';
 
 function textToTipTapDoc(text: string): object {
@@ -131,7 +132,7 @@ ASK THE USER FIRST IF: nothing — this is informational. But if results are amb
         .order('note_date', { ascending: false });
 
       if (args.query) {
-        queryBuilder = queryBuilder.or(`title.ilike.%${args.query}%,content_text.ilike.%${args.query}%`);
+        queryBuilder = queryBuilder.or(ilikeAny(['title', 'content_text'], args.query));
       }
 
       const { data: notes, error } = await queryBuilder.limit(args.limit);

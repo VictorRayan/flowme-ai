@@ -10,17 +10,14 @@ import { callProfileUpdater, loadProfile, persistProfile } from '@/lib/ai/memory
  * the latest message AND whose latest message is >1h old. Re-summarizes them
  * using the server-side persisted thread_messages.
  *
- * Auth: requires `Authorization: Bearer <CRON_SECRET>` OR Vercel's `x-vercel-cron` header.
+ * Auth: requires `Authorization: Bearer <CRON_SECRET>`.
  */
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization');
-  const isVercelCron = req.headers.get('x-vercel-cron') === '1';
-  if (!isVercelCron) {
-    if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

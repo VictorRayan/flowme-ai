@@ -34,9 +34,9 @@ export interface SlackPostedMessage {
   permalink: string | null;
 }
 
-export function getSlackClient(token: string): WebClient {
+export function getSlackClient(token: string, noRetries = false): WebClient {
   if (!token) throw new Error('Slack token is required');
-  return new WebClient(token);
+  return new WebClient(token, noRetries ? { retryConfig: { retries: 0 }, rejectRateLimitedCalls: true } : undefined);
 }
 
 function check(result: WebAPICallResult, label: string): void {

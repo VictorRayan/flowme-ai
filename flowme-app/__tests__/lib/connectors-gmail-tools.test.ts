@@ -33,6 +33,9 @@ jest.mock('@/lib/google/google-gmail', () => ({
   }),
   createDraft: jest.fn().mockResolvedValue({ id: 'draft-1', messageId: 'message-1' }),
 }));
+jest.mock('@/lib/ai/outbound-idempotency', () => ({
+  runOutboundOnce: jest.fn((_context, _provider, _payload, send) => send()),
+}));
 
 import { gmailCreateDraftTool, gmailReadMessageTool, gmailSearchMessagesTool } from '@/lib/ai/tools/connectors-tools';
 import { createDraft, readEmailMessage, searchEmails } from '@/lib/google/google-gmail';

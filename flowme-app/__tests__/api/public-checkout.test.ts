@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { POST as POST_PUBLIC_CHECKOUT } from '@/app/api/billing/public-checkout/route';
 import { POST as POST_CLAIM } from '@/app/api/billing/public-checkout/claim/route';
 import { createSignedMarketingToken, createSignedMarketingToken as createToken } from '@/lib/marketing/signed-token';
+import { requireAuth } from '@/lib/api/auth';
 
 const mockCreateCheckout = jest.fn();
 const mockFrom = jest.fn();
@@ -12,7 +13,7 @@ jest.mock('@/lib/api/admin', () => ({
 
 jest.mock('@/lib/api/auth', () => ({
   requireAuth: jest.fn().mockResolvedValue({
-    user: { id: 'user-1', email: 'buyer@example.com' },
+    user: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-06-28T09:00:00Z' },
     supabase: {},
   }),
 }));
@@ -181,5 +182,32 @@ describe('public checkout', () => {
 
     expect(response.status).toBe(200);
     expect(body.claimed).toBe(true);
+  });
+
+  it('does not transfer an already claimed checkout to another account', async () => {
+    const checkoutToken = createToken({ kind: 'public_checkout', id: 'public-1', email: 'buyer@example.com' });
+    const subscriptions = chain(null);
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'public_checkout_sessions') return chain({
+        id: 'public-1', email: 'buyer@example.com', claimed_user_id: 'another-user', status: 'claimed',
+      });
+      if (table === 'user_subscriptions') return subscriptions;
+      return chain(null);
+    });
+    const response = await POST_CLAIM(new NextRequest('http://localhost/api/billing/public-checkout/claim', {
+      method: 'POST', body: JSON.stringify({ token: checkoutToken }),
+    }));
+    expect(response.status).toBe(404);
+    expect(subscriptions.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects a claim from an account without a verified email', async () => {
+    (requireAuth as jest.Mock).mockResolvedValueOnce({ user: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: null } });
+    const checkoutToken = createToken({ kind: 'public_checkout', id: 'public-1', email: 'buyer@example.com' });
+    const response = await POST_CLAIM(new NextRequest('http://localhost/api/billing/public-checkout/claim', {
+      method: 'POST', body: JSON.stringify({ token: checkoutToken }),
+    }));
+    expect(response.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });

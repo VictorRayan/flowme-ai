@@ -75,7 +75,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     if (!doc) return apiError(ErrorCode.NOT_FOUND, 'Document not found', 404);
 
-    await supabase.from('documents').update({ is_deleted: true }).eq('id', doc.id);
+    const { error: updateError } = await supabase.from('documents').update({ is_deleted: true })
+      .eq('id', doc.id).eq('user_id', userId);
+    if (updateError) return apiError(ErrorCode.INTERNAL_ERROR, 'Unable to delete document', 500);
 
     // Delete from R2
     try { await deleteFromR2(doc.r2_key); } catch { /* best effort */ }

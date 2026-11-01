@@ -21,6 +21,7 @@ dist/
 build/
 **/dist/
 **/build/
+*.tsbuildinfo
 
 # OS
 .DS_Store

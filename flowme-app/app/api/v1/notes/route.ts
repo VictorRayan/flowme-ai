@@ -34,8 +34,7 @@ export async function GET(req: NextRequest) {
       .from('notes')
       .select(`
         id, title, content_text, note_date, event_id, event_title, event_start,
-        note_type, created_at, updated_at,
-        note_mentions(person_id, people(id, name, email))
+        note_type, created_at, updated_at
       `)
       .eq('user_id', userId)
       .eq('is_deleted', false)
@@ -56,6 +55,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (personId) {
+      const { data: ownedPerson } = await supabase.from('people')
+        .select('id').eq('id', personId).eq('user_id', userId).maybeSingle();
+      if (!ownedPerson) return apiSuccess({ notes: [], count: 0 });
       const { data: mentionedNoteIds } = await supabase
         .from('note_mentions')
         .select('note_id')
@@ -65,10 +67,36 @@ export async function GET(req: NextRequest) {
       query = query.in('id', ids);
     }
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
     if (error) return apiError(ErrorCode.INTERNAL_ERROR, error.message, 500);
 
-    return apiSuccess({ notes: data || [], count: data?.length || 0, offset, limit });
+    const notes = data || [];
+    const noteIds = notes.map((note: { id: string }) => note.id);
+    let mentionsByNote = new Map<string, Array<{ person_id: string; people: { id: string; name: string; email: string | null } }>>();
+    if (noteIds.length > 0) {
+      const { data: mentions, error: mentionsError } = await supabase.from('note_mentions')
+        .select('note_id,person_id').in('note_id', noteIds);
+      if (mentionsError) return apiError(ErrorCode.INTERNAL_ERROR, mentionsError.message, 500);
+      const personIds = [...new Set((mentions || []).map((mention: { person_id: string }) => mention.person_id))];
+      if (personIds.length > 0) {
+        const { data: people, error: peopleError } = await supabase.from('people')
+          .select('id,name,email').eq('user_id', userId).in('id', personIds);
+        if (peopleError) return apiError(ErrorCode.INTERNAL_ERROR, peopleError.message, 500);
+        const ownedPeople = new Map<string, { id: string; name: string; email: string | null }>(
+          (people || []).map((person: { id: string; name: string; email: string | null }) => [person.id, person]),
+        );
+        mentionsByNote = new Map();
+        for (const mention of mentions || []) {
+          const person = ownedPeople.get(mention.person_id);
+          if (!person) continue;
+          const list = mentionsByNote.get(mention.note_id) || [];
+          list.push({ person_id: mention.person_id, people: person });
+          mentionsByNote.set(mention.note_id, list);
+        }
+      }
+    }
+
+    return apiSuccess({ notes: notes.map((note: { id: string }) => ({ ...note, note_mentions: mentionsByNote.get(note.id) || [] })), count: notes.length, offset, limit });
   } catch (err: any) {
     console.error('GET /api/v1/notes error:', err);
     return apiError(ErrorCode.INTERNAL_ERROR, 'Internal Server Error', 500);
@@ -105,6 +133,21 @@ export async function POST(req: NextRequest) {
       return apiError(ErrorCode.VALIDATION_ERROR, 'content_text or content is required');
     }
 
+    if (mention_ids !== undefined) {
+      if (!Array.isArray(mention_ids) || mention_ids.length > 50 || mention_ids.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+        return apiError(ErrorCode.VALIDATION_ERROR, 'mention_ids must be an array of person IDs');
+      }
+      if (mention_ids.length > 0) {
+        const uniqueIds = [...new Set(mention_ids)];
+        const { data: ownedPeople, error: peopleError } = await supabase.from('people')
+          .select('id').eq('user_id', userId).in('id', uniqueIds);
+        if (peopleError) return apiError(ErrorCode.INTERNAL_ERROR, peopleError.message, 500);
+        if ((ownedPeople || []).length !== uniqueIds.length) {
+          return apiError(ErrorCode.VALIDATION_ERROR, 'One or more mentioned people are unavailable', 400);
+        }
+      }
+    }
+
     const { data: note, error } = await supabase
       .from('notes')
       .insert({
@@ -124,9 +167,10 @@ export async function POST(req: NextRequest) {
     if (error) return apiError(ErrorCode.INTERNAL_ERROR, error.message, 500);
 
     if (mention_ids?.length) {
-      await supabase.from('note_mentions').insert(
+      const { error: mentionError } = await supabase.from('note_mentions').insert(
         mention_ids.map((pid: string) => ({ note_id: note.id, person_id: pid }))
       );
+      if (mentionError) return apiError(ErrorCode.INTERNAL_ERROR, mentionError.message, 500);
     }
 
     return NextResponse.json({ ok: true, note }, { status: 201 });

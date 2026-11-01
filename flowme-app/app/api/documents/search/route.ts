@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { ilikeAny } from '@/lib/api/safe-filters';
 
 /**
  * GET /api/documents/search
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       .select('id, filename, file_hash, mime_type, summary')
       .eq('user_id', user.id)
       .eq('is_deleted', false)
-      .or(`filename.ilike.%${q}%,summary.ilike.%${q}%`)
+      .or(ilikeAny(['filename', 'summary'], q))
       .order('updated_at', { ascending: false })
       .limit(limit);
 

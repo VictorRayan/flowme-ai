@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiKeyAuth } from '@/lib/api/api-key-auth';
 import { apiSuccess, apiError, ErrorCode } from '@/lib/api/errors';
+import { ilikeAny } from '@/lib/api/safe-filters';
 
 /**
  * GET /api/v1/skills
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     if (category) query = query.eq('category', category);
     if (source) query = query.eq('source', source);
     if (search) {
-      query = query.or(`name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
+      query = query.or(ilikeAny(['name', 'display_name', 'description'], search));
     }
     if (tag) query = query.contains('tags', [tag]);
 

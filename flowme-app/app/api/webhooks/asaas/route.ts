@@ -42,34 +42,16 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = getSupabaseAdmin();
-  const processingStartedAt = new Date().toISOString();
-  const { error: insertError } = await admin.from('billing_events').insert({
-    provider: 'asaas',
-    event_id: event.id,
-    event_type: event.type,
-    provider_customer_id: event.customerId,
-    provider_subscription_id: event.subscriptionId,
-    payload: event.raw,
-    processing_started_at: processingStartedAt,
+  const { data: claimed, error: claimError } = await admin.rpc('claim_billing_event', {
+    p_provider: 'asaas',
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_provider_customer_id: event.customerId,
+    p_provider_subscription_id: event.subscriptionId,
+    p_payload: event.raw,
   });
-  if (insertError?.code === '23505') {
-    const { data: existing } = await admin.from('billing_events')
-      .select('processed_at,processing_started_at')
-      .eq('provider', 'asaas')
-      .eq('event_id', event.id)
-      .maybeSingle();
-    if (existing?.processed_at) return NextResponse.json({ ok: true, duplicate: true });
-    const started = existing?.processing_started_at ? Date.parse(existing.processing_started_at) : 0;
-    if (started > Date.now() - 5 * 60_000) return NextResponse.json({ ok: true, duplicate: true });
-    const { error: claimError } = await admin.from('billing_events')
-      .update({ processing_started_at: processingStartedAt })
-      .eq('provider', 'asaas')
-      .eq('event_id', event.id)
-      .is('processed_at', null);
-    if (claimError) return NextResponse.json({ ok: false, error: 'Unable to claim webhook event' }, { status: 500 });
-  } else if (insertError) {
-    return NextResponse.json({ ok: false, error: 'Unable to persist webhook event' }, { status: 500 });
-  }
+  if (claimError) return NextResponse.json({ ok: false, error: 'Unable to claim webhook event' }, { status: 500 });
+  if (!claimed) return NextResponse.json({ ok: true, duplicate: true });
 
   try {
     let attempt: CheckoutAttempt | null = null;

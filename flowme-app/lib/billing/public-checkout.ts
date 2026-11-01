@@ -13,7 +13,7 @@ export function publicCheckoutPeriodEnd(paidAt: string, interval: 'monthly' | 'a
 
 export async function claimPublicCheckoutForUser(admin: SupabaseAdmin, input: { tokenSessionId: string; userId: string; userEmail: string }) {
   const { data: session, error } = await admin.from('public_checkout_sessions')
-    .select('id,email,plan_code,provider,provider_customer_id,provider_subscription_id,provider_payment_id,billing_interval,status,paid_at,currency,amount_cents,metadata')
+    .select('id,email,claimed_user_id,plan_code,provider,provider_customer_id,provider_subscription_id,provider_payment_id,billing_interval,status,paid_at,currency,amount_cents,metadata')
     .eq('id', input.tokenSessionId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -22,6 +22,9 @@ export async function claimPublicCheckoutForUser(admin: SupabaseAdmin, input: { 
   const expectedEmail = String(session.email || '').trim().toLowerCase();
   const actualEmail = input.userEmail.trim().toLowerCase();
   if (expectedEmail !== actualEmail) return { ok: false as const, reason: 'email_mismatch' as const, email: expectedEmail };
+  if (session.claimed_user_id && session.claimed_user_id !== input.userId) {
+    return { ok: false as const, reason: 'not_found' as const, email: null };
+  }
   if (session.status !== 'paid' && session.status !== 'claimed') return { ok: false as const, reason: 'not_paid' as const, email: expectedEmail };
 
   const paidAt = session.paid_at || new Date().toISOString();

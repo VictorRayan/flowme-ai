@@ -100,7 +100,8 @@ export async function getValidSlackToken(
 export async function getValidSlackClient(
   linkedAccountId: string,
   authContext: SlackTokenAuthContext,
+  noRetries = false,
 ): Promise<WebClient> {
   const { token } = await getValidSlackToken(linkedAccountId, authContext);
-  return getSlackClient(token);
+  return getSlackClient(token, noRetries);
 }

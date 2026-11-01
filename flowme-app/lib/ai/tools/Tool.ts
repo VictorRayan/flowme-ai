@@ -18,6 +18,7 @@ export type ToolContext = {
   timezone: string;
   nowIso: string;
   threadId?: string;
+  requestId?: string;
   preferredConnectorType?: 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets';
   userLocation?: UserLocation;
   onProgress?: (event: { type: string; [key: string]: unknown }) => void;

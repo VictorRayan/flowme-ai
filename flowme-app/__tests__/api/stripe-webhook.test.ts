@@ -70,7 +70,7 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/webhooks/stripe', () => {
   const oldEnv = process.env;
-  const mockBillingEventsInsert = jest.fn();
+  const mockClaimEvent = jest.fn();
   const mockUserSubscriptionsUpsert = jest.fn();
   const mockUserEntitlementsUpsert = jest.fn();
   const billingEventsChain = makeAwaitableChain();
@@ -87,7 +87,7 @@ describe('POST /api/webhooks/stripe', () => {
       STRIPE_PRO_ANNUAL_PRICE_ID: 'price_annual',
     };
     mockConstructEvent.mockReturnValue(makeEvent());
-    mockBillingEventsInsert.mockResolvedValue({ error: null });
+    mockClaimEvent.mockResolvedValue({ data: true, error: null });
     mockUserSubscriptionsUpsert.mockResolvedValue({ error: null });
     mockUserEntitlementsUpsert.mockResolvedValue({ error: null });
     mockCreateBillingNotification.mockResolvedValue({
@@ -99,10 +99,10 @@ describe('POST /api/webhooks/stripe', () => {
     billingEventsChain.maybeSingle.mockResolvedValue({ data: null, error: null });
     billingEventsChain.update.mockReturnValue(billingEventsChain);
     mockCreateClient.mockReturnValue({
+      rpc: mockClaimEvent,
       from: jest.fn((table: string) => {
         if (table === 'billing_events') {
           return {
-            insert: mockBillingEventsInsert,
             select: billingEventsChain.select,
             eq: billingEventsChain.eq,
             update: billingEventsChain.update,
@@ -136,9 +136,7 @@ describe('POST /api/webhooks/stripe', () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ ok: true });
-    expect(mockBillingEventsInsert).toHaveBeenCalledWith(expect.not.objectContaining({
-      processed_at: expect.any(String),
-    }));
+    expect(mockClaimEvent).toHaveBeenCalledWith('claim_billing_event', expect.objectContaining({ p_provider: 'stripe', p_event_id: 'evt_123' }));
     expect(mockUserSubscriptionsUpsert).not.toHaveBeenCalled();
     expect(mockUserEntitlementsUpsert).not.toHaveBeenCalled();
     expect(billingEventsChain.update).toHaveBeenCalledWith({
@@ -153,8 +151,7 @@ describe('POST /api/webhooks/stripe', () => {
       data: { object: { id: 'in_123', customer: 'cus_123', subscription: 'sub_123' } },
     }));
     mockRetrieve.mockResolvedValue(makeSubscription());
-    mockBillingEventsInsert.mockResolvedValue({ error: { code: '23505', message: 'duplicate key' } });
-    billingEventsChain.maybeSingle.mockResolvedValue({ data: { processed_at: null }, error: null });
+    mockClaimEvent.mockResolvedValue({ data: true, error: null });
 
     const req = new NextRequest('http://localhost/api/webhooks/stripe', {
       method: 'POST',
@@ -170,6 +167,15 @@ describe('POST /api/webhooks/stripe', () => {
     expect(mockUserSubscriptionsUpsert).toHaveBeenCalled();
     expect(mockUserEntitlementsUpsert).toHaveBeenCalled();
     expect(billingEventsChain.update).toHaveBeenCalled();
+  });
+
+  it('does not repeat effects when the event is already claimed', async () => {
+    mockClaimEvent.mockResolvedValue({ data: false, error: null });
+    const response = await POST(new NextRequest('http://localhost/api/webhooks/stripe', {
+      method: 'POST', body: 'raw-body', headers: { 'stripe-signature': 'sig_123' },
+    }));
+    expect(await response.json()).toEqual({ ok: true, duplicate: true });
+    expect(mockUserSubscriptionsUpsert).not.toHaveBeenCalled();
   });
 
   it('persists subscription state and sends billing notifications on payment failure', async () => {

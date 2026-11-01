@@ -51,27 +51,17 @@ async function persistSubscription(admin: any, row: ReturnType<typeof stripeSubs
 
 async function recordEvent(admin: any, event: Stripe.Event): Promise<boolean> {
   const object: any = event.data.object || {};
-  const { error } = await admin.from('billing_events').insert({
-    provider: 'stripe',
-    event_id: event.id,
-    event_type: event.type,
-    user_id: object.metadata?.user_id || null,
-    provider_customer_id: typeof object.customer === 'string' ? object.customer : object.customer?.id || null,
-    provider_subscription_id: typeof object.subscription === 'string' ? object.subscription : object.id?.startsWith?.('sub_') ? object.id : null,
-    payload: event as any,
+  const { data, error } = await admin.rpc('claim_billing_event', {
+    p_provider: 'stripe',
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_user_id: object.metadata?.user_id || null,
+    p_provider_customer_id: typeof object.customer === 'string' ? object.customer : object.customer?.id || null,
+    p_provider_subscription_id: typeof object.subscription === 'string' ? object.subscription : object.id?.startsWith?.('sub_') ? object.id : null,
+    p_payload: event as any,
   });
-  if (!error) return true;
-  if (error.code === '23505') {
-    const { data, error: lookupError } = await admin
-      .from('billing_events')
-      .select('processed_at')
-      .eq('provider', 'stripe')
-      .eq('event_id', event.id)
-      .maybeSingle();
-    if (lookupError) throw new Error(lookupError.message);
-    return !data?.processed_at;
-  }
-  throw new Error(error.message);
+  if (error) throw new Error(error.message);
+  return data === true;
 }
 
 async function markEventProcessed(admin: any, event: Stripe.Event) {

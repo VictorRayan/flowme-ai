@@ -9,7 +9,6 @@ import {
 import { sendText } from '@/lib/whatsapp/evolution-client';
 
 function authorized(req: NextRequest): boolean {
-  if (req.headers.get('x-vercel-cron') === '1') return true;
   const secret = process.env.CRON_SECRET;
   return Boolean(secret && req.headers.get('authorization') === `Bearer ${secret}`);
 }

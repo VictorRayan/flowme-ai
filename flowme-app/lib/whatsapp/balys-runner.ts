@@ -309,6 +309,7 @@ export async function handleWhatsAppMessage(incoming: WhatsAppIncomingMessage): 
         nowIso,
         timezone: userTimezone,
         threadId,
+        requestId: incoming.messageId,
         preferredConnectorType: preferredConnectorTypeForWhatsApp(userText, routeMessages, requiredFirstTool),
       },
       threadId,

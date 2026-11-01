@@ -1,5 +1,11 @@
 import { generateApiKey } from '@/lib/api/api-key-auth';
+import * as nodeCrypto from 'node:crypto';
 import { NextRequest } from 'next/server';
+
+jest.mock('node:crypto', () => {
+  const actual = jest.requireActual('node:crypto');
+  return { ...actual, randomBytes: jest.fn(actual.randomBytes) };
+});
 
 // Mock Supabase createClient — we test scope / format logic, not the DB
 jest.mock('@supabase/supabase-js', () => ({
@@ -43,6 +49,13 @@ describe('generateApiKey', () => {
     const key = generateApiKey();
     const suffix = key.slice(3);
     expect(/^[A-Za-z0-9]+$/.test(suffix)).toBe(true);
+  });
+
+  it('uses cryptographic random bytes', () => {
+    const randomBytes = nodeCrypto.randomBytes as jest.Mock;
+    randomBytes.mockClear();
+    generateApiKey();
+    expect(randomBytes).toHaveBeenCalled();
   });
 });
 

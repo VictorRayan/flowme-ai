@@ -8,7 +8,7 @@ Convert testimonials into an autoplay social proof carousel with image-led side 
 
 ## UX Intent
 
-The section should feel like there are multiple real users behind the product. The active testimonial is readable; the previous and next testimonials appear as smaller portrait-only previews.
+The section should present two testimonials. The active testimonial is readable; the other testimonial appears as a smaller portrait-only preview.
 
 ## Product Owner Criteria
 
@@ -17,7 +17,7 @@ The section should feel like there are multiple real users behind the product. T
 - Leticia role: Analista de CRM.
 - Each testimonial has five stars.
 - The carousel auto-advances and has dots below.
-- Left and right states show only the image, minimized.
+- The inactive state shows only the image, minimized.
 
 ## Frontend Checklist
 
@@ -34,7 +34,15 @@ The section should feel like there are multiple real users behind the product. T
 - Click next and previous controls.
 - Check dots update `aria-current`.
 - 390x844: no clipping of active testimonial copy.
-- 1440x900: side portraits are visible and centered rhythm matches the reference.
+- 1440x900: the side portrait is visible and the active card remains centered.
+
+## 2026-11-02 removal
+
+- Remove the third testimonial and its portrait from HTML, both locales, and published assets.
+- Keep the carousel navigation and dot count aligned with the two remaining slides.
+- Preserve the existing lead, pricing, links, and analytics flows.
+- Check mobile and desktop rendering, locale switch, console errors, and slide navigation before publishing.
+- QA result: local browser checks passed at 390, 768, 1024, and 1440px on `/`, `/pt-br/`, and `/en-us/`; each route rendered two slides and dots, both portraits loaded, next navigation worked, and there were no page errors or horizontal overflow.
 
 ## Regression Risks
 

@@ -543,7 +543,7 @@ Implementation checklist:
 - [x] Add a notes and memory fold covering organization, project tracking, meeting recording, saved insights and WhatsApp consultation.
 - [x] Add a knowledge graph demo showing Flow Me centralizing notes, meetings, files, people and tasks.
 - [x] Add testimonial image slots for Victor and Leticia.
-- [x] Add requested roles: Revenue Operations & Engenheiro de Software, Analista de CRM and Coordenador de Marketing.
+- [x] Add requested roles: Revenue Operations & Engenheiro de Software and Analista de CRM.
 - [x] Convert testimonials into an autoplay carousel with minimized side avatars, active center message, five stars and dots.
 - [x] Keep the testimonial carousel deterministic for Playwright checks.
 
@@ -594,3 +594,18 @@ Surface: both proof tickers, testimonial heading and statistics cards, PT/EN loc
 - [x] Verify layout at 390, 768, 1024, and 1440px in `/`, `/pt-br/`, and `/en-us/`: no horizontal overflow, page errors, or unsupported claims; carousel, lead form, and pricing card remain present.
 
 Rollback note: restore the ticker and testimonial layout only with evidence for any quantitative claim.
+
+## 2026-11-02: Two-testimonial carousel
+
+Specification: `specs/2026-07-04-testimonials-carousel.md`.
+
+Goal: remove the third person's testimonial and portrait from the public page and repository history while preserving the two remaining stories and the project's development timeline.
+
+Surface: testimonial HTML, locale copy, portrait assets, carousel state, historical blobs and refs.
+
+- [x] Remove the third slide and its PT/EN copy and assets.
+- [x] Keep a single inactive portrait preview when two slides remain.
+- [x] Verify two slides, two dots, portrait loading, navigation, locale rendering, no page errors, and no horizontal overflow at 390, 768, 1024, and 1440px across `/`, `/pt-br/`, and `/en-us/`.
+- [x] Rewrite all six branch histories; verify no reachable blob contains the removed name, portrait paths, or third testimonial copy; push the rewritten refs.
+
+Rollback note: restore the third slide only with the person's permission; history rewrite requires another coordinated push.

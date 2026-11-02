@@ -1410,7 +1410,7 @@ function setupTestimonialSlider() {
     const next = (index + 1) % slides.length;
     slides.forEach((slide, slideIndex) => {
       slide.classList.toggle("is-active", slideIndex === index);
-      slide.classList.toggle("is-prev", slideIndex === prev);
+      slide.classList.toggle("is-prev", slides.length > 2 && slideIndex === prev);
       slide.classList.toggle("is-next", slideIndex === next);
       slide.setAttribute("aria-hidden", String(slideIndex !== index));
     });

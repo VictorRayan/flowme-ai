@@ -292,7 +292,7 @@ const copy = {
     priceNote: "/month billed yearly",
     buy: "Buy now",
     secure: "Secure purchase. Cancel anytime.",
-    testimonialsTitle: "Real users using Flow Me every day.",
+    testimonialsTitle: "Flow Me in everyday life.",
     faqTitle: "Quick questions about centralizing your routine.",
     faqs: [
       {
@@ -375,8 +375,8 @@ const copy = {
       ],
     },
     tickerMap: {
-      "10 mil usuários ativos": "10k active users",
-      "99,9% de precisão na IA": "99.9% AI accuracy",
+      "Notas e tarefas": "Notes and tasks",
+      "Lembretes no WhatsApp": "WhatsApp reminders",
       "Grupo Rayan Barbieri Tecnologia": "Rayan Barbieri Technology Group",
       "Assistente pessoal": "Personal assistant",
       "Integração com Agenda": "Calendar integration",
@@ -385,14 +385,9 @@ const copy = {
       "Integração com Sheets": "Sheets integration",
       "LGPD": "LGPD compliant",
     },
-    proofStats: [
-      ["Active users", "10k", "Connected routines"],
-      ["AI accuracy", "99.9%", "In automatic organization"],
-      ["Privacy", "LGPD", "Data handled with care"],
-    ],
-    testimonialsEyebrow: "Proven results",
+    testimonialsEyebrow: "Experiences with Flow Me",
     testimonialsText:
-      "See concrete signs of use, organized routines and the assistant working through WhatsApp.",
+      "See how the assistant helps organize daily life through WhatsApp.",
     planFeatures: [
       "Unlimited assistant",
       "AI on WhatsApp",
@@ -710,7 +705,7 @@ const copy = {
     priceNote: "/mês no anual",
     buy: "Adquirir agora",
     secure: "Compra segura. Cancele quando quiser.",
-    testimonialsTitle: "Usuários reais usando o Flow Me no dia a dia.",
+    testimonialsTitle: "Flow Me no dia a dia.",
     faqTitle: "Dúvidas rápidas sobre centralizar sua rotina.",
     faqs: [
       {
@@ -792,14 +787,9 @@ const copy = {
         "Combinado. Criei um lembrete para hoje às 18h e vou te avisar aqui no WhatsApp.",
       ],
     },
-    proofStats: [
-      ["Usuários ativos", "10 mil", "Rotinas conectadas"],
-      ["Precisão da IA", "99,9%", "Na organização automática"],
-      ["Privacidade", "LGPD", "Dados tratados com cuidado"],
-    ],
-    testimonialsEyebrow: "Resultados comprovados",
+    testimonialsEyebrow: "Experiências com Flow Me",
     testimonialsText:
-      "Veja sinais concretos de uso, rotina organizada e assistente trabalhando pelo WhatsApp.",
+      "Veja como o assistente ajuda a organizar a rotina pelo WhatsApp.",
     planFeatures: [
       "Assistente ilimitado",
       "IA no WhatsApp",
@@ -1296,19 +1286,6 @@ function applyLocale(locale) {
       if (!textNode) return;
       const translated = t.tickerMap[textNode.data.trim()];
       if (translated) textNode.data = translated;
-    });
-  }
-
-  if (t.proofStats) {
-    document.querySelectorAll(".proof-stats article").forEach((card, index) => {
-      const item = t.proofStats[index];
-      if (!item) return;
-      const label = card.querySelector("span");
-      const value = card.querySelector("strong");
-      const detail = card.querySelector("small");
-      if (label) label.textContent = item[0];
-      if (value) value.textContent = item[1];
-      if (detail) detail.textContent = item[2];
     });
   }
 

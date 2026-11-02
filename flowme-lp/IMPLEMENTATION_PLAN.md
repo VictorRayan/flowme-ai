@@ -579,3 +579,18 @@ Test checklist:
 - [x] Confirm `landing.js` syntax and CSS brace balance.
 
 Rollback note: restore the removed sections from git if the shorter LP underperforms; the WhatsApp icon fidelity changes can stay independently.
+
+## 2026-11-02: Remove unsupported landing metrics
+
+Specification: `specs/2026-11-02-unsupported-landing-metrics.md`.
+
+Goal: describe product capabilities without implying measured adoption or AI accuracy that the project cannot substantiate.
+
+Surface: both proof tickers, testimonial heading and statistics cards, PT/EN locale copy, and unused card styles.
+
+- [x] Replace the active-user and accuracy figures with notes/tasks and WhatsApp reminders.
+- [x] Remove the statistics cards and their locale and CSS code.
+- [x] Use neutral testimonial introduction copy in both languages.
+- [x] Verify layout at 390, 768, 1024, and 1440px in `/`, `/pt-br/`, and `/en-us/`: no horizontal overflow, page errors, or unsupported claims; carousel, lead form, and pricing card remain present.
+
+Rollback note: restore the ticker and testimonial layout only with evidence for any quantitative claim.

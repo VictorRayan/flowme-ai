@@ -2839,41 +2839,6 @@ h3 { margin-bottom: 10px; font-size: 22px; font-weight: 600; }
   margin-bottom: 18px;
   margin-inline: auto;
 }
-.proof-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin: 16px auto 18px;
-  max-width: 980px;
-}
-.proof-stats article {
-  display: grid;
-  gap: 6px;
-  min-height: 82px;
-  padding: 14px 16px;
-  border: 1px solid rgba(255,255,255,.11);
-  border-radius: 14px;
-  background:
-    linear-gradient(145deg, rgba(17,24,39,.96), rgba(7,10,18,.96)),
-    radial-gradient(circle at 20% 0%, rgba(249,115,22,.16), transparent 10rem);
-  box-shadow: 0 24px 70px rgba(0,0,0,.24);
-}
-.proof-stats span {
-  color: var(--orange);
-  text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 700;
-}
-.proof-stats strong {
-  color: #fff;
-  font-size: clamp(24px, 3vw, 34px);
-  line-height: 1;
-}
-.proof-stats small {
-  color: #a8b3c8;
-  font-size: 12px;
-  font-weight: 500;
-}
 .testimonial-carousel {
   display: grid;
   gap: 22px;
@@ -3593,19 +3558,6 @@ h3 { margin-bottom: 10px; font-size: 22px; font-weight: 600; }
   .graph-meetings { right: 8%; }
   .graph-files { left: 4%; bottom: 18%; }
   .graph-people { right: 4%; bottom: 18%; }
-  .proof-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 14px;
-  }
-  .proof-stats article {
-    min-height: 76px;
-    padding: 10px 8px;
-    border-radius: 10px;
-  }
-  .proof-stats span { font-size: 9px; }
-  .proof-stats strong { font-size: 20px; }
-  .proof-stats small { font-size: 10px; line-height: 1.2; }
   .testimonials { padding-top: 42px; padding-bottom: 26px; }
   .testimonial-stage { min-height: 430px; overflow: visible; }
   .testimonial-card {

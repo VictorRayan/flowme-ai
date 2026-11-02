@@ -8,6 +8,8 @@ Flow Me is built for people whose commitments are scattered across chats, meetin
 
 **Explore the code:** [Web app](flowme-app/app/) · [Balys and tools](flowme-app/lib/ai/) · [Tests](flowme-app/__tests__/)
 
+![CI](https://github.com/VictorRayan/flowme/actions/workflows/ci.yml/badge.svg)
+
 > Active project: a fresh clone needs your own Supabase project and provider credentials. Some integrations and scheduled features require additional setup.
 
 ## What you can do
@@ -32,18 +34,22 @@ Capture a meeting decision in a note. Ask Balys, in ordinary language, to schedu
 
 **Stack:** Next.js 16 · React 19 · TypeScript · MUI · Supabase · Gemini/OpenAI · Cloudflare R2 · Docker
 
+## Development history
+
+The imported commit history begins on April 7, 2026 and follows the project from the first app prototype through Balys tools, connectors, billing, the landing page, tests, and security work. [Browse the commits](https://github.com/VictorRayan/flowme/commits/master/). This public repository was created later from that cleaned history.
+
 ## Run locally
 
 You need Node.js 24, npm, and a Supabase project. Google OAuth is used for sign-in, so enable the Google provider in Supabase, register the Supabase callback URL with Google, and allow `http://localhost:3000/auth/callback` in Supabase's redirect URLs. The app's own Google connector uses a separate callback; see [`flowme-app/.env.local.example`](flowme-app/.env.local.example).
 
 ```bash
-git clone https://github.com/VictorRayan/flowme-ai.git
-cd flowme-ai/flowme-app
+git clone https://github.com/VictorRayan/flowme.git
+cd flowme/flowme-app
 cp .env.local.example .env.local
 npm ci
 ```
 
-Fill in at least `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`. Keep that file local. Add Google OAuth credentials for account linking; Supabase's Google provider configuration handles sign-in. Add AI, R2, Slack, WhatsApp, and billing credentials for the features you intend to use. The [production environment template](flowme-app/.env.production.example) lists the broader configuration surface.
+Fill in at least `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`. Keep that file local. Add Google OAuth credentials for account linking; Supabase's Google provider configuration handles sign-in. Add AI, R2, Slack, WhatsApp, and billing credentials for the features you intend to use. The [production environment template](.env.production.example) lists the broader configuration surface.
 
 The database schema lives in [`flowme-app/supabase/migrations/`](flowme-app/supabase/migrations/). Apply the numbered migrations to a **new, empty Supabase project in dependency order**, and review the SQL before running it. Some migrations share a numeric prefix, so order by the full filename and verify dependencies. `run_on_supabase_dashboard.sql` is a historical catch-up script for an existing database, not the fresh-install entry point. This repository does not yet provide a one-command database bootstrap.
 
@@ -57,14 +63,23 @@ Slack and Gmail content is fetched through each provider's authenticated API. Ex
 
 ## Deploy to the cloud
 
-The production path in this repository is **GitHub Actions → GitHub Container Registry → a Docker host**. The [deployment workflow](.github/workflows/deploy-production.yml) runs tests, builds the app and landing-page images, and deploys them with Docker Compose. It is configured for a Hetzner host and a production GitHub environment.
+The repository includes Dockerfiles and Compose examples for a Linux host. Bring your own domains, Supabase project, and provider credentials. There is no hosted Flow Me environment or automatic deployment pipeline in this public repository.
 
-1. Create a Supabase project, apply the migrations, configure Google sign-in and production redirect URLs, and provision the providers required by the deployment workflow.
-2. Set up a Linux Docker host with ports 80/443 open and DNS for the app, landing page, and Evolution API. The workflow creates the `flowme-proxy` Docker network. See `traefik/README.md` and the Compose files in `traefik/`, `flowme-app/`, `flowme-lp/`, and `evolution-api/`.
-3. Configure the `production` GitHub environment's Secrets and Variables referenced by `.github/workflows/deploy-production.yml`. The workflow's `required_keys` list requires Supabase, Google, Slack, AI, billing, R2, cron, and Evolution API values even if you are not using every feature. Use `.env.production.example` as the inventory. Replace the example domains and hard-coded image repositories with your own, and configure `HETZNER_HOST`, `HETZNER_USER`, and `HETZNER_SSH_PRIVATE_KEY`.
-4. Run the workflow manually from GitHub Actions. Deployment proceeds only after tests and Compose validation pass. The workflow writes the server's `.env.production` from GitHub settings; production database migrations remain a separate step.
+1. Create a fresh Supabase project, apply the [migrations](flowme-app/supabase/migrations/) in full filename order, configure Google sign-in, and register the app's production callback URLs.
+2. Point DNS for the app, landing page, and Evolution API to your host. Open ports 80 and 443 for Traefik. Copy the [environment template](.env.production.example) to `.env.production` on the host and replace every example domain and credential you plan to use. Keep `.env.production` out of Git.
+3. From the repository root, validate and start the Compose stack:
 
-For a different cloud host, adapt the workflow and Compose networking. A plain `next start` deployment needs the same runtime environment and separately configured scheduled jobs, database, and providers. `flowme-app/vercel.json` lists some cron routes but is not equivalent to the full Docker production stack.
+   ```bash
+   docker network create flowme-proxy
+   docker compose --project-directory . --env-file .env.production \
+     -f traefik/docker-compose.yml -f evolution-api/docker-compose.yml \
+     -f flowme-app/docker-compose.yml -f flowme-lp/docker-compose.yml config --quiet
+   docker compose --project-directory . --env-file .env.production \
+     -f traefik/docker-compose.yml -f evolution-api/docker-compose.yml \
+     -f flowme-app/docker-compose.yml -f flowme-lp/docker-compose.yml up -d --build
+   ```
+
+The app image embeds `NEXT_PUBLIC_*` values at build time, so rebuild after changing them. The Compose stack includes a cron worker; deploy only the services and integrations you have configured. Database migrations remain a separate step. See the component Compose files and [Traefik guide](traefik/README.md) for host-specific settings.
 
 ## Repository map
 
@@ -76,7 +91,8 @@ For a different cloud host, adapt the workflow and Compose networking. A plain `
 | `flowme-app/__tests__/`, `flowme-app/e2e/` | Jest and Playwright tests |
 | `flowme-app/docs/` | Feature and architecture notes |
 | `flowme-lp/` | Static landing page |
-| `.github/workflows/` | Production CI/CD |
+| `traefik/`, `evolution-api/` | Docker deployment examples |
+| `.github/workflows/ci.yml` | Tests and type checking without deployment credentials |
 
 ## Contributing and security
 

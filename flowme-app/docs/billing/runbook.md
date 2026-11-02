@@ -2,7 +2,7 @@
 
 ## Deployment configuration
 
-Billing configuration is sourced from GitHub environment Secrets and Variables and written by `.github/workflows/deploy-production.yml`. Do not edit long-lived values on the Hetzner host. Mobile variables are optional until a native client is enabled; before launch, configure every variable listed in `mobile-integration-contract.md`.
+Billing configuration is sourced from your deployment environment. Keep credentials in your own secret manager or an untracked `.env.production` on the host. Mobile variables are optional until a native client is enabled; before launch, configure every variable listed in `mobile-integration-contract.md`.
 
 Set `BILLING_ADMIN_USER_IDS` to a comma-separated allowlist of Supabase user UUIDs. Set `DAILY_AI_COST_ALERT_USD` to the daily per-user warning threshold. Secrets containing PEM or JSON data must be base64 encoded as one line.
 

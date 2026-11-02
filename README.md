@@ -8,7 +8,7 @@ Flow Me is built for people whose commitments are scattered across chats, meetin
 
 **Explore the code:** [Web app](flowme-app/app/) · [Balys and tools](flowme-app/lib/ai/) · [Tests](flowme-app/__tests__/)
 
-![CI](https://github.com/VictorRayan/flowme/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/VictorRayan/flowme-ai/actions/workflows/ci.yml/badge.svg)
 
 > Active project: a fresh clone needs your own Supabase project and provider credentials. Some integrations and scheduled features require additional setup.
 
@@ -36,15 +36,15 @@ Capture a meeting decision in a note. Ask Balys, in ordinary language, to schedu
 
 ## Development history
 
-The imported commit history begins on April 7, 2026 and follows the project from the first app prototype through Balys tools, connectors, billing, the landing page, tests, and security work. [Browse the commits](https://github.com/VictorRayan/flowme/commits/master/). This public repository was created later from that cleaned history.
+The imported commit history begins on April 7, 2026 and follows the project from the first app prototype through Balys tools, connectors, billing, the landing page, tests, and security work. [Browse the commits](https://github.com/VictorRayan/flowme-ai/commits/master/). This public repository was created later from that cleaned history.
 
 ## Run locally
 
 You need Node.js 24, npm, and a Supabase project. Google OAuth is used for sign-in, so enable the Google provider in Supabase, register the Supabase callback URL with Google, and allow `http://localhost:3000/auth/callback` in Supabase's redirect URLs. The app's own Google connector uses a separate callback; see [`flowme-app/.env.local.example`](flowme-app/.env.local.example).
 
 ```bash
-git clone https://github.com/VictorRayan/flowme.git
-cd flowme/flowme-app
+git clone https://github.com/VictorRayan/flowme-ai.git
+cd flowme-ai/flowme-app
 cp .env.local.example .env.local
 npm ci
 ```

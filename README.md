@@ -1,6 +1,6 @@
 # Flow Me
 
-**A personal AI assistant for turning chats, meetings, and scattered notes into calendar events and next steps.**
+**A personal AI assistant for turning chats, meetings, and scattered notes into calendar events, goals, ways to fix problems, and connecting you entirely work ecossystem in a centralized intelligence work tool.**
 
 <img src="flowme-app/public/brand/flowme-logo-transparent.png" alt="Flow Me logo" width="96" />
 
